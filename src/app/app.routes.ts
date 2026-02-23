@@ -6,6 +6,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent)
   },
   {
+    path: 'oauth/consent',
+    loadComponent: () => import('./features/auth/oauth-consent.component').then(m => m.OAuthConsentComponent)
+  },
+  {
     path: '',
     loadComponent: () => import('./layout/layout.component').then(m => m.LayoutComponent),
     children: [

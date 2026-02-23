@@ -27,7 +27,7 @@ export class LoginComponent {
   private router = inject(Router);
 
   login() {
-    this.authService.login();
-    this.router.navigate(['/home']);
+    // Start OAuth flow; the redirect will be handled by /oauth/consent
+    this.authService.loginWithOAuth('google');
   }
 }

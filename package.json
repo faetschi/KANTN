@@ -33,7 +33,7 @@
     "@angular/ssr": "^21.0.0",
     "@capacitor/android": "^8.1.0",
     "@capacitor/core": "^8.1.0",
-    
+    "@supabase/supabase-js": "^2.97.0",
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
     "express": "^5.1.0",
