@@ -1,3 +1,90 @@
+# Recommended .gitignore for an Angular 21 + Capacitor project
+# Based on common Node, Angular, Android, iOS, and editor ignores
+
+### Node
+/node_modules/
+/npm-debug.log*
+/yarn-debug.log*
+/pnpm-debug.log*
+
+### Build outputs
+/dist/
+/build/
+/out-tsc/
+/.angular/
+/.angular/cache/
+/public/build/
+
+### TypeScript cache
+/tsconfig.tsbuildinfo
+
+### Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+### Coverage
+/coverage/
+/.nyc_output/
+lcov-report/
+
+### Angular / IDE / Misc caches
+/.vscode/
+/.idea/
+/.cache/
+.sass-cache/
+
+### Environment / secrets
+.env
+.env.*
+/src/environments/*.local.ts
+/src/environments/*.secret.ts
+google-services.json
+GoogleService-Info.plist
+
+### Capacitor / Cordova / Android / iOS
+/android/.gradle/
+/android/**/build/
+/android/local.properties
+/android/*.keystore
+/android/*.jks
+/android/.idea/
+/ios/Pods/
+/ios/build/
+/ios/*.xcworkspace
+/ios/*.xcuserdata
+/ios/*.xcodeproj/project.xcworkspace/
+
+### Gradle
+/.gradle/
+
+### Keystore / signing
+*.keystore
+*.jks
+
+### Editor files
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.user
+*.swp
+
+### OS generated files
+.DS_Store
+Thumbs.db
+
+### Testing
+/coverage/
+/.jest/
+
+### Misc build caches
+.parcel-cache/
+.next/
+.vercel/
+
+# End of .gitignore
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # Env variables
@@ -45,3 +132,29 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+### Additional ignores: Vercel / Supabase / Capacitor native caches
+
+# Vercel deployment/output and project meta
+.vercel/
+.vercel/output/
+.vercel/project.json
+
+# Supabase CLI and local metadata
+.supabase/
+
+# Capacitor native build caches and Android NDK/CMake outputs
+/android/.cxx/
+/android/app/.cxx/
+
+# iOS user state (Xcode transient files)
+*.xcuserstate
+
+# Local environment overrides (keep .env.example tracked)
+.env.local
+.env.*.local
+
+# CI and temporary files
+.turbo/
+.cache/
+.parcel-cache/
