@@ -64,7 +64,34 @@ serve dist/app/browser -l 5000
 - Supabase OAuth redirect URLs:
    - `https://<your-vercel-app>.vercel.app` (production)
    - `http://localhost:5000` (local static serve)
+ 
+## Vercel environment variables — exact values and examples
 
-If you'd like, I can also:
-- Add stricter `ngsw-config.json` caching rules for additional API patterns.
-- Run a Lighthouse audit and produce a short report.
+Add these environment variables in Vercel Project Settings (set for both Preview and Production if you want PR previews to work):
+
+- `SUPABASE_URL` — your Supabase project URL
+   - Example: `https://abcde12345.supabase.co`
+- `SUPABASE_ANON_KEY` — Supabase anon/public key used by the client
+   - Example (redacted): `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...REDACTED`
+
+Local development:
+- Create a `.env.local` (ignored by git) at project root with the same keys for local testing:
+
+```env
+SUPABASE_URL=https://abcde12345.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJI...REDACTED
+```
+
+GitHub → Vercel quick setup (PR-ready workflow):
+
+1. Push the branch created by the script (see commit below) to GitHub.
+2. In Vercel, click **New Project** → import this GitHub repo.
+    - Vercel will detect Angular; confirm Build Command is `npm run build:prod` and Output Directory is `dist/app/browser` (this repo already includes `vercel.json`).
+3. Add environment variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`) under Project Settings → Environment Variables.
+4. Enable Automatic Deploys; Vercel will create Preview Deployments for PRs and Production on merges to `main`.
+5. After the first production deploy, add the Vercel URL as a redirect in Supabase Auth settings.
+
+Creating the PR:
+- A branch has been pushed with these README updates (branch: `feat/vercel-setup`). Open a Pull Request on GitHub against `main`, review, then merge to trigger a production deploy.
+
+If you'd like, I can also add a `.github/PULL_REQUEST_TEMPLATE.md` to this branch or run a Lighthouse audit on the deployed URL.
