@@ -20,7 +20,12 @@ export const routes: Routes = [
       },
       {
         path: 'home',
-        loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent)
+        loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent),
+        canActivate: [() => import('./core/guards/approved.guard').then(m => m.ApprovedGuard)]
+      },
+      {
+        path: 'pending',
+        loadComponent: () => import('./features/auth/pending.component').then(m => m.PendingComponent)
       },
       {
         path: 'plans',
