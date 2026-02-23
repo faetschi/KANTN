@@ -143,6 +143,11 @@ Thumbs.db
 # Supabase CLI and local metadata
 .supabase/
 
+# Local env loader for development (do NOT commit)
+env.local.js
+public/env.local.js
+.env.local
+
 # Capacitor native build caches and Android NDK/CMake outputs
 /android/.cxx/
 /android/app/.cxx/
@@ -153,6 +158,7 @@ Thumbs.db
 # Local environment overrides (keep .env.example tracked)
 .env.local
 .env.*.local
+env.local.js
 
 # CI and temporary files
 .turbo/

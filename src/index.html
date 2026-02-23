@@ -9,6 +9,25 @@
     <link rel="manifest" href="manifest.webmanifest">
 </head>
   <body>
+    <script>
+      // Load local env file only for development.
+      // Safety: only inject when running on a local host or common dev ports.
+      try {
+        const host = location.hostname;
+        const port = location.port;
+        const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0' || ['4200','3000','5000'].includes(port);
+        if (isLocalHost) {
+          const s = document.createElement('script');
+          s.src = '/env.local.js';
+          s.defer = true;
+          document.head.appendChild(s);
+          // mark that local env loader ran
+          (window as any).__localEnvLoaded = true;
+        }
+      } catch (e) {
+        // ignore in non-browser environments (ssr/prerender)
+      }
+    </script>
     <app-root></app-root>
     <noscript>Please enable JavaScript to continue using this application.</noscript>
 </body>

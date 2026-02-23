@@ -82,6 +82,19 @@ SUPABASE_URL=https://abcde12345.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJI...REDACTED
 ```
 
+Important: do NOT commit `env.local.js` or `.env.local` to source control
+- For local-only testing we recommend creating a `public/env.local.js` file with the following contents and keeping it out of git (the repo `.gitignore` now excludes `env.local.js` and `public/env.local.js`):
+
+```js
+// public/env.local.js (DEVELOPMENT ONLY - DO NOT COMMIT)
+window.SUPABASE_URL = 'https://abcde12345.supabase.co';
+window.SUPABASE_ANON_KEY = 'eyJhbGciOiJI...REDACTED';
+```
+
+The app will only load `env.local.js` automatically when running on `localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, or when using dev ports `4200`, `3000`, or `5000`.
+
+This prevents accidental leakage of keys into production builds. For production, use Vercel project environment variables instead.
+
 GitHub → Vercel quick setup (PR-ready workflow):
 
 1. Push the branch created by the script (see commit below) to GitHub.
