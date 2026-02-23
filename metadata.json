@@ -1,0 +1,5 @@
+{
+  "name": "FitTrack Pro",
+  "description": "A mobile-first fitness tracking app for creating workout plans, tracking progress, and analyzing performance with a modern iOS-like design.",
+  "requestFramePermissions": []
+}

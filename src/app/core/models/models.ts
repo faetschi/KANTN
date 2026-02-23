@@ -1,0 +1,50 @@
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  height: number; // cm
+  weight: number; // kg
+  age: number;
+  avatarUrl?: string;
+}
+
+export interface Exercise {
+  id: string;
+  name: string;
+  imageUrl: string;
+  description: string;
+  muscleGroup: string;
+}
+
+export interface Set {
+  reps: number;
+  weight: number;
+  completed: boolean;
+}
+
+export interface ExerciseSession {
+  exerciseId: string;
+  sets: Set[];
+  notes?: string;
+}
+
+export interface WorkoutSession {
+  id: string;
+  planId: string;
+  date: Date;
+  startTime: Date;
+  endTime?: Date;
+  duration?: number; // seconds
+  exercises: ExerciseSession[];
+  caloriesBurned?: number;
+}
+
+export interface WorkoutPlan {
+  id: string;
+  name: string;
+  description: string;
+  exercises: Exercise[];
+  schedule?: string[]; // e.g., ['Monday', 'Wednesday', 'Friday']
+  isActive: boolean;
+  lastPerformed?: Date;
+}

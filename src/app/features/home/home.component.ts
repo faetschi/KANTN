@@ -1,0 +1,137 @@
+import { Component, inject, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
+import { AuthService } from '../../core/services/auth.service';
+import { WorkoutService } from '../../core/services/workout.service';
+import { StatsService } from '../../core/services/stats.service';
+
+@Component({
+  selector: 'app-home',
+  standalone: true,
+  imports: [CommonModule, RouterLink, MatIconModule],
+  template: `
+    <div class="p-6 space-y-8">
+      <!-- Header -->
+      <header class="flex justify-between items-center">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Today</h1>
+          <p class="text-gray-500 text-sm">{{ today | date:'EEEE, d MMMM' }}</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm">
+          <img [src]="user()?.avatarUrl" alt="Profile" class="w-full h-full object-cover">
+        </div>
+      </header>
+
+      <!-- Weekly Stats -->
+      <section class="grid grid-cols-2 gap-4">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex items-center space-x-2 mb-2 text-orange-500">
+            <mat-icon class="text-sm">local_fire_department</mat-icon>
+            <span class="text-xs font-semibold uppercase tracking-wider">Calories</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-900">{{ statsService.weeklyStats().calories }}</p>
+          <p class="text-xs text-gray-400">This week</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex items-center space-x-2 mb-2 text-blue-500">
+            <mat-icon class="text-sm">timer</mat-icon>
+            <span class="text-xs font-semibold uppercase tracking-wider">Minutes</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-900">{{ (statsService.weeklyStats().duration / 60) | number:'1.0-0' }}</p>
+          <p class="text-xs text-gray-400">This week</p>
+        </div>
+      </section>
+
+      <!-- Active Plan -->
+      <section>
+        <div class="flex justify-between items-end mb-4">
+          <h2 class="text-lg font-bold text-gray-900">Active Plan</h2>
+          <a routerLink="/plans" class="text-blue-600 text-sm font-medium">Change</a>
+        </div>
+
+        @if (activePlan(); as plan) {
+          <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl shadow-gray-200 relative overflow-hidden group">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+            
+            <div class="relative z-10">
+              <div class="flex justify-between items-start mb-6">
+                <div>
+                  <h3 class="text-xl font-bold mb-1">{{ plan.name }}</h3>
+                  <p class="text-gray-400 text-sm">{{ plan.exercises.length }} Exercises</p>
+                </div>
+                <div class="bg-white/10 p-2 rounded-xl backdrop-blur-sm">
+                  <mat-icon class="text-white">fitness_center</mat-icon>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-400">
+                  @if (plan.lastPerformed) {
+                    Last: {{ plan.lastPerformed | date:'MMM d' }}
+                  } @else {
+                    Not started yet
+                  }
+                </div>
+                <button [routerLink]="['/workout', plan.id]" class="bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center">
+                  Start Workout
+                </button>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
+            <p class="text-gray-500 mb-4">No active plan selected</p>
+            <a routerLink="/plans" class="text-blue-600 font-semibold">Browse Plans</a>
+          </div>
+        }
+      </section>
+
+      <!-- Recent Activity -->
+      <section>
+        <h2 class="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
+        <div class="space-y-4">
+          @for (session of recentSessions(); track session.id) {
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div class="flex items-center space-x-4">
+                <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <mat-icon>check_circle</mat-icon>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-gray-900">{{ getPlanName(session.planId) }}</h4>
+                  <p class="text-xs text-gray-500">{{ session.date | date:'MMM d, h:mm a' }} • {{ (session.duration || 0) / 60 | number:'1.0-0' }} min</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="font-bold text-gray-900">{{ session.caloriesBurned }}</p>
+                <p class="text-[10px] text-gray-400 uppercase">Kcal</p>
+              </div>
+            </div>
+          }
+          @if (recentSessions().length === 0) {
+            <p class="text-gray-400 text-center py-4">No recent activity</p>
+          }
+        </div>
+      </section>
+    </div>
+  `
+})
+export class HomeComponent {
+  authService = inject(AuthService);
+  workoutService = inject(WorkoutService);
+  statsService = inject(StatsService);
+
+  user = this.authService.currentUser;
+  activePlan = this.workoutService.activePlan;
+  today = new Date();
+
+  recentSessions = computed(() => 
+    this.workoutService.sessions()
+      .slice(0, 5)
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+  );
+
+  getPlanName(planId: string) {
+    return this.workoutService.getPlanById(planId)?.name || 'Unknown Plan';
+  }
+}
