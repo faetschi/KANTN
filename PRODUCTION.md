@@ -6,7 +6,7 @@ This document explains how to verify the OAuth login flow locally and deploy the
 1) Test locally (OAuth flow)
 - Install and run the app using your normal local dev commands (example):
   - `npm install`
-  - `npm run dev` or `npm start` (use whatever command the project uses for local development)
+  - `npm run dev` or `npm start`
 - In the running app click the login button and follow the OAuth flow.
 - After a successful sign-in you should be redirected to `/oauth/consent`. The component at that path must finish the login and forward you to `/home`. Verify you end up at `/home` and are authenticated.
 
@@ -42,4 +42,38 @@ Notes and troubleshooting
 - If the app fails to finish login on `/oauth/consent`, check the browser console and the network requests for the OAuth callback and token exchange.
 - Confirm the environment variables on Vercel match the values used for local testing and that there are no typos in the redirect URL.
 
-Want me to push and open the PR for you?
+Additional production deployment checklist
+
+- Ensure Vercel Project Environment Variables are set for Production (and Preview if you want PR previews):
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+
+- Typical production deploy flow (push + PR):
+
+```bash
+# from your feature branch
+git add -A
+git commit -m "feat: my changes"
+git push origin feat/my-feature
+# open PR on GitHub, review and merge to main
+```
+
+- After merge to `main`, Vercel will build and deploy automatically if repository is connected.
+
+- Manual production deploy with Vercel CLI:
+
+```bash
+npm i -g vercel
+vercel --prod
+```
+
+- After deployment, add the exact production redirect URL in Supabase Auth settings (example):
+  - `https://fit-track-faetschi.vercel.app/oauth/consent`
+
+- Verify the deployed site:
+  - Open the deployed site and run through the login flow (use an Incognito window to avoid cached sessions)
+  - Inspect Network tab for requests to `${SUPABASE_URL}` and ensure no CORS or 401 errors
+
+- Rollbacks & logs:
+  - Use Vercel dashboard to view deployment logs, timelines, and to rollback to a previous deployment if needed.
+
