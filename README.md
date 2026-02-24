@@ -5,7 +5,7 @@
 
 1. Install dependencies:
    `npm install`
-2. (Optional) Set any required API keys in [.env.local](.env.local)
+2. (Optional) Set any required API keys in `.env`
 3. Run the app:
    `npm run dev`
 
@@ -75,12 +75,15 @@ Add these environment variables in Vercel Project Settings (set for both Preview
    - Example (redacted): `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...REDACTED`
 
 Local development:
-- Create a `.env.local` (ignored by git) at project root with the same keys for local testing:
+- Create a `.env` (ignored by git) at project root with the same keys for local testing:
 
 ```env
 SUPABASE_URL=https://abcde12345.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJI...REDACTED
 ```
+
+Important: do NOT commit `.env` to source control.
+The dev server generates `public/env.js` from `.env`, and the app reads `window.__env` at runtime.
 
 GitHub → Vercel quick setup (PR-ready workflow):
 

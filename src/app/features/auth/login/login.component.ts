@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { SupabaseService } from '../../../core/services/supabase.service';
 
 @Component({
   selector: 'app-login',
@@ -11,23 +12,54 @@ import { AuthService } from '../../../core/services/auth.service';
         <div class="w-20 h-20 bg-blue-600 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg shadow-blue-200">
           <span class="material-icons text-white text-4xl">fitness_center</span>
         </div>
-        <h1 class="text-3xl font-bold text-gray-900 mb-2 tracking-tight">FitTrack Pro</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2 tracking-tight">KANTN</h1>
         <p class="text-gray-500 mb-10">Your personal fitness companion</p>
 
-        <button (click)="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center">
-          <span>Get Started</span>
-          <span class="material-icons ml-2 text-sm">arrow_forward</span>
-        </button>
+        <div class="space-y-3">
+          <button (click)="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center">
+            <span>Login</span>
+            <span class="material-icons ml-2 text-sm">login</span>
+          </button>
+
+          <button (click)="register()" class="w-full border border-blue-600 text-blue-600 font-semibold py-4 px-6 rounded-xl transition-all active:scale-95 flex items-center justify-center">
+            <span>Register</span>
+            <span class="material-icons ml-2 text-sm">person_add</span>
+          </button>
+        </div>
       </div>
     </div>
   `
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private supabase = inject(SupabaseService);
+
+  async ngOnInit() {
+    // If already logged in, skip login screen
+    if (this.authService.isLoggedIn()) {
+      this.router.navigate(['/home']);
+      return;
+    }
+
+    const client = this.supabase.getClient();
+    if (!client) return;
+
+    const { data } = await client.auth.getSession();
+    if (data?.session?.user) {
+      await this.authService.refreshProfile();
+      this.router.navigate(['/home']);
+    }
+  }
 
   login() {
-    this.authService.login();
-    this.router.navigate(['/home']);
+    // Start OAuth flow; the redirect will be handled by /oauth/consent
+    this.authService.loginWithOAuth('google', 'login');
+  }
+
+  register() {
+    // For OAuth, registration flows are handled by the provider/Supabase.
+    // We reuse the same OAuth entry point — first-time users will be created.
+    this.authService.loginWithOAuth('google', 'register');
   }
 }
