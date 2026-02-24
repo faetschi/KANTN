@@ -39,7 +39,9 @@ try {
 
 const outDir = path.resolve(process.cwd(), 'public');
 const outPath = path.join(outDir, 'env.js');
+const tsOutDir = path.resolve(process.cwd(), 'src/app/core/generated');
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+if (!fs.existsSync(tsOutDir)) fs.mkdirSync(tsOutDir, { recursive: true });
 
 const payload = {
   SUPABASE_URL: env.SUPABASE_URL || env.VITE_SUPABASE_URL || '',
@@ -50,4 +52,5 @@ const payload = {
 
 const content = `window.__env = ${JSON.stringify(payload)};`;
 fs.writeFileSync(outPath, content, 'utf8');
+const tsContent = `export const runtimeEnv = ${JSON.stringify(payload, null, 2)} as const;\n`;
 console.log('[generate-env] wrote', outPath);
