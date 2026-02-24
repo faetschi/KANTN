@@ -39,6 +39,8 @@ Optional: production build preview
 
 ```bash
 npm run build:prod
+npm run serve:ssr:app
+# or
 npx serve dist/app/browser -l 5000
 ```
 

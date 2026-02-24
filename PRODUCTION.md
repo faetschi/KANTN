@@ -9,7 +9,7 @@ PRODUCTION (minimal)
 2) Add Supabase redirect URL
 
 - After your first production deploy add:
-  - `https://kantn-faetschi.vercel.app/oauth/consent`
+  - `https://<your-vercel-app>/oauth/consent`
 
 3) Deploy
 

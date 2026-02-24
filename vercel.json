@@ -4,10 +4,16 @@
     {
       "src": "package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dist/app/browser" }
+      "config": {
+        "distDir": "dist/app/browser",
+        "buildCommand": "npm run build:prod"
+      }
     }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!.*\\.).*)",
+      "destination": "/index.html"
+    }
   ]
 }
