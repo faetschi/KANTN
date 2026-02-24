@@ -48,10 +48,6 @@ const payload = {
   APP_URL: env.APP_URL || '',
 };
 
-const content = `window.__env = ${JSON.stringify(payload)};`;
-fs.writeFileSync(outPath, content, 'utf8');
-console.log('[generate-env] wrote', outPath);
-
 // Fail the build on CI / Vercel when critical env vars are missing so deployments don't silently
 // succeed without `env.js` populated. Vercel sets the `VERCEL` env var to '1'.
 const isCI = !!process.env.CI || process.env.VERCEL === '1';
@@ -64,4 +60,27 @@ if (isCI) {
     console.error('[generate-env] Aborting build to avoid deploying without env.js');
     process.exit(1);
   }
+}
+
+const content = `<script>window.__env = ${JSON.stringify(payload)};</script>`;
+
+// Inject into src/index.html
+const indexPath = path.resolve(process.cwd(), 'src', 'index.html');
+if (fs.existsSync(indexPath)) {
+  let indexHtml = fs.readFileSync(indexPath, 'utf8');
+  const startMarker = '<!-- ENV_INJECT_START -->';
+  const endMarker = '<!-- ENV_INJECT_END -->';
+  
+  const startIndex = indexHtml.indexOf(startMarker);
+  const endIndex = indexHtml.indexOf(endMarker);
+  
+  if (startIndex !== -1 && endIndex !== -1) {
+    indexHtml = indexHtml.substring(0, startIndex + startMarker.length) + '\n    ' + content + '\n    ' + indexHtml.substring(endIndex);
+    fs.writeFileSync(indexPath, indexHtml, 'utf8');
+    console.log('[generate-env] injected env into', indexPath);
+  } else {
+    console.warn('[generate-env] Could not find injection markers in index.html');
+  }
+} else {
+  console.warn('[generate-env] Could not find src/index.html');
 }
