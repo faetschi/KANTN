@@ -1,6 +1,6 @@
 import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
@@ -18,8 +18,11 @@ import { StatsService } from '../../core/services/stats.service';
           <h1 class="text-2xl font-bold text-gray-900">Today</h1>
           <p class="text-gray-500 text-sm">{{ today | date:'EEEE, d MMMM' }}</p>
         </div>
-        <div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm">
-          <img [src]="user()?.avatarUrl" alt="Profile" class="w-full h-full object-cover">
+        <div class="flex items-center gap-3">
+          <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
+          <div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm">
+            <img [src]="user()?.avatarUrl" alt="Profile" class="w-full h-full object-cover">
+          </div>
         </div>
       </header>
 
@@ -120,6 +123,7 @@ export class HomeComponent {
   authService = inject(AuthService);
   workoutService = inject(WorkoutService);
   statsService = inject(StatsService);
+  router = inject(Router);
 
   user = this.authService.currentUser;
   activePlan = this.workoutService.activePlan;
@@ -133,5 +137,10 @@ export class HomeComponent {
 
   getPlanName(planId: string) {
     return this.workoutService.getPlanById(planId)?.name || 'Unknown Plan';
+  }
+
+  logout() {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 }

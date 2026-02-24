@@ -1,11 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { CommonModule } from '@angular/common';
+import { SupabaseService } from '../core/services/supabase.service';
+import { AuthService } from '../core/services/auth.service';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
   template: `
     <div class="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans">
       <main class="flex-1 overflow-y-auto pb-20">
@@ -25,6 +28,10 @@ import { MatIconModule } from '@angular/material/icon';
           <mat-icon class="mb-1">person</mat-icon>
           <span class="text-[10px] font-medium">Profile</span>
         </a>
+        <a *ngIf="isAdmin" routerLink="/admin" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+          <mat-icon class="mb-1">admin_panel_settings</mat-icon>
+          <span class="text-[10px] font-medium">Admin</span>
+        </a>
       </nav>
     </div>
   `,
@@ -34,4 +41,33 @@ import { MatIconModule } from '@angular/material/icon';
     }
   `]
 })
-export class LayoutComponent {}
+export class LayoutComponent implements OnInit {
+  isAdmin = false;
+  private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
+
+  async ngOnInit() {
+    // Dev fallback: check AuthService first
+    try {
+      const cu: any = this.auth.currentUser();
+      if (cu && cu.is_admin) {
+        this.isAdmin = true;
+        return;
+      }
+    } catch {}
+
+    const client = this.supabase.getClient();
+    if (!client) return;
+
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      const user = sessionData?.session?.user ?? null;
+      if (!user) return;
+
+      const { data, error } = await client.from('profiles').select('is_admin').eq('id', user.id).maybeSingle();
+      if (!error && data?.is_admin) this.isAdmin = true;
+    } catch (e) {
+      // ignore
+    }
+  }
+}

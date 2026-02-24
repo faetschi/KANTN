@@ -5,7 +5,7 @@
 
 1. Install dependencies:
    `npm install`
-2. (Optional) Set any required API keys in [.env.local](.env.local)
+2. (Optional) Set any required API keys in `.env`
 3. Run the app:
    `npm run dev`
 
@@ -75,25 +75,15 @@ Add these environment variables in Vercel Project Settings (set for both Preview
    - Example (redacted): `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...REDACTED`
 
 Local development:
-- Create a `.env.local` (ignored by git) at project root with the same keys for local testing:
+- Create a `.env` (ignored by git) at project root with the same keys for local testing:
 
 ```env
 SUPABASE_URL=https://abcde12345.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJI...REDACTED
 ```
 
-Important: do NOT commit `env.local.js` or `.env.local` to source control
-- For local-only testing we recommend creating a `public/env.local.js` file with the following contents and keeping it out of git (the repo `.gitignore` now excludes `env.local.js` and `public/env.local.js`):
-
-```js
-// public/env.local.js (DEVELOPMENT ONLY - DO NOT COMMIT)
-window.SUPABASE_URL = 'https://abcde12345.supabase.co';
-window.SUPABASE_ANON_KEY = 'eyJhbGciOiJI...REDACTED';
-```
-
-The app will only load `env.local.js` automatically when running on `localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, or when using dev ports `4200`, `3000`, or `5000`.
-
-This prevents accidental leakage of keys into production builds. For production, use Vercel project environment variables instead.
+Important: do NOT commit `.env` to source control.
+The dev server generates `public/env.js` from `.env`, and the app reads `window.__env` at runtime.
 
 GitHub → Vercel quick setup (PR-ready workflow):
 

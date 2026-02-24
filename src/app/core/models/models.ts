@@ -6,6 +6,7 @@ export interface User {
   weight: number; // kg
   age: number;
   avatarUrl?: string;
+  funFact?: string;
 }
 
 export interface Exercise {

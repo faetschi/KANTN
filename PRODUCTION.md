@@ -9,7 +9,7 @@ PRODUCTION (minimal)
 2) Add Supabase redirect URL
 
 - After your first production deploy add:
-  - `https://fit-track-faetschi.vercel.app/oauth/consent`
+  - `https://kantn-faetschi.vercel.app/oauth/consent`
 
 3) Deploy
 
@@ -28,4 +28,21 @@ vercel --prod
 Notes
 - Use Vercel environment variables for production secrets; never commit keys.
 - Vercel dashboard shows build logs and allows rollbacks.
+
+
+
+## Admin access
+- After a user logs in once (so a profile exists), promote them to admin manually with SQL:
+
+```sql
+update profiles
+set approved = true, is_admin = true
+where email = 'admin@example.com';
+```
+or
+```sql
+update profiles
+set approved = true
+where email = 'user@example.com';
+```
 
