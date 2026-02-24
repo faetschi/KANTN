@@ -51,3 +51,17 @@ const payload = {
 const content = `window.__env = ${JSON.stringify(payload)};`;
 fs.writeFileSync(outPath, content, 'utf8');
 console.log('[generate-env] wrote', outPath);
+
+// Fail the build on CI / Vercel when critical env vars are missing so deployments don't silently
+// succeed without `env.js` populated. Vercel sets the `VERCEL` env var to '1'.
+const isCI = !!process.env.CI || process.env.VERCEL === '1';
+if (isCI) {
+  const missing = [];
+  if (!payload.SUPABASE_URL) missing.push('SUPABASE_URL');
+  if (!payload.SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY');
+  if (missing.length) {
+    console.error('[generate-env] Missing required env vars:', missing.join(', '));
+    console.error('[generate-env] Aborting build to avoid deploying without env.js');
+    process.exit(1);
+  }
+}
