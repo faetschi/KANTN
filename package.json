@@ -9,6 +9,7 @@
     "dev:nohmr": "cross-env DISABLE_HMR=1 node scripts/dev.js",
     "start:hmr": "ng serve --configuration hmr --port 3000 --host 0.0.0.0",
     "build:prod": "node scripts/generate-env.js && ng build --configuration production",
+    "vercel-build": "npm run build:prod",
     "prepare": "husky install",
     "cap:sync": "npx cap sync",
     "cap:add:android": "npx cap add android",
