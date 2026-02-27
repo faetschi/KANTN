@@ -50,6 +50,14 @@
 	- User-created private exercises.
 	- Shareable exercises for other users.
 - Load available exercises from Supabase and support creation of user exercises.
+- Add admin exercise management capabilities:
+	- Admins can upload and manage exercise images (stored in Supabase storage + referenced in database records).
+	- Admins can edit default exercise content (e.g., image, name, description, metadata).
+	- All users can select from the admin-managed default exercise list/table.
+- Enforce exercise visibility model:
+	- Admin-managed default exercises are visible to all users.
+	- User-created custom exercises are private by default.
+	- User-created exercises become visible to other users only when explicitly shared.
 
 ### Phase 5 — Completed workouts + recent activity
 - Persist completed workouts with all necessary metadata (user, plan, timestamps, duration, calories).

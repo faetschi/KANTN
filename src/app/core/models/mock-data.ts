@@ -11,7 +11,7 @@ export const MOCK_EXERCISES: Exercise[] = [
   {
     id: '2',
     name: 'Squat',
-    imageUrl: 'https://images.unsplash.com/photo-1574680096141-1cddd32e04ca?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8c3F1YXR8ZW58MHx8MHx8fDA%3D',
+    imageUrl: 'https://picsum.photos/seed/squat/500/500',
     description: 'Stand with feet shoulder-width apart and lower your hips.',
     muscleGroup: 'Legs'
   },
@@ -25,7 +25,7 @@ export const MOCK_EXERCISES: Exercise[] = [
   {
     id: '4',
     name: 'Pull Up',
-    imageUrl: 'https://images.unsplash.com/photo-1598971639058-211a74a96ded?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8cHVsbCUyMHVwfGVufDB8fDB8fHww',
+    imageUrl: 'https://picsum.photos/seed/pullup/500/500',
     description: 'Pull yourself up until your chin is above the bar.',
     muscleGroup: 'Back'
   },
