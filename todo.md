@@ -78,3 +78,16 @@
 - Plan sharing UX and invite/access control workflow.
 - Exercise sharing UX and permissions management.
 - Database functions/views for pre-aggregated performance/statistics queries.
+
+## Supabase DB Security
+
+3. Best Practices for Your "User" Table
+Since you mentioned saving user data when they register, you are likely using a Trigger to copy data from auth.users into a public.profiles table. This is the standard way to do it. To keep it secure:
+
+Use Row-Level Security (RLS): This is the most important step. Without RLS, anyone with your "anon" key could potentially read your entire profiles table.
+
+Only Sync What You Need: Don't store Google access tokens in your public tables unless you specifically need to call Google APIs (like Google Drive) later. For a standard login, just store the id, email, and full_name.
+
+Link by ID: Always use the id (UUID) from Supabase Auth as the Primary Key for your public profile table.
+
+Security Tip: Ensure your public.profiles table has a policy that only allows a user to see their own data:
