@@ -10,6 +10,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_ANON_KEY=<anon-key>
 # optional: enables fake auth on localhost if true
 ENABLE_DEV_AUTH=false
+APP_URL=http://localhost:4000
 ```
 
 2) Install deps once:
@@ -33,7 +34,7 @@ npm run dev:nohmr
 ```
 
 5) OAuth redirect for Supabase:
-- Add `http://localhost:3000/oauth/consent` to Supabase Redirect URLs (match port if changed).
+- Add `http://localhost:4000/oauth/consent` to Supabase Redirect URLs (match port if changed).
 
 Optional: production build preview
 
@@ -41,7 +42,7 @@ Optional: production build preview
 npm run build:prod
 npm run serve:ssr:app
 # or
-npx serve dist/app/browser -l 5000
+npx serve dist/app/browser -l 4000
 ```
 
 Notes

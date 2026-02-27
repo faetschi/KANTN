@@ -6,7 +6,7 @@ const os = require('os');
 
 // Build a single shell command to run via the user's shell. Using a shell
 // avoids platform-specific issues with spawning `npx`/`.cmd` directly.
-const baseCmd = 'npx ng serve --port=3000 --host=0.0.0.0';
+const baseCmd = 'npx ng serve --port=4000 --host=0.0.0.0';
 const cmd = process.env.DISABLE_HMR ? baseCmd + ' --live-reload=false' : baseCmd;
 
 // Ensure NG_ALLOWED_HOSTS includes localhost for SSR host validation during dev.
@@ -63,7 +63,7 @@ try {
 }
 
 const allowedHosts = new Set(
-  (env.NG_ALLOWED_HOSTS ? env.NG_ALLOWED_HOSTS.split(',') : ['localhost', 'localhost:3000', '127.0.0.1'])
+  (env.NG_ALLOWED_HOSTS ? env.NG_ALLOWED_HOSTS.split(',') : ['localhost', 'localhost:4000', '127.0.0.1'])
     .map((h) => h.trim())
     .filter(Boolean)
 );
@@ -74,7 +74,7 @@ for (const name of Object.keys(nets)) {
   for (const net of nets[name] || []) {
     if (net.family === 'IPv4' && !net.internal) {
       allowedHosts.add(net.address);
-      allowedHosts.add(`${net.address}:3000`);
+      allowedHosts.add(`${net.address}:4000`);
     }
   }
 }
