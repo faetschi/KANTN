@@ -87,14 +87,30 @@ export class AdminService {
     const { client, error } = await this.getReadyClient();
     if (!client) return { data: null, error };
 
-    return this.withRetry(() => client.from('profiles').update({ approved: true }).eq('id', id));
+    const result = await this.withRetry(() =>
+      client.from('profiles').update({ approved: true }).eq('id', id).select('id').maybeSingle()
+    );
+
+    if (!(result as any)?.error && !(result as any)?.data) {
+      return { data: null, error: { message: 'No matching user found to approve.' } };
+    }
+
+    return result;
   }
 
   async revokeUser(id: string) {
     const { client, error } = await this.getReadyClient();
     if (!client) return { data: null, error };
 
-    return this.withRetry(() => client.from('profiles').update({ approved: false }).eq('id', id));
+    const result = await this.withRetry(() =>
+      client.from('profiles').update({ approved: false }).eq('id', id).select('id').maybeSingle()
+    );
+
+    if (!(result as any)?.error && !(result as any)?.data) {
+      return { data: null, error: { message: 'No matching user found to revoke.' } };
+    }
+
+    return result;
   }
 
   async declineUser(id: string) {
@@ -102,6 +118,14 @@ export class AdminService {
     if (!client) return { data: null, error };
 
     // Remove the profile record for declined registrations
-    return this.withRetry(() => client.from('profiles').delete().eq('id', id));
+    const result = await this.withRetry(() =>
+      client.from('profiles').delete().eq('id', id).select('id').maybeSingle()
+    );
+
+    if (!(result as any)?.error && !(result as any)?.data) {
+      return { data: null, error: { message: 'No matching user found to decline.' } };
+    }
+
+    return result;
   }
 }

@@ -4,12 +4,13 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/models';
+import { Exercise, WorkoutPlan, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
+import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
   selector: 'app-workout',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule],
+  imports: [CommonModule, MatIconModule, FormsModule, SearchBarComponent],
   template: `
     <div class="h-screen flex flex-col bg-white">
       <!-- Header -->
@@ -18,7 +19,7 @@ import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/mo
           <mat-icon>close</mat-icon>
         </button>
         <div class="text-center">
-          <h2 class="font-bold text-gray-900">{{ plan()?.name }}</h2>
+          <h2 class="font-bold text-gray-900">{{ workoutTitle() }}</h2>
           <p class="text-xs text-blue-600 font-mono">{{ formatTime(elapsedTime()) }}</p>
         </div>
         <button (click)="finishWorkout()" class="text-blue-600 font-bold text-sm">
@@ -31,6 +32,38 @@ import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/mo
         @if (saveErrorMessage) {
           <div class="mb-4 rounded-xl bg-red-50 text-red-600 text-sm px-4 py-3 border border-red-100">{{ saveErrorMessage }}</div>
         }
+
+        @if (freestyleMode()) {
+          <div class="mb-4 flex items-center justify-between">
+            <button type="button" (click)="showExercisePicker = !showExercisePicker" class="px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold">
+              {{ showExercisePicker ? 'Hide Exercise Picker' : 'Add Exercise' }}
+            </button>
+            <span class="text-xs text-gray-500">{{ freestyleExercises().length }} selected</span>
+          </div>
+
+          @if (showExercisePicker) {
+            <div class="mb-4 p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+              <app-search-bar
+                [value]="exerciseSearchQuery"
+                (valueChange)="exerciseSearchQuery = $event"
+                placeholder="Search exercises"
+              />
+              <div class="max-h-52 overflow-y-auto space-y-2">
+                @for (exercise of filteredExerciseOptions(); track exercise.id) {
+                  <button
+                    type="button"
+                    (click)="addFreestyleExercise(exercise)"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-gray-200 text-left"
+                  >
+                    <span class="text-sm text-gray-900">{{ exercise.name }}</span>
+                    <span class="text-xs text-gray-500">{{ exercise.muscleGroup }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        }
+
         @if (currentExercise(); as exercise) {
           <div class="mb-8 animate-fade-in">
             <div class="aspect-video rounded-2xl overflow-hidden mb-6 shadow-sm bg-gray-100">
@@ -81,12 +114,28 @@ import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/mo
                     <mat-icon>check</mat-icon>
                   </button>
                 </div>
+                <div class="flex justify-end mt-1">
+                  <button
+                    type="button"
+                    (click)="removeSet($index)"
+                    [disabled]="currentSets().length <= 1"
+                    class="text-xs text-red-500 disabled:text-gray-300"
+                  >
+                    Remove
+                  </button>
+                </div>
               }
 
               <button (click)="addSet()" class="w-full py-3 mt-4 text-blue-600 font-semibold text-sm bg-blue-50 rounded-xl border border-blue-100 border-dashed">
                 + Add Set
               </button>
             </div>
+          </div>
+        } @else {
+          <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+            <p class="text-gray-600 text-sm">
+              {{ freestyleMode() ? 'No freestyle exercise selected yet.' : 'No exercises in this workout plan.' }}
+            </p>
           </div>
         }
       </div>
@@ -99,7 +148,7 @@ import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/mo
           </button>
           
           <span class="text-sm font-medium text-gray-500">
-            {{ currentExerciseIndex() + 1 }} / {{ plan()?.exercises?.length }}
+            {{ currentExercise() ? currentExerciseIndex() + 1 : 0 }} / {{ totalExercisesCount() }}
           </span>
 
           <button (click)="nextExercise()" class="px-6 py-4 rounded-full bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 flex items-center space-x-2">
@@ -130,12 +179,21 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   planId = signal<string>('');
   plan = computed(() => this.workoutService.getPlanById(this.planId()));
+  freestyleMode = signal(false);
+  freestyleExercises = signal<Exercise[]>([]);
+  workoutTitle = computed(() => this.freestyleMode() ? 'Freestyle Workout' : (this.plan()?.name || 'Workout'));
   
   currentExerciseIndex = signal(0);
-  currentExercise = computed(() => this.plan()?.exercises[this.currentExerciseIndex()]);
+  currentExercise = computed(() => {
+    if (this.freestyleMode()) {
+      return this.freestyleExercises()[this.currentExerciseIndex()];
+    }
+    return this.plan()?.exercises[this.currentExerciseIndex()];
+  });
+  totalExercisesCount = computed(() => this.freestyleMode() ? this.freestyleExercises().length : (this.plan()?.exercises.length || 0));
   
   // State for the current workout session
-  workoutData = signal<Map<string, Set[]>>(new Map());
+  workoutData = signal<Map<string, WorkoutSet[]>>(new Map());
   
   startTime = new Date();
   elapsedTime = signal(0);
@@ -143,14 +201,22 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   saveErrorMessage = '';
   
   showInfo = false;
+  showExercisePicker = false;
+  exerciseSearchQuery = '';
 
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
       const id = params.get('planId');
       if (id) {
         this.planId.set(id);
+        this.freestyleMode.set(id === 'freestyle');
+        if (id === 'freestyle') {
+          this.freestyleExercises.set([]);
+          this.showExercisePicker = true;
+        }
         this.startTime = new Date();
         this.elapsedTime.set(0);
+        this.currentExerciseIndex.set(0);
         clearInterval(this.timerInterval);
         this.initializeWorkoutData();
         this.startTimer();
@@ -163,9 +229,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   initializeWorkoutData() {
+    if (this.freestyleMode()) {
+      this.workoutData.set(new Map());
+      return;
+    }
+
     const plan = this.plan();
     if (plan) {
-      const data = new Map<string, Set[]>();
+      const data = new Map<string, WorkoutSet[]>();
       
       // Try to load previous session data for comparison/pre-fill
       const lastSession = this.workoutService.getLastSessionForPlan(plan.id);
@@ -205,6 +276,44 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  filteredExerciseOptions() {
+    const query = this.exerciseSearchQuery.trim().toLowerCase();
+    const selectedIds = new Set(this.freestyleExercises().map(ex => ex.id));
+    const all = this.workoutService.exercises().filter(ex => !selectedIds.has(ex.id));
+    if (!query) return all;
+
+    return all.filter(exercise => {
+      const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
+  }
+
+  addFreestyleExercise(exercise: Exercise) {
+    this.freestyleExercises.update(current => [...current, exercise]);
+    this.workoutData.update(current => {
+      const next = new Map(current);
+      next.set(exercise.id, [
+        { reps: 10, weight: 0, completed: false },
+        { reps: 10, weight: 0, completed: false },
+        { reps: 10, weight: 0, completed: false },
+      ]);
+      return next;
+    });
+    this.currentExerciseIndex.set(Math.max(0, this.freestyleExercises().length - 1));
+    this.showExercisePicker = false;
+  }
+
+  removeSet(index: number) {
+    const exId = this.currentExercise()?.id;
+    if (!exId) return;
+
+    const sets = this.workoutData().get(exId) || [];
+    if (sets.length <= 1) return;
+
+    sets.splice(index, 1);
+    this.workoutData.update(m => new Map(m.set(exId, sets)));
+  }
+
   toggleSet(index: number) {
     const exId = this.currentExercise()?.id;
     if (exId) {
@@ -233,6 +342,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   nextExercise() {
+    if (!this.currentExercise()) return;
+
     if (this.isLastExercise()) {
       this.finishWorkout();
     } else {
@@ -241,7 +352,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   isLastExercise() {
-    return this.currentExerciseIndex() === (this.plan()?.exercises.length || 0) - 1;
+    return this.currentExerciseIndex() === (this.totalExercisesCount() || 0) - 1;
   }
 
   cancelWorkout() {
@@ -253,7 +364,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   async finishWorkout() {
     const plan = this.plan();
-    if (!plan) return;
+    if (!this.freestyleMode() && !plan) return;
+    if (this.freestyleMode() && !this.freestyleExercises().length) {
+      this.saveErrorMessage = 'Please add at least one exercise for freestyle workout.';
+      return;
+    }
 
     const exercises = Array.from(this.workoutData().entries()).map(([exerciseId, sets]) => ({
       exerciseId,
@@ -262,7 +377,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     const session: WorkoutSession = {
       id: Math.random().toString(36).substr(2, 9),
-      planId: plan.id,
+      planId: this.freestyleMode() ? '' : (plan?.id || ''),
       date: new Date(),
       startTime: this.startTime,
       endTime: new Date(),
@@ -279,6 +394,28 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
 
     this.saveErrorMessage = '';
+
+    if (this.freestyleMode()) {
+      const shouldCreatePlan = confirm('Save this freestyle workout as a new workout plan?');
+      if (shouldCreatePlan) {
+        const defaultName = `Freestyle ${new Date().toLocaleDateString()}`;
+        const planName = (prompt('Enter name for the new plan', defaultName) || '').trim();
+        if (planName) {
+          const created = await this.workoutService.createPlan({
+            id: Math.random().toString(36).substr(2, 9),
+            name: planName,
+            description: 'Created from freestyle workout',
+            exercises: this.freestyleExercises(),
+            isActive: false,
+          });
+
+          if (!created) {
+            this.saveErrorMessage = 'Workout saved, but failed to create plan from freestyle session.';
+          }
+        }
+      }
+    }
+
     this.router.navigate(['/home']);
   }
 }

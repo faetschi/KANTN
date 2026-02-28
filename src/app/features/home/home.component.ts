@@ -76,16 +76,24 @@ import { StatsService } from '../../core/services/stats.service';
                     Not started yet
                   }
                 </div>
-                <button [routerLink]="['/workout', plan.id]" class="bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center">
-                  Start Workout
-                </button>
+                <div class="flex items-center gap-2">
+                  <button [routerLink]="['/workout', 'freestyle']" class="bg-gray-100 text-gray-900 px-4 py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition-transform flex items-center">
+                    Start Freestyle
+                  </button>
+                  <button [routerLink]="['/workout', plan.id]" class="bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center">
+                    Start Workout
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         } @else {
           <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
             <p class="text-gray-500 mb-4">No active plan selected</p>
-            <a routerLink="/plans" class="text-blue-600 font-semibold">Browse Plans</a>
+            <div class="flex items-center justify-center gap-3">
+              <a routerLink="/plans" class="text-blue-600 font-semibold">Browse Plans</a>
+              <a [routerLink]="['/workout', 'freestyle']" class="text-blue-600 font-semibold">Start Freestyle</a>
+            </div>
           </div>
         }
       </section>

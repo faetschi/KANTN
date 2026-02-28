@@ -228,15 +228,22 @@ export class WorkoutRepository {
         exercise_id: exercise.id,
         position: index,
       }));
-      await client.from('workout_plan_exercises').insert(rows);
+
+      const { error: relationError } = await client.from('workout_plan_exercises').insert(rows);
+      if (relationError) {
+        await client.from('workout_plans').delete().eq('id', planInsert.id).eq('owner_id', userId);
+        return null;
+      }
     }
 
     if (plan.isActive) {
-      await client
+      const { error: activationError } = await client
         .from('workout_plans')
         .update({ is_active: false })
         .eq('owner_id', userId)
         .neq('id', planInsert.id);
+
+      if (activationError) return null;
     }
 
     return planInsert.id;
@@ -341,11 +348,13 @@ export class WorkoutRepository {
 
     if (error) return false;
 
-    await client
+    const { error: visibilityError } = await client
       .from('exercises')
       .update({ visibility: 'shared' })
       .eq('id', exerciseId)
       .eq('created_by', userId);
+
+    if (visibilityError) return false;
 
     return true;
   }
@@ -399,11 +408,13 @@ export class WorkoutRepository {
 
     if (error) return false;
 
-    await client
+    const { error: visibilityError } = await client
       .from('workout_plans')
       .update({ visibility: 'shared' })
       .eq('id', planId)
       .eq('owner_id', userId);
+
+    if (visibilityError) return false;
 
     return true;
   }

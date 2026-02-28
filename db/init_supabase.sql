@@ -20,6 +20,13 @@ drop policy if exists "exercise_images_select" on storage.objects;
 drop policy if exists "exercise_images_insert_admin" on storage.objects;
 drop policy if exists "exercise_images_update_admin" on storage.objects;
 drop policy if exists "exercise_images_delete_admin" on storage.objects;
+drop policy if exists "exercise_images_insert" on storage.objects;
+drop policy if exists "exercise_images_update" on storage.objects;
+drop policy if exists "exercise_images_delete" on storage.objects;
+drop policy if exists "avatars_select" on storage.objects;
+drop policy if exists "avatars_insert" on storage.objects;
+drop policy if exists "avatars_update" on storage.objects;
+drop policy if exists "avatars_delete" on storage.objects;
 
 drop function if exists is_admin();
 drop function if exists touch_updated_at();
@@ -28,8 +35,8 @@ drop function if exists get_my_stats(timestamptz, timestamptz);
 drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
 drop function if exists seed_beginner_plans_for_user(uuid);
 drop function if exists set_user_role_by_email(text, boolean, boolean);
-drop function if exists sync_profile_from_auth_user();
 drop trigger if exists trg_auth_users_profile_sync on auth.users;
+drop function if exists sync_profile_from_auth_user();
 
 -- Core profile data
 create table if not exists profiles (
@@ -952,27 +959,87 @@ insert into storage.buckets (id, name, public)
 values ('exercise-images', 'exercise-images', true)
 on conflict (id) do nothing;
 
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
 drop policy if exists "exercise_images_select" on storage.objects;
 drop policy if exists "exercise_images_insert_admin" on storage.objects;
 drop policy if exists "exercise_images_update_admin" on storage.objects;
 drop policy if exists "exercise_images_delete_admin" on storage.objects;
+drop policy if exists "exercise_images_insert" on storage.objects;
+drop policy if exists "exercise_images_update" on storage.objects;
+drop policy if exists "exercise_images_delete" on storage.objects;
+drop policy if exists "avatars_select" on storage.objects;
+drop policy if exists "avatars_insert" on storage.objects;
+drop policy if exists "avatars_update" on storage.objects;
+drop policy if exists "avatars_delete" on storage.objects;
 
 create policy "exercise_images_select" on storage.objects
   for select
   using (bucket_id = 'exercise-images');
 
-create policy "exercise_images_insert_admin" on storage.objects
+create policy "exercise_images_insert" on storage.objects
   for insert
-  with check (bucket_id = 'exercise-images' and is_admin());
+  with check (bucket_id = 'exercise-images' and auth.role() = 'authenticated');
 
-create policy "exercise_images_update_admin" on storage.objects
+create policy "exercise_images_update" on storage.objects
   for update
-  using (bucket_id = 'exercise-images' and is_admin())
-  with check (bucket_id = 'exercise-images' and is_admin());
+  using (
+    bucket_id = 'exercise-images'
+    and (
+      is_admin()
+      or owner = auth.uid()
+    )
+  )
+  with check (
+    bucket_id = 'exercise-images'
+    and (
+      is_admin()
+      or owner = auth.uid()
+    )
+  );
 
-create policy "exercise_images_delete_admin" on storage.objects
+create policy "exercise_images_delete" on storage.objects
   for delete
-  using (bucket_id = 'exercise-images' and is_admin());
+  using (
+    bucket_id = 'exercise-images'
+    and (
+      is_admin()
+      or owner = auth.uid()
+    )
+  );
+
+create policy "avatars_select" on storage.objects
+  for select
+  using (bucket_id = 'avatars');
+
+create policy "avatars_insert" on storage.objects
+  for insert
+  with check (
+    bucket_id = 'avatars'
+    and auth.role() = 'authenticated'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "avatars_update" on storage.objects
+  for update
+  using (
+    bucket_id = 'avatars'
+    and owner = auth.uid()
+  )
+  with check (
+    bucket_id = 'avatars'
+    and owner = auth.uid()
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "avatars_delete" on storage.objects
+  for delete
+  using (
+    bucket_id = 'avatars'
+    and owner = auth.uid()
+  );
 
 -- Example admin user insertion (optional):
 -- insert into profiles (id, email, display_name, approved, is_admin)

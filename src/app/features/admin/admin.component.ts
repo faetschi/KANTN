@@ -1,19 +1,34 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AdminService } from '../../core/services/admin.service';
 import { SupabaseService } from '../../core/services/supabase.service';
-import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise } from '../../core/models/models';
 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, RouterLink],
   template: `
     <div class="p-6 space-y-8">
+      <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h2 class="text-2xl font-bold mb-4">Admin Tools</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <a routerLink="/admin/exercises" class="p-4 rounded-xl border border-gray-200 hover:bg-gray-50">
+            <div class="font-semibold text-gray-900">Default Exercises</div>
+            <div class="text-sm text-gray-500">Create, edit, and search default exercises</div>
+          </a>
+          <a routerLink="/admin/workouts" class="p-4 rounded-xl border border-gray-200 hover:bg-gray-50">
+            <div class="font-semibold text-gray-900">Default Workout Plans</div>
+            <div class="text-sm text-gray-500">Manage default workout plan templates</div>
+          </a>
+        </div>
+      </section>
+
       <section>
         <h2 class="text-2xl font-bold mb-4">Pending Registrations</h2>
+        <div class="mb-3 text-sm" *ngIf="actionMessage" [class.text-green-600]="actionMessageType === 'success'" [class.text-red-600]="actionMessageType === 'error'">
+          {{ actionMessage }}
+        </div>
         <div *ngIf="pending.length; else none">
           <ul>
             <li *ngFor="let u of pending" class="mb-3">
@@ -72,59 +87,6 @@ import { Exercise } from '../../core/models/models';
           </ng-container>
         </div>
       </section>
-
-      <section>
-        <h2 class="text-2xl font-bold mb-4">Default Exercises</h2>
-        <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input [(ngModel)]="exerciseForm.name" placeholder="Exercise name" class="border border-gray-200 rounded-xl px-3 py-2" />
-            <input [(ngModel)]="exerciseForm.muscleGroup" placeholder="Muscle group" class="border border-gray-200 rounded-xl px-3 py-2" />
-            <input [(ngModel)]="exerciseForm.exerciseType" placeholder="Exercise type" class="border border-gray-200 rounded-xl px-3 py-2" />
-            <input [(ngModel)]="exerciseForm.metValue" type="number" placeholder="MET value" class="border border-gray-200 rounded-xl px-3 py-2" />
-          </div>
-          <textarea [(ngModel)]="exerciseForm.description" rows="2" placeholder="Description" class="w-full border border-gray-200 rounded-xl px-3 py-2"></textarea>
-          <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center">
-            <input [(ngModel)]="exerciseForm.imageUrl" placeholder="Image URL" class="border border-gray-200 rounded-xl px-3 py-2" />
-            <div class="flex items-center gap-2">
-              <input #exerciseFileInput type="file" accept="image/*" (change)="onExerciseImageSelected($event)" class="hidden" />
-              <button type="button" (click)="exerciseFileInput.click()" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm">Upload</button>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button (click)="saveDefaultExercise()" [disabled]="exerciseBusy" class="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-50">
-              {{ selectedExerciseId ? 'Update Exercise' : 'Create Default Exercise' }}
-            </button>
-            <button *ngIf="selectedExerciseId" (click)="resetExerciseForm()" class="px-4 py-2 rounded-xl bg-gray-200 text-gray-800">Cancel</button>
-            <span class="text-sm text-gray-500" *ngIf="exerciseMessage">{{ exerciseMessage }}</span>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 mt-4">
-          <div class="grid grid-cols-6 gap-2 p-3 text-xs font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100">
-            <div class="col-span-2">Exercise</div>
-            <div>Type</div>
-            <div>Visibility</div>
-            <div>MET</div>
-            <div class="text-right">Actions</div>
-          </div>
-
-          <div *ngIf="exercisesLoading" class="p-3 text-sm text-gray-500">Loading exercises...</div>
-          <div *ngIf="!exercisesLoading && !defaultExercises.length" class="p-3 text-sm text-gray-500">No default exercises yet.</div>
-
-          <div *ngFor="let ex of defaultExercises" class="grid grid-cols-6 gap-2 p-3 items-center border-b border-gray-50">
-            <div class="col-span-2 min-w-0">
-              <div class="font-medium text-gray-900 truncate">{{ ex.name }}</div>
-              <div class="text-xs text-gray-500 truncate">{{ ex.muscleGroup || '-' }}</div>
-            </div>
-            <div class="text-sm text-gray-700">{{ ex.exerciseType || 'general' }}</div>
-            <div class="text-sm text-gray-700">{{ ex.visibility || 'default' }}</div>
-            <div class="text-sm text-gray-700">{{ ex.metValue || 5 }}</div>
-            <div class="flex justify-end">
-              <button (click)="editExercise(ex)" class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">Edit</button>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   `
 })
@@ -144,21 +106,8 @@ export class AdminComponent implements OnInit, OnDestroy {
   private attemptCount = 0;
   private secondPassTriggered = false;
   actionBusy = false;
-  workoutService = inject(WorkoutService);
-
-  defaultExercises: Exercise[] = [];
-  exercisesLoading = true;
-  exerciseBusy = false;
-  exerciseMessage = '';
-  selectedExerciseId: string | null = null;
-  exerciseForm = {
-    name: '',
-    description: '',
-    imageUrl: '',
-    muscleGroup: '',
-    exerciseType: 'general',
-    metValue: 5,
-  };
+  actionMessage = '';
+  actionMessageType: 'success' | 'error' = 'success';
 
   private cdr = inject(ChangeDetectorRef);
 
@@ -166,7 +115,6 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   async ngOnInit() {
     void this.loadPendingUsers();
-    await this.loadDefaultExercises();
 
     const client = this.supabase.getClient();
     if (client) {
@@ -186,96 +134,9 @@ export class AdminComponent implements OnInit, OnDestroy {
     void this.loadAllUsersWithRetry();
   }
 
-  private async loadDefaultExercises() {
-    this.exercisesLoading = true;
-    await this.workoutService.refresh();
-    this.defaultExercises = this.workoutService.exercises().filter(ex => ex.visibility === 'default');
-    this.exercisesLoading = false;
-    this.cdr.detectChanges();
-  }
-
-  editExercise(exercise: Exercise) {
-    this.selectedExerciseId = exercise.id;
-    this.exerciseForm = {
-      name: exercise.name || '',
-      description: exercise.description || '',
-      imageUrl: exercise.imageUrl || '',
-      muscleGroup: exercise.muscleGroup || '',
-      exerciseType: exercise.exerciseType || 'general',
-      metValue: exercise.metValue || 5,
-    };
-    this.exerciseMessage = '';
-  }
-
-  resetExerciseForm() {
-    this.selectedExerciseId = null;
-    this.exerciseForm = {
-      name: '',
-      description: '',
-      imageUrl: '',
-      muscleGroup: '',
-      exerciseType: 'general',
-      metValue: 5,
-    };
-    this.exerciseMessage = '';
-  }
-
-  async onExerciseImageSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input?.files?.[0];
-    if (!file) return;
-
-    this.exerciseBusy = true;
-    this.exerciseMessage = 'Uploading image...';
-    const url = await this.workoutService.uploadExerciseImage(file);
-    this.exerciseBusy = false;
-
-    if (!url) {
-      this.exerciseMessage = 'Image upload failed.';
-      this.cdr.detectChanges();
-      return;
-    }
-
-    this.exerciseForm.imageUrl = url;
-    this.exerciseMessage = 'Image uploaded.';
-    this.cdr.detectChanges();
-  }
-
-  async saveDefaultExercise() {
-    const name = this.exerciseForm.name.trim();
-    if (!name) {
-      this.exerciseMessage = 'Name is required.';
-      return;
-    }
-
-    this.exerciseBusy = true;
-    this.exerciseMessage = '';
-
-    const payload = {
-      name,
-      description: this.exerciseForm.description.trim() || undefined,
-      imageUrl: this.exerciseForm.imageUrl.trim() || undefined,
-      muscleGroup: this.exerciseForm.muscleGroup.trim() || undefined,
-      exerciseType: this.exerciseForm.exerciseType.trim() || 'general',
-      metValue: Number(this.exerciseForm.metValue) || 5,
-      visibility: 'default' as const,
-    };
-
-    if (this.selectedExerciseId) {
-      const updated = await this.workoutService.updateExercise(this.selectedExerciseId, payload);
-      this.exerciseBusy = false;
-      this.exerciseMessage = updated ? 'Exercise updated.' : 'Failed to update exercise.';
-    } else {
-      const created = await this.workoutService.createExercise(payload);
-      this.exerciseBusy = false;
-      this.exerciseMessage = created ? 'Default exercise created.' : 'Failed to create exercise.';
-    }
-
-    await this.loadDefaultExercises();
-    if (!this.exerciseMessage.toLowerCase().includes('failed')) {
-      this.resetExerciseForm();
-    }
-    this.cdr.detectChanges();
+  private showActionMessage(type: 'success' | 'error', message: string) {
+    this.actionMessageType = type;
+    this.actionMessage = message;
   }
 
   ngOnDestroy(): void {
@@ -428,6 +289,9 @@ export class AdminComponent implements OnInit, OnDestroy {
       const res = await this.admin.approveUser(id);
       if (!(res as any)?.error) {
         this.pending = this.pending.filter((u: any) => u.id !== id);
+        this.showActionMessage('success', 'User approved successfully.');
+      } else {
+        this.showActionMessage('error', (res as any).error?.message || 'Failed to approve user.');
       }
       await this.loadPendingUsersSafe();
       await this.loadAllUsersOnce();
@@ -444,6 +308,9 @@ export class AdminComponent implements OnInit, OnDestroy {
       const res = await this.admin.declineUser(id);
       if (!(res as any)?.error) {
         this.pending = this.pending.filter((u: any) => u.id !== id);
+        this.showActionMessage('success', 'User declined successfully.');
+      } else {
+        this.showActionMessage('error', (res as any).error?.message || 'Failed to decline user.');
       }
       await this.loadPendingUsersSafe();
       await this.loadAllUsersOnce();
@@ -457,7 +324,12 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.actionBusy = true;
     this.cdr.detectChanges();
     try {
-      await this.admin.revokeUser(id);
+      const res = await this.admin.revokeUser(id);
+      if (!(res as any)?.error) {
+        this.showActionMessage('success', 'User approval revoked successfully.');
+      } else {
+        this.showActionMessage('error', (res as any).error?.message || 'Failed to revoke approval.');
+      }
       await this.loadPendingUsersSafe();
       await this.loadAllUsersOnce();
     } finally {

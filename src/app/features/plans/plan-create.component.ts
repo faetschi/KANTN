@@ -8,11 +8,12 @@ import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise, WorkoutPlan } from '../../core/models/models';
 import { AuthService } from '../../core/services/auth.service';
+import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
   selector: 'app-plan-create',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatSnackBarModule, FormsModule, RouterLink],
+  imports: [CommonModule, MatIconModule, MatSnackBarModule, FormsModule, RouterLink, SearchBarComponent],
   template: `
     <div class="h-screen flex flex-col bg-white">
       <header class="px-6 py-4 flex items-center border-b border-gray-100">
@@ -45,8 +46,13 @@ import { AuthService } from '../../core/services/auth.service';
 
         <div>
           <div class="block text-sm font-medium text-gray-700 mb-2">Select Exercises</div>
+          <app-search-bar
+            [value]="exerciseSearchQuery"
+            (valueChange)="exerciseSearchQuery = $event"
+            placeholder="Search exercises"
+          />
           <div class="space-y-3">
-            @for (exercise of availableExercises(); track exercise.id) {
+            @for (exercise of filteredAvailableExercises(); track exercise.id) {
               <button type="button" (click)="toggleExercise(exercise)" 
                    class="w-full flex items-center p-3 rounded-xl border transition-all cursor-pointer"
                    [class.border-blue-500]="isSelected(exercise)"
@@ -101,6 +107,7 @@ export class PlanCreateComponent {
   isEditMode = false;
   editingPlanId: string | null = null;
   planSaveMessage = '';
+  exerciseSearchQuery = '';
   selectedExercises = signal<Exercise[]>([]);
   availableExercises = this.workoutService.exercises;
 
@@ -142,6 +149,17 @@ export class PlanCreateComponent {
 
   isValid() {
     return this.name.trim().length > 0 && this.selectedExercises().length > 0;
+  }
+
+  filteredAvailableExercises() {
+    const exercises = this.availableExercises();
+    const query = this.exerciseSearchQuery.trim().toLowerCase();
+    if (!query) return exercises;
+
+    return exercises.filter(exercise => {
+      const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
   }
 
   async createPlan() {

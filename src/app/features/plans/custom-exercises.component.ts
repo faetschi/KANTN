@@ -50,12 +50,13 @@ import { Exercise } from '../../core/models/models';
               placeholder="Muscle group (optional)"
               class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
-            <input
-              type="text"
-              [(ngModel)]="customExercise.imageUrl"
-              placeholder="Image URL (optional)"
-              class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
+            <div class="flex items-center gap-3">
+              <input #customExerciseImageInput type="file" accept="image/*" (change)="onCustomExerciseImageSelected($event)" class="hidden" />
+              <button type="button" (click)="customExerciseImageInput.click()" class="bg-gray-200 text-gray-800 text-sm font-semibold px-3 py-2 rounded-xl">
+                {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
+              </button>
+              <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
+            </div>
             <div class="grid grid-cols-2 gap-3">
               <input
                 type="text"
@@ -142,8 +143,10 @@ export class CustomExercisesComponent {
   creatingExercise = false;
   sharingExercise = false;
   unsharingExercise = false;
+  imageUploading = false;
   customExerciseMessage = '';
   shareMessage = '';
+  imageUploadMessage = '';
   showSharePanel = false;
   shareExerciseId = '';
   shareEmail = '';
@@ -169,6 +172,26 @@ export class CustomExercisesComponent {
       exercise.createdBy === currentUserId
     );
     this.myCustomExercises.set(mine);
+  }
+
+  async onCustomExerciseImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file) return;
+    input.value = '';
+
+    this.imageUploading = true;
+    this.imageUploadMessage = 'Uploading image...';
+    const url = await this.workoutService.uploadExerciseImage(file);
+    this.imageUploading = false;
+
+    if (!url) {
+      this.imageUploadMessage = 'Image upload failed.';
+      return;
+    }
+
+    this.customExercise.imageUrl = url;
+    this.imageUploadMessage = 'Image uploaded.';
   }
 
   async createCustomExercise() {

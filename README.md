@@ -84,3 +84,4 @@ vercel --prod
 ## More Docs
 
 - `BUGS.md` — known issues
+- `GO_LIVE_RUNBOOK.md` — staging verification checklist and rollback steps

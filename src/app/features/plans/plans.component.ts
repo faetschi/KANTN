@@ -5,11 +5,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
+import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
   selector: 'app-plans',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, FormsModule],
+  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -67,8 +68,15 @@ import { AuthService } from '../../core/services/auth.service';
 
       <span class="text-xs text-red-500" *ngIf="activationMessage">{{ activationMessage }}</span>
 
+      <app-search-bar
+        class="block mb-5"
+        [value]="planSearchQuery"
+        (valueChange)="planSearchQuery = $event"
+        placeholder="Search workout plans"
+      />
+
       <div class="space-y-4">
-        @for (plan of plans(); track plan.id) {
+        @for (plan of filteredPlans(); track plan.id) {
           <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
                [class.ring-2]="plan.isActive" 
                [class.ring-blue-500]="plan.isActive"
@@ -122,6 +130,7 @@ export class PlansComponent {
   sharePlanId = '';
   shareEmail = '';
   showSharePanel = false;
+  planSearchQuery = '';
   sharingPlan = false;
   unsharingPlan = false;
   shareMessage = '';
@@ -136,6 +145,18 @@ export class PlansComponent {
     const currentUserId = this.authService.currentUser()?.id;
     if (!currentUserId) return false;
     return this.plans().some(plan => plan.id === planId && plan.ownerId === currentUserId);
+  }
+
+  filteredPlans() {
+    const query = this.planSearchQuery.trim().toLowerCase();
+    const allPlans = this.plans();
+    const sorted = [...allPlans].sort((a, b) => Number(!!b.isActive) - Number(!!a.isActive));
+    if (!query) return sorted;
+
+    return sorted.filter(plan => {
+      const haystack = [plan.name, plan.description || ''].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
   }
 
   async activatePlan(id: string) {
