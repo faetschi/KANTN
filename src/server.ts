@@ -6,11 +6,39 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import {join} from 'node:path';
+import {existsSync, readFileSync} from 'node:fs';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
+
+const loadDotEnv = (): Record<string, string> => {
+  const envPath = join(process.cwd(), '.env');
+  if (!existsSync(envPath)) {
+    return {};
+  }
+
+  const envFromFile: Record<string, string> = {};
+  const raw = readFileSync(envPath, 'utf8');
+
+  raw.split(/\r?\n/).forEach((line) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('#')) return;
+
+    const separatorIndex = trimmedLine.indexOf('=');
+    if (separatorIndex < 0) return;
+
+    const key = trimmedLine.slice(0, separatorIndex).trim();
+    if (!key) return;
+
+    envFromFile[key] = trimmedLine.slice(separatorIndex + 1).trim();
+  });
+
+  return envFromFile;
+};
+
+const envFromDotEnv = loadDotEnv();
 
 const normalizeEnvValue = (value: string | undefined) => {
   if (value === undefined || value === null) return '';
@@ -40,10 +68,14 @@ const normalizeEnvValue = (value: string | undefined) => {
  */
 app.get('/env.js', (_req, res) => {
   const payload = {
-    SUPABASE_URL: normalizeEnvValue(process.env['SUPABASE_URL'] || process.env['VITE_SUPABASE_URL']),
-    SUPABASE_ANON_KEY: normalizeEnvValue(process.env['SUPABASE_ANON_KEY'] || process.env['VITE_SUPABASE_ANON_KEY']),
-    ENABLE_DEV_AUTH: normalizeEnvValue(process.env['ENABLE_DEV_AUTH']) || 'false',
-    APP_URL: normalizeEnvValue(process.env['APP_URL']),
+    SUPABASE_URL: normalizeEnvValue(
+      process.env['SUPABASE_URL'] || process.env['VITE_SUPABASE_URL'] || envFromDotEnv['SUPABASE_URL'] || envFromDotEnv['VITE_SUPABASE_URL'],
+    ),
+    SUPABASE_ANON_KEY: normalizeEnvValue(
+      process.env['SUPABASE_ANON_KEY'] || process.env['VITE_SUPABASE_ANON_KEY'] || envFromDotEnv['SUPABASE_ANON_KEY'] || envFromDotEnv['VITE_SUPABASE_ANON_KEY'],
+    ),
+    ENABLE_DEV_AUTH: normalizeEnvValue(process.env['ENABLE_DEV_AUTH'] || envFromDotEnv['ENABLE_DEV_AUTH']) || 'false',
+    APP_URL: normalizeEnvValue(process.env['APP_URL'] || envFromDotEnv['APP_URL']),
   };
 
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');

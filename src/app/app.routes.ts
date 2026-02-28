@@ -39,12 +39,26 @@ export const routes: Routes = [
         canActivate: [AdminGuard]
       },
       {
+        path: 'admin/exercises',
+        loadComponent: () => import('./features/admin/admin-exercises.component').then(m => m.AdminExercisesComponent),
+        canActivate: [AdminGuard]
+      },
+      {
+        path: 'admin/workouts',
+        loadComponent: () => import('./features/admin/admin-workouts.component').then(m => m.AdminWorkoutsComponent),
+        canActivate: [AdminGuard]
+      },
+      {
         path: 'plans',
         loadComponent: () => import('./features/plans/plans.component').then(m => m.PlansComponent)
       },
       {
         path: 'plans/create',
         loadComponent: () => import('./features/plans/plan-create.component').then(m => m.PlanCreateComponent)
+      },
+      {
+        path: 'plans/exercises',
+        loadComponent: () => import('./features/plans/custom-exercises.component').then(m => m.CustomExercisesComponent)
       },
       {
         path: 'plans/edit/:planId',

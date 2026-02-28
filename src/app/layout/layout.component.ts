@@ -15,35 +15,32 @@ import { AuthService } from '../core/services/auth.service';
         <router-outlet></router-outlet>
       </main>
 
-      <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-50 safe-area-pb">
-        <a routerLink="/home" routerLinkActive="text-blue-600" [routerLinkActiveOptions]="{exact: true}" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
-          <mat-icon class="mb-1">home</mat-icon>
-          <span class="text-[10px] font-medium">Home</span>
-        </a>
-        <a routerLink="/plans" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
-          <mat-icon class="mb-1">fitness_center</mat-icon>
-          <span class="text-[10px] font-medium">Plans</span>
-        </a>
-        <a routerLink="/history" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
-          <mat-icon class="mb-1">history</mat-icon>
-          <span class="text-[10px] font-medium">History</span>
-        </a>
-        <a routerLink="/profile" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
-          <mat-icon class="mb-1">person</mat-icon>
-          <span class="text-[10px] font-medium">Profile</span>
-        </a>
-        <a *ngIf="isAdmin" routerLink="/admin" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
-          <mat-icon class="mb-1">admin_panel_settings</mat-icon>
-          <span class="text-[10px] font-medium">Admin</span>
-        </a>
-      </nav>
+      <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
+        <nav class="px-6 pt-3 pb-3 flex justify-between items-center">
+          <a routerLink="/home" routerLinkActive="text-blue-600" [routerLinkActiveOptions]="{exact: true}" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1">home</mat-icon>
+            <span class="text-[10px] font-medium">Home</span>
+          </a>
+          <a routerLink="/plans" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1">fitness_center</mat-icon>
+            <span class="text-[10px] font-medium">Plans</span>
+          </a>
+          <a routerLink="/history" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1">history</mat-icon>
+            <span class="text-[10px] font-medium">History</span>
+          </a>
+          <a routerLink="/profile" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1">person</mat-icon>
+            <span class="text-[10px] font-medium">Profile</span>
+          </a>
+          <a *ngIf="isAdmin" routerLink="/admin" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1">admin_panel_settings</mat-icon>
+            <span class="text-[10px] font-medium">Admin</span>
+          </a>
+        </nav>
+      </div>
     </div>
   `,
-  styles: [`
-    .safe-area-pb {
-      padding-bottom: env(safe-area-inset-bottom, 20px);
-    }
-  `]
 })
 export class LayoutComponent implements OnInit {
   isAdmin = false;
