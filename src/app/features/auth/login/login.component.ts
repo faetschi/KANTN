@@ -1,7 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
-import { SupabaseService } from '../../../core/services/supabase.service';
 
 @Component({
   selector: 'app-login',
@@ -33,7 +32,6 @@ import { SupabaseService } from '../../../core/services/supabase.service';
 export class LoginComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
-  private supabase = inject(SupabaseService);
 
   async ngOnInit() {
     // If already logged in, skip login screen
@@ -42,11 +40,8 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    const client = this.supabase.getClient();
-    if (!client) return;
-
-    const { data } = await client.auth.getSession();
-    if (data?.session?.user) {
+    const user = await this.authService.getSessionUser();
+    if (user) {
       await this.authService.refreshProfile();
       this.router.navigate(['/home']);
     }

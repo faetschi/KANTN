@@ -14,6 +14,7 @@ type AuthUser = User & { is_admin?: boolean };
 export class AuthService {
   private currentUserSignal = signal<AuthUser | null>(null);
   private profileLoadInFlight: Promise<void> | null = null;
+  private sessionReadInFlight: Promise<Session | null> | null = null;
 
   currentUser = computed(() => this.currentUserSignal());
 
@@ -74,6 +75,17 @@ export class AuthService {
   }
 
   private async getSessionSafely(): Promise<Session | null> {
+    if (this.sessionReadInFlight) return this.sessionReadInFlight;
+
+    this.sessionReadInFlight = this.getSessionSafelyInternal();
+    try {
+      return await this.sessionReadInFlight;
+    } finally {
+      this.sessionReadInFlight = null;
+    }
+  }
+
+  private async getSessionSafelyInternal(): Promise<Session | null> {
     const client = this.supabase.getClient();
     if (!client) return null;
 
@@ -91,6 +103,11 @@ export class AuthService {
       if (retryError) throw retryError;
       return sessionData?.session ?? null;
     }
+  }
+
+  async getSessionUser() {
+    const session = await this.getSessionSafely();
+    return session?.user ?? null;
   }
 
   private async loadProfileFromSession(session?: Session | null) {
@@ -219,8 +236,8 @@ export class AuthService {
     const client = this.supabase.getClient();
     if (client) {
       try {
-        const { data: sessionData } = await client.auth.getSession();
-        if (sessionData?.session) {
+        const session = await this.getSessionSafely();
+        if (session) {
           await client
             .from('profiles')
             .upsert({ id: fake.id, email: fake.email, display_name: fake.name, approved: true, is_admin: !!opts?.isAdmin }, { onConflict: 'id' });

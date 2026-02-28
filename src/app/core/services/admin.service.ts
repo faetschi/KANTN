@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
+import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
-  constructor(private supabase: SupabaseService) {}
+  constructor(private supabase: SupabaseService, private auth: AuthService) {}
 
   private async wait(ms: number) {
     await new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -15,21 +16,16 @@ export class AdminService {
 
     // Wait for auth/session bootstrap.
     for (let attempt = 0; attempt < 10; attempt++) {
-      const { data, error } = await client.auth.getSession();
-      
-      if (!error && data?.session?.user) {
-        // If we have a session, ensure it's not stale by checking if it's expired
-        const expiresAt = data.session.expires_at;
-        const now = Math.floor(Date.now() / 1000);
-        if (expiresAt && expiresAt < now + 60) {
-          // Token is expired or about to expire, force refresh
-          try {
-            await client.auth.refreshSession();
-          } catch {
-            // ignore
-          }
-        }
+      const user = await this.auth.getSessionUser();
+      if (user) {
         return { client, error: null };
+      }
+
+      // Token may be stale at app startup; best-effort refresh before next attempt.
+      try {
+        await client.auth.refreshSession();
+      } catch {
+        // ignore
       }
 
       await this.wait(250);

@@ -23,8 +23,7 @@ const checkAuth = async (_state: any): Promise<boolean | UrlTree> => {
   }
 
   try {
-    const { data } = await client.auth.getSession();
-    const user = data?.session?.user ?? null;
+    const user = await auth.getSessionUser();
     if (!user) {
       // Allow dev auth only when explicitly enabled
       if (devEnabled && auth.isLoggedIn()) return true;
