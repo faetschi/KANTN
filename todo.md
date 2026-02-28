@@ -56,6 +56,21 @@ Audit status last updated: 2026-02-28.
 - [ ] During a workout, the user should be able to press a button or the e.g. "1/3" in the bottom action bar to reveal the list of all exercises in the current workout plan. Similiar in freestyle mode it should show the current list of exercises in the freestyle workout.
 - [ ] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from another user (bug, fix this)
 
+- [ ] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
+- [ ] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
+- [ ] Implement revoke/unshare flow for shared plans/exercises.
+- [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
+- [ ] Implement default exercises/plans first-run seed load (idempotent).
+- [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
+- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
+- [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
+- [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
+- [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
+- [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
+- [ ] Apply the same compact share-icon pattern to exercise sharing actions.
+- [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init. Default Exercises that wxist at start should include: WeightLifting (Squats, Bench Press, ...), Cardio (Running, Cycling, ...)
+- [ ] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
+
 ### Post-MVP / Remaining TODO
 
 ### 0) Project Setup
