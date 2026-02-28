@@ -64,6 +64,21 @@ another user (bug, fix this)
 - [ ] Each workout plan should have a overall exercise_type, depending if most of the exercises in the workout plan have a distinct type, e.g. 3 out of 5 exercises in the workout plan have the exercise_type = strength, then the workout plan should also have this workoutplan_type. There should be distinct colors for each exercise_type and workoutplan_type (e.g. red for strength). When a workout is marked in the Calendar page inside the calendar, it should use this color - for this make sure the colors are consistent for Exercise Type, Workoutplan Type and in Calendar.
 - [ ] In active workout page /workout, during freestyle mode the "Add exercise" top navigation should be fixed / sticky similiar to the bottom action bar navigation is correctly already.
 
+- [ ] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
+- [ ] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
+- [ ] Implement revoke/unshare flow for shared plans/exercises.
+- [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
+- [ ] Implement default exercises/plans first-run seed load (idempotent).
+- [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
+- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
+- [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
+- [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
+- [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
+- [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
+- [ ] Apply the same compact share-icon pattern to exercise sharing actions.
+- [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init. Default Exercises that wxist at start should include: WeightLifting (Squats, Bench Press, ...), Cardio (Running, Cycling, ...)
+- [ ] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
+
 ### Post-MVP / Remaining TODO
 
 ### 0) Project Setup
