@@ -23,19 +23,24 @@ Audit status last updated: 2026-02-28.
 - [x] Add user workout history with month filtering and full workout detail page (including set-level reps/weight) plus previous/next session navigation.
 
 ### MVP Must-Haves (Before Production)
-- [ ] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
-- [ ] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
-- [ ] Implement revoke/unshare flow for shared plans/exercises.
-- [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
-- [ ] Implement default exercises/plans first-run seed load (idempotent).
+- [x] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
+- [x] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
+- [x] Implement revoke/unshare flow for shared plans/exercises.
+- [x] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
+- [x] Implement default exercises/plans first-run seed load (idempotent).
 - [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
 - [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
-- [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
-- [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
-- [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
-- [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
-- [ ] Apply the same compact share-icon pattern to exercise sharing actions.
-- [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init.
+- [x] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
+- [x] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
+- [x] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
+- [x] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
+- [x] Apply the same compact share-icon pattern to exercise sharing actions.
+- [x] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init.
+- [ ] Admins should be able to Approve / Decline Users after they registered in the Admin Page, currently this doesnt work (Apporve / Decline buttons exist and can be pressed but dont do anything yet)
+- [ ] When selecting Exercises, there should be a Search bar to search Exercises. While typing in the search bar, relevant results should already show, e.g. user types "Benc" and it should show "Bench Press" already.
+- [ ] Users should be able to start a on the fly workout "Freestyle", where the workout is started and they choose exercises during the workout on the fly without the need for a predefined workout plan to be selected. This Freestyle option should always be available by default. After a "Freestyle" workout is finished, the user should be asked whether the exercise of this freestyle workout should be saved to a new Workout plan, with yes/no. If no, then dont create a Workoutplan out of this freestyle workout. If user selects yes, create a new user personal workout plan with the exercises and same sequence he just did in this freestyle workout. On homepage, user can directly start Active Plan, but also in this active plan component there should be the option to "Start Freestyle", which starts a freestyle workout where exercise can be chosen on the fly.
+- [ ] Bug I found: on the /plans workout plan page, when workout plan changes active to another workout plan (e.g. workout plan A active, then workout plan b Activiate is pressed), the currently active workout plan should always be the first one / on top.
+- [ ] In the workout plan page /plans, add a search bar for workout plans, similiar to search bar in Select Exercises page
 
 ### Post-MVP / Remaining TODO
 
@@ -67,7 +72,7 @@ Audit status last updated: 2026-02-28.
 - [x] Add policies so users can read/write only their own rows.
 - [x] Add policies for controlled access to shared plans/exercises.
 - [x] Restrict admin-only operations (default data management) to admins.
-- [ ] Add trigger/function to sync `auth.users` to `public.profiles`.
+- [x] Add trigger/function to sync `auth.users` to `public.profiles`.
 - [x] Store only required auth profile fields (`id`, `email`, `full_name`, optional avatar).
 - [x] Do not store Google access tokens in public tables.
 - [x] Verify `public.profiles` policy only allows owner access to profile row.
@@ -77,7 +82,7 @@ Audit status last updated: 2026-02-28.
 - [x] Persist profile edits to `profiles`.
 - [x] Refresh client-side profile state after save.
 - [x] Keep fields synchronized: name, avatar, fun fact, height, weight, age.
-- [ ] Handle profile upsert for first login. (Current flow inserts on register; no DB-level auth trigger/upsert flow.)
+- [x] Handle profile upsert for first login. (DB-level auth trigger/upsert flow implemented in SQL.)
 
 ### 4) Workout Plans Persistence
 - [x] Persist user-created plans in Supabase.
@@ -121,7 +126,7 @@ Audit status last updated: 2026-02-28.
 - [x] Implement workout plan sharing UX + backend wiring.
 - [ ] Add invite/access control for shared workout plans. (Basic email-based share exists; invite workflow not implemented.)
 - [x] Ensure unshared private plans are never visible to other users.
-- [ ] Implement revoke access flow for shared plans/exercises.
+- [x] Implement revoke access flow for shared plans/exercises.
 
 ### 9) Service/Architecture Refactor
 - [x] Refactor services to use Supabase as source of truth.
@@ -136,9 +141,9 @@ Audit status last updated: 2026-02-28.
 - [ ] Add admin submenu entries for:
 	- [ ] default exercises creation/management (Default exercises admin section exists, but no dedicated submenu). Also add better description for each field in Default Exercises generation.
 	- [ ] default workout plans creation/management
-- [ ] Add predefined seed file(s) for default exercises/plans.
-- [ ] Implement first app initialization flow to load seed data into DB.
-- [ ] Ensure seed import is idempotent (safe to rerun without duplicates).
+- [x] Add predefined seed file(s) for default exercises/plans.
+- [x] Implement first app initialization flow to load seed data into DB.
+- [x] Ensure seed import is idempotent (safe to rerun without duplicates).
 
 ### 11) Automated Tests
 - [ ] Add tests for workout persistence flows.

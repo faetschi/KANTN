@@ -47,6 +47,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/plans/plan-create.component').then(m => m.PlanCreateComponent)
       },
       {
+        path: 'plans/exercises',
+        loadComponent: () => import('./features/plans/custom-exercises.component').then(m => m.CustomExercisesComponent)
+      },
+      {
         path: 'plans/edit/:planId',
         loadComponent: () => import('./features/plans/plan-create.component').then(m => m.PlanCreateComponent)
       },

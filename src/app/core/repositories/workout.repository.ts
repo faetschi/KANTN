@@ -176,65 +176,32 @@ export class WorkoutRepository {
     return !setRes.error;
   }
 
+  async ensureFirstRunSeed(userId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client.rpc('seed_beginner_plans_for_user', {
+      p_owner_id: userId,
+    });
+
+    return !error;
+  }
+
   async insertSession(userId: string, payload: PersistedSessionPayload) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const { data: sessionInsert, error: sessionError } = await client
-      .from('workout_sessions')
-      .insert({
-        owner_id: userId,
-        plan_id: payload.planId,
-        started_at: payload.startedAtIso,
-        finished_at: payload.finishedAtIso,
-        duration_seconds: payload.durationSeconds,
-        total_calories: payload.totalCalories,
-      })
-      .select('id')
-      .single();
+    const { data, error } = await client.rpc('create_workout_session_tx', {
+      p_owner_id: userId,
+      p_plan_id: payload.planId,
+      p_started_at: payload.startedAtIso,
+      p_finished_at: payload.finishedAtIso,
+      p_duration_seconds: payload.durationSeconds,
+      p_total_calories: payload.totalCalories,
+      p_exercises: payload.exercises,
+    });
 
-    if (sessionError || !sessionInsert?.id) return false;
-
-    for (const exercisePayload of payload.exercises) {
-      const { data: sessionExerciseInsert, error: sessionExerciseError } = await client
-        .from('workout_session_exercises')
-        .insert({
-          session_id: sessionInsert.id,
-          exercise_id: exercisePayload.exerciseId,
-          exercise_name_snapshot: exercisePayload.exerciseNameSnapshot,
-          exercise_type_snapshot: exercisePayload.exerciseTypeSnapshot,
-          met_value_snapshot: exercisePayload.metValueSnapshot,
-          position: exercisePayload.position,
-          duration_seconds: exercisePayload.durationSeconds,
-          calories_burned: exercisePayload.caloriesBurned,
-        })
-        .select('id')
-        .single();
-
-      if (sessionExerciseError || !sessionExerciseInsert?.id) continue;
-
-      const setRows = exercisePayload.sets.map((set, setIndex) => ({
-        session_exercise_id: sessionExerciseInsert.id,
-        set_order: setIndex,
-        reps: set.reps,
-        weight: set.weight,
-        completed: !!set.completed,
-      }));
-
-      if (setRows.length) {
-        await client.from('workout_session_sets').insert(setRows);
-      }
-    }
-
-    if (payload.planId) {
-      await client
-        .from('workout_plans')
-        .update({ last_performed_at: payload.finishedAtDate.toISOString() })
-        .eq('id', payload.planId)
-        .eq('owner_id', userId);
-    }
-
-    return true;
+    return !error && !!data;
   }
 
   async createPlan(userId: string, plan: WorkoutPlan) {
@@ -383,6 +350,40 @@ export class WorkoutRepository {
     return true;
   }
 
+  async unshareExercise(userId: string, exerciseId: string, sharedWithUserId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error: deleteError } = await client
+      .from('exercise_shares')
+      .delete()
+      .eq('exercise_id', exerciseId)
+      .eq('shared_with_user_id', sharedWithUserId)
+      .eq('created_by', userId);
+
+    if (deleteError) return false;
+
+    const { count, error: countError } = await client
+      .from('exercise_shares')
+      .select('id', { count: 'exact', head: true })
+      .eq('exercise_id', exerciseId);
+
+    if (countError) return false;
+
+    if ((count || 0) === 0) {
+      const { error: visibilityError } = await client
+        .from('exercises')
+        .update({ visibility: 'private' })
+        .eq('id', exerciseId)
+        .eq('created_by', userId)
+        .eq('visibility', 'shared');
+
+      if (visibilityError) return false;
+    }
+
+    return true;
+  }
+
   async sharePlan(userId: string, planId: string, sharedWithUserId: string) {
     const client = this.supabase.getClient();
     if (!client) return false;
@@ -403,6 +404,40 @@ export class WorkoutRepository {
       .update({ visibility: 'shared' })
       .eq('id', planId)
       .eq('owner_id', userId);
+
+    return true;
+  }
+
+  async unsharePlan(userId: string, planId: string, sharedWithUserId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error: deleteError } = await client
+      .from('workout_plan_shares')
+      .delete()
+      .eq('plan_id', planId)
+      .eq('shared_with_user_id', sharedWithUserId)
+      .eq('created_by', userId);
+
+    if (deleteError) return false;
+
+    const { count, error: countError } = await client
+      .from('workout_plan_shares')
+      .select('id', { count: 'exact', head: true })
+      .eq('plan_id', planId);
+
+    if (countError) return false;
+
+    if ((count || 0) === 0) {
+      const { error: visibilityError } = await client
+        .from('workout_plans')
+        .update({ visibility: 'private' })
+        .eq('id', planId)
+        .eq('owner_id', userId)
+        .eq('visibility', 'shared');
+
+      if (visibilityError) return false;
+    }
 
     return true;
   }

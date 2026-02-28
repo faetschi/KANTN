@@ -58,7 +58,13 @@ import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/mo
               </div>
 
               @for (set of currentSets(); track $index) {
-                <div class="grid grid-cols-4 gap-4 items-center">
+                <div
+                  class="grid grid-cols-4 gap-4 items-center rounded-xl px-2 py-2 transition-colors border"
+                  [class.bg-green-50]="set.completed"
+                  [class.border-green-200]="set.completed"
+                  [class.bg-white]="!set.completed"
+                  [class.border-transparent]="!set.completed"
+                >
                   <div class="flex justify-center">
                     <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500">
                       {{ $index + 1 }}

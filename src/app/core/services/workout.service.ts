@@ -60,6 +60,8 @@ export class WorkoutService {
     }
 
     try {
+      await this.repository.ensureFirstRunSeed(userId);
+
       const data = await this.repository.loadDashboardData(userId);
       if (!data) {
         console.warn('Supabase client missing while authenticated; disabling persisted workout data view.');
@@ -163,11 +165,33 @@ export class WorkoutService {
     return this.repository.shareExercise(userId, exerciseId, sharedWithUserId);
   }
 
+  async unshareExercise(exerciseId: string, sharedWithUserId: string) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.unshareExercise(userId, exerciseId, sharedWithUserId);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
   async sharePlan(planId: string, sharedWithUserId: string) {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 
     const success = await this.repository.sharePlan(userId, planId, sharedWithUserId);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
+  async unsharePlan(planId: string, sharedWithUserId: string) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.unsharePlan(userId, planId, sharedWithUserId);
     if (!success) return false;
 
     await this.refresh();

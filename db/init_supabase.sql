@@ -25,7 +25,11 @@ drop function if exists is_admin();
 drop function if exists touch_updated_at();
 drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
+drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
+drop function if exists seed_beginner_plans_for_user(uuid);
 drop function if exists set_user_role_by_email(text, boolean, boolean);
+drop function if exists sync_profile_from_auth_user();
+drop trigger if exists trg_auth_users_profile_sync on auth.users;
 
 -- Core profile data
 create table if not exists profiles (
@@ -172,6 +176,61 @@ create trigger trg_workout_plans_updated_at
 before update on workout_plans
 for each row execute function touch_updated_at();
 
+create or replace function sync_profile_from_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into profiles (id, email, display_name, avatar_url)
+  values (
+    new.id,
+    new.email,
+    coalesce(
+      new.raw_user_meta_data ->> 'name',
+      split_part(coalesce(new.email, ''), '@', 1)
+    ),
+    coalesce(
+      new.raw_user_meta_data ->> 'avatar_url',
+      new.raw_user_meta_data ->> 'picture'
+    )
+  )
+  on conflict (id) do update
+  set
+    email = excluded.email,
+    display_name = coalesce(excluded.display_name, profiles.display_name),
+    avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url),
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+create trigger trg_auth_users_profile_sync
+after insert or update of email, raw_user_meta_data on auth.users
+for each row execute function sync_profile_from_auth_user();
+
+insert into profiles (id, email, display_name, avatar_url)
+select
+  u.id,
+  u.email,
+  coalesce(
+    u.raw_user_meta_data ->> 'name',
+    split_part(coalesce(u.email, ''), '@', 1)
+  ),
+  coalesce(
+    u.raw_user_meta_data ->> 'avatar_url',
+    u.raw_user_meta_data ->> 'picture'
+  )
+from auth.users u
+on conflict (id) do update
+set
+  email = excluded.email,
+  display_name = coalesce(excluded.display_name, profiles.display_name),
+  avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url),
+  updated_at = now();
+
 create or replace function is_admin()
 returns boolean
 language sql
@@ -214,6 +273,238 @@ as $$
   where ws.owner_id = auth.uid()
     and ws.created_at >= from_ts
     and ws.created_at < to_ts;
+$$;
+
+create or replace function create_workout_session_tx(
+  p_owner_id uuid,
+  p_plan_id uuid,
+  p_started_at timestamptz,
+  p_finished_at timestamptz,
+  p_duration_seconds integer,
+  p_total_calories numeric,
+  p_exercises jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_session_id uuid;
+  v_session_exercise_id uuid;
+  v_set_order int;
+  ex_item jsonb;
+  set_item jsonb;
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to create workout session for this user';
+  end if;
+
+  insert into workout_sessions (
+    owner_id,
+    plan_id,
+    started_at,
+    finished_at,
+    duration_seconds,
+    total_calories
+  )
+  values (
+    p_owner_id,
+    p_plan_id,
+    p_started_at,
+    p_finished_at,
+    p_duration_seconds,
+    p_total_calories
+  )
+  returning id into v_session_id;
+
+  for ex_item in select value from jsonb_array_elements(coalesce(p_exercises, '[]'::jsonb))
+  loop
+    insert into workout_session_exercises (
+      session_id,
+      exercise_id,
+      exercise_name_snapshot,
+      exercise_type_snapshot,
+      met_value_snapshot,
+      position,
+      duration_seconds,
+      calories_burned
+    )
+    values (
+      v_session_id,
+      nullif(ex_item ->> 'exerciseId', '')::uuid,
+      ex_item ->> 'exerciseNameSnapshot',
+      ex_item ->> 'exerciseTypeSnapshot',
+      coalesce((ex_item ->> 'metValueSnapshot')::numeric, 5),
+      coalesce((ex_item ->> 'position')::int, 0),
+      coalesce((ex_item ->> 'durationSeconds')::int, 0),
+      coalesce((ex_item ->> 'caloriesBurned')::numeric, 0)
+    )
+    returning id into v_session_exercise_id;
+
+    v_set_order := 0;
+    for set_item in select value from jsonb_array_elements(coalesce(ex_item -> 'sets', '[]'::jsonb))
+    loop
+      insert into workout_session_sets (
+        session_exercise_id,
+        set_order,
+        reps,
+        weight,
+        completed
+      )
+      values (
+        v_session_exercise_id,
+        v_set_order,
+        (set_item ->> 'reps')::int,
+        (set_item ->> 'weight')::numeric,
+        coalesce((set_item ->> 'completed')::boolean, false)
+      );
+      v_set_order := v_set_order + 1;
+    end loop;
+  end loop;
+
+  if p_plan_id is not null then
+    update workout_plans
+    set last_performed_at = p_finished_at
+    where id = p_plan_id
+      and owner_id = p_owner_id;
+  end if;
+
+  return v_session_id;
+end;
+$$;
+
+create or replace function seed_beginner_plans_for_user(p_owner_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_created boolean := false;
+  v_plan_a_id uuid;
+  v_plan_b_id uuid;
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to seed plans for this user';
+  end if;
+
+  insert into exercises (id, created_by, name, description, image_url, muscle_group, exercise_type, met_value, visibility, is_active)
+  values
+    (
+      '11111111-1111-1111-1111-111111111101',
+      null,
+      'Bodyweight Squat',
+      'Foundational lower-body exercise for beginner strength and control.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=bodyweight-squat',
+      'Legs',
+      'strength',
+      5.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111102',
+      null,
+      'Push-Up',
+      'Upper-body push movement targeting chest, shoulders, and triceps.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=push-up',
+      'Chest',
+      'strength',
+      8.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111103',
+      null,
+      'Bent-Over Row',
+      'Pull movement focused on upper back and posture support.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=bent-over-row',
+      'Back',
+      'strength',
+      6.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111104',
+      null,
+      'Plank Hold',
+      'Core stabilization exercise for trunk strength and endurance.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=plank-hold',
+      'Core',
+      'core',
+      3.5,
+      'default',
+      true
+    )
+  on conflict (id) do update
+  set
+    name = excluded.name,
+    description = excluded.description,
+    image_url = excluded.image_url,
+    muscle_group = excluded.muscle_group,
+    exercise_type = excluded.exercise_type,
+    met_value = excluded.met_value,
+    visibility = 'default',
+    is_active = true,
+    updated_at = now();
+
+  if not exists (
+    select 1
+    from workout_plans p
+    where p.owner_id = p_owner_id
+      and p.name = 'Beginner Full Body A'
+  ) then
+    insert into workout_plans (owner_id, name, description, visibility, is_active)
+    values (
+      p_owner_id,
+      'Beginner Full Body A',
+      'Intro full-body workout focused on squat, push, and core fundamentals.',
+      'private',
+      false
+    )
+    returning id into v_plan_a_id;
+
+    insert into workout_plan_exercises (plan_id, exercise_id, position, target_sets, target_reps)
+    values
+      (v_plan_a_id, '11111111-1111-1111-1111-111111111101', 0, 3, 12),
+      (v_plan_a_id, '11111111-1111-1111-1111-111111111102', 1, 3, 10),
+      (v_plan_a_id, '11111111-1111-1111-1111-111111111104', 2, 3, 30);
+
+    v_created := true;
+  end if;
+
+  if not exists (
+    select 1
+    from workout_plans p
+    where p.owner_id = p_owner_id
+      and p.name = 'Beginner Full Body B'
+  ) then
+    insert into workout_plans (owner_id, name, description, visibility, is_active)
+    values (
+      p_owner_id,
+      'Beginner Full Body B',
+      'Beginner progression day with balanced lower body, pull, and core work.',
+      'private',
+      false
+    )
+    returning id into v_plan_b_id;
+
+    insert into workout_plan_exercises (plan_id, exercise_id, position, target_sets, target_reps)
+    values
+      (v_plan_b_id, '11111111-1111-1111-1111-111111111103', 0, 3, 10),
+      (v_plan_b_id, '11111111-1111-1111-1111-111111111101', 1, 3, 12),
+      (v_plan_b_id, '11111111-1111-1111-1111-111111111104', 2, 3, 30);
+
+    v_created := true;
+  end if;
+
+  return v_created;
+end;
 $$;
 
 create or replace function set_user_role_by_email(
@@ -284,6 +575,8 @@ grant select, insert, update, delete on table workout_session_sets to authentica
 
 grant execute on function calc_burned_calories(numeric, numeric, integer) to authenticated;
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
+grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
+grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
 
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from public;
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from anon;
