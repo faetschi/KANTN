@@ -5,26 +5,34 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
+import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
   selector: 'app-plans',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, FormsModule],
+  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
         <h1 class="text-2xl font-bold text-gray-900">Workout Plans</h1>
-        <button routerLink="/plans/create" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
-          <mat-icon>add</mat-icon>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="showSharePanel = !showSharePanel"
+            class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
+            aria-label="Share plan"
+          >
+            <mat-icon>share</mat-icon>
+          </button>
+          <button routerLink="/plans/create" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600" aria-label="Create plan">
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
       </header>
 
+      @if (showSharePanel) {
       <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-gray-900">Share My Plan</h3>
-          <span class="text-xs text-gray-500">Share with a user by email</span>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3">
           <select [(ngModel)]="sharePlanId" class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
             <option [ngValue]="''">Select your plan</option>
             @for (plan of myOwnedPlans(); track plan.id) {
@@ -40,18 +48,35 @@ import { AuthService } from '../../core/services/auth.service';
           <button
             type="button"
             (click)="sharePlan()"
-            [disabled]="sharingPlan"
+            [disabled]="sharingPlan || unsharingPlan"
             class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
           >
             {{ sharingPlan ? 'Sharing…' : 'Share' }}
           </button>
+          <button
+            type="button"
+            (click)="unsharePlan()"
+            [disabled]="sharingPlan || unsharingPlan"
+            class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+          >
+            {{ unsharingPlan ? 'Revoking…' : 'Unshare' }}
+          </button>
         </div>
         <span class="text-xs text-gray-500" *ngIf="shareMessage">{{ shareMessage }}</span>
-        <span class="text-xs text-red-500" *ngIf="activationMessage">{{ activationMessage }}</span>
       </section>
+      }
+
+      <span class="text-xs text-red-500" *ngIf="activationMessage">{{ activationMessage }}</span>
+
+      <app-search-bar
+        class="block mb-5"
+        [value]="planSearchQuery"
+        (valueChange)="planSearchQuery = $event"
+        placeholder="Search workout plans"
+      />
 
       <div class="space-y-4">
-        @for (plan of plans(); track plan.id) {
+        @for (plan of filteredPlans(); track plan.id) {
           <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
                [class.ring-2]="plan.isActive" 
                [class.ring-blue-500]="plan.isActive"
@@ -104,7 +129,10 @@ export class PlansComponent {
   plans = this.workoutService.plans;
   sharePlanId = '';
   shareEmail = '';
+  showSharePanel = false;
+  planSearchQuery = '';
   sharingPlan = false;
+  unsharingPlan = false;
   shareMessage = '';
   activationMessage = '';
 
@@ -117,6 +145,18 @@ export class PlansComponent {
     const currentUserId = this.authService.currentUser()?.id;
     if (!currentUserId) return false;
     return this.plans().some(plan => plan.id === planId && plan.ownerId === currentUserId);
+  }
+
+  filteredPlans() {
+    const query = this.planSearchQuery.trim().toLowerCase();
+    const allPlans = this.plans();
+    const sorted = [...allPlans].sort((a, b) => Number(!!b.isActive) - Number(!!a.isActive));
+    if (!query) return sorted;
+
+    return sorted.filter(plan => {
+      const haystack = [plan.name, plan.description || ''].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
   }
 
   async activatePlan(id: string) {
@@ -161,6 +201,38 @@ export class PlansComponent {
     const ok = await this.workoutService.sharePlan(planId, targetUserId);
     this.sharingPlan = false;
     this.shareMessage = ok ? 'Plan shared successfully.' : 'Failed to share plan.';
+    if (ok) {
+      this.shareEmail = '';
+    }
+  }
+
+  async unsharePlan() {
+    const planId = this.sharePlanId;
+    const email = this.shareEmail.trim();
+
+    if (!planId) {
+      this.shareMessage = 'Please select a plan to unshare.';
+      return;
+    }
+
+    if (!email) {
+      this.shareMessage = 'Please enter an email address.';
+      return;
+    }
+
+    this.unsharingPlan = true;
+    this.shareMessage = '';
+
+    const targetUserId = await this.workoutService.resolveUserIdByEmail(email);
+    if (!targetUserId) {
+      this.unsharingPlan = false;
+      this.shareMessage = 'User not found for that email.';
+      return;
+    }
+
+    const ok = await this.workoutService.unsharePlan(planId, targetUserId);
+    this.unsharingPlan = false;
+    this.shareMessage = ok ? 'Plan unshared successfully.' : 'Failed to unshare plan.';
     if (ok) {
       this.shareEmail = '';
     }
