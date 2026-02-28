@@ -85,3 +85,11 @@ Only Sync What You Need: Don't store Google access tokens in your public tables 
 Link by ID: Always use the id (UUID) from Supabase Auth as the Primary Key for your public profile table.
 
 Security Tip: Ensure your public.profiles table has a policy that only allows a user to see their own data:
+
+
+### TODO feature ideas
+- [ ] when starting a new workout, users should be able to start without a pre-dwfined workout plan by choosing exercises on the fly by selecting a exercise and doing/completing it, then selecting the next exercise. After the user wants to finish the overall workout, they can save their exercise history as a new workout plan. this "custom" workout they just did should also be saved for history (differentiate between predefined workout plans that can be selected and workouts. A workout consist of either of: - exercises which are selected or - a Workout plan consisting of exercises.
+
+- [ ] for each exercise, the users previous "records", e.g. last weight & repetions should be saved when the exercise is done again in the future/next workout including this exercise (visually by prefilling the weight amount + repetions + sets in grey to be adjusted by the user, e.g. 3x 25kg with 12 repetitions. Also save this exercise personal records + previous data per exercise in the history table, viewable in the history page (e.g if the user wants to see what weight he did last week at a specific exercise)
+
+- [ ] calorie calculation logic should be visbile to the user when the calories ate clicked (together in detailed overview / statistics)
