@@ -28,7 +28,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </header>
 
       <!-- Content -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <div class="flex-1 overflow-y-auto p-6 workout-content">
         @if (saveErrorMessage) {
           <div class="mb-4 rounded-xl bg-red-50 text-red-600 text-sm px-4 py-3 border border-red-100">{{ saveErrorMessage }}</div>
         }
@@ -141,9 +141,9 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </div>
 
       <!-- Footer Navigation -->
-      <div class="sticky bottom-0 z-20 bg-white border-t border-gray-100 p-4 safe-area-pb">
-        <div class="flex justify-between items-center">
-          <button (click)="prevExercise()" [disabled]="currentExerciseIndex() === 0" class="p-4 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+      <div class="fixed left-0 right-0 bottom-[-1px] z-40 bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
+        <div class="flex justify-between items-center max-w-screen-xl mx-auto">
+          <button (click)="prevExercise()" [disabled]="currentExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
             <mat-icon>arrow_back</mat-icon>
           </button>
           
@@ -151,12 +151,28 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             {{ currentExercise() ? currentExerciseIndex() + 1 : 0 }} / {{ totalExercisesCount() }}
           </span>
 
-          <button (click)="nextExercise()" class="px-6 py-4 rounded-full bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 flex items-center space-x-2">
+          <button (click)="nextExercise()" class="px-6 py-2.5 rounded-full bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 flex items-center space-x-2">
             <span>{{ isLastExercise() ? 'Finish' : 'Next' }}</span>
             <mat-icon>arrow_forward</mat-icon>
           </button>
         </div>
       </div>
+
+      @if (showCancelWorkoutModal()) {
+        <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4">
+          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+            <div>
+              <h3 class="text-base font-bold text-gray-900">Cancel workout?</h3>
+              <p class="text-sm text-gray-500 mt-1">Are you sure you want to cancel this workout?</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+              <button type="button" (click)="dismissCancelWorkoutModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">No</button>
+              <button type="button" (click)="confirmCancelWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-red-600">Yes</button>
+            </div>
+          </div>
+        </div>
+      }
 
       @if (showFreestyleSaveModal()) {
         <div class="fixed inset-0 z-40 bg-black/40 flex items-end sm:items-center justify-center p-4">
@@ -186,8 +202,11 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
     </div>
   `,
   styles: [`
-    .safe-area-pb {
-      padding-bottom: env(safe-area-inset-bottom, 20px);
+    .workout-content {
+      padding-bottom: calc(176px + env(safe-area-inset-bottom, 20px));
+    }
+    .workout-action-bar {
+      bottom: calc(72px + env(safe-area-inset-bottom, 20px));
     }
     .animate-fade-in {
       animation: fadeIn 0.3s ease-out;
@@ -229,6 +248,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showInfo = false;
   showExercisePicker = false;
   exerciseSearchQuery = '';
+  showCancelWorkoutModal = signal(false);
   showFreestyleSaveModal = signal(false);
   freestylePlanName = '';
 
@@ -384,10 +404,17 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   cancelWorkout() {
-    if (confirm('Are you sure you want to cancel this workout?')) {
-      clearInterval(this.timerInterval);
-      this.router.navigate(['/home']);
-    }
+    this.showCancelWorkoutModal.set(true);
+  }
+
+  dismissCancelWorkoutModal() {
+    this.showCancelWorkoutModal.set(false);
+  }
+
+  confirmCancelWorkout() {
+    this.showCancelWorkoutModal.set(false);
+    clearInterval(this.timerInterval);
+    this.router.navigate(['/home']);
   }
 
   async finishWorkout() {

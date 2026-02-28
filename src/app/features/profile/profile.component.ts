@@ -190,7 +190,7 @@ import { Router } from '@angular/router';
           </div>
 
           <div class="flex flex-col items-center gap-3">
-            <img [src]="user()?.avatarUrl || form.avatarUrl || defaultAvatar" class="w-24 h-24 rounded-full object-cover bg-gray-100" />
+            <img [src]="form.avatarUrl || user()?.avatarUrl || defaultAvatar" class="w-24 h-24 rounded-full object-cover bg-gray-100" />
             <input #avatarUploadInput type="file" accept="image/*" (change)="uploadAvatar($event)" class="hidden" />
             <button type="button" [disabled]="avatarUploading" (click)="avatarUploadInput.click()" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl w-full disabled:opacity-70">
               Upload Photo
