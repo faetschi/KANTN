@@ -68,19 +68,16 @@ import { StatsService } from '../../core/services/stats.service';
                 </div>
               </div>
 
-              <div class="flex items-center justify-between">
-                <div class="text-sm text-gray-400">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="inline-flex w-fit items-center rounded-full bg-white/10 px-3 py-1.5 text-sm text-gray-200 backdrop-blur-sm whitespace-nowrap">
                   @if (plan.lastPerformed) {
                     Last: {{ plan.lastPerformed | date:'MMM d' }}
                   } @else {
                     Not started yet
                   }
                 </div>
-                <div class="flex items-center gap-2">
-                  <button [routerLink]="['/workout', 'freestyle']" class="bg-gray-100 text-gray-900 px-4 py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition-transform flex items-center">
-                    Start Freestyle
-                  </button>
-                  <button [routerLink]="['/workout', plan.id]" class="bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center">
+                <div class="w-full sm:w-auto">
+                  <button [routerLink]="['/workout', plan.id]" class="w-full bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center justify-center whitespace-nowrap">
                     Start Workout
                   </button>
                 </div>
@@ -90,12 +87,31 @@ import { StatsService } from '../../core/services/stats.service';
         } @else {
           <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
             <p class="text-gray-500 mb-4">No active plan selected</p>
-            <div class="flex items-center justify-center gap-3">
+            <div class="flex items-center justify-center">
               <a routerLink="/plans" class="text-blue-600 font-semibold">Browse Plans</a>
-              <a [routerLink]="['/workout', 'freestyle']" class="text-blue-600 font-semibold">Start Freestyle</a>
             </div>
           </div>
         }
+
+        <div
+          class="mt-4 w-full text-left bg-gray-800 text-white p-4 rounded-2xl shadow-lg shadow-gray-200 border border-gray-700/70 relative overflow-hidden"
+        >
+          <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-8 -mt-8 blur-2xl"></div>
+          <div class="relative z-10 flex items-start justify-between gap-3">
+            <div>
+              <p class="font-semibold text-sm">Freestyle</p>
+              <p class="text-xs text-gray-200 mt-1">Free workout mode without a selected plan.</p>
+              <div class="mt-3">
+                <button [routerLink]="['/workout', 'freestyle']" class="inline-flex items-center justify-center rounded-lg bg-white text-gray-900 px-3 py-1.5 text-xs font-semibold shadow-sm whitespace-nowrap active:scale-95 transition-transform">
+                  Start Freestyle Workout
+                </button>
+              </div>
+            </div>
+            <div class="bg-white/15 p-2 rounded-lg backdrop-blur-sm">
+              <mat-icon class="text-white text-[20px]">fitness_center</mat-icon>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Recent Activity -->
