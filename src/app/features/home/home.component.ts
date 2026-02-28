@@ -131,8 +131,8 @@ export class HomeComponent {
 
   recentSessions = computed(() => 
     this.workoutService.sessions()
-      .slice(0, 5)
       .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 5)
   );
 
   getPlanName(planId: string) {

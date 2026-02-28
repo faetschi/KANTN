@@ -24,6 +24,10 @@ import { AuthService } from '../core/services/auth.service';
           <mat-icon class="mb-1">fitness_center</mat-icon>
           <span class="text-[10px] font-medium">Plans</span>
         </a>
+        <a routerLink="/history" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+          <mat-icon class="mb-1">history</mat-icon>
+          <span class="text-[10px] font-medium">History</span>
+        </a>
         <a routerLink="/profile" routerLinkActive="text-blue-600" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
           <mat-icon class="mb-1">person</mat-icon>
           <span class="text-[10px] font-medium">Profile</span>

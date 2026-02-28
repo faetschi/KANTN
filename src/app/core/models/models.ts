@@ -15,6 +15,11 @@ export interface Exercise {
   imageUrl: string;
   description: string;
   muscleGroup: string;
+  exerciseType?: string;
+  metValue?: number;
+  visibility?: 'default' | 'private' | 'shared';
+  createdBy?: string | null;
+  isActive?: boolean;
 }
 
 export interface Set {
@@ -48,4 +53,16 @@ export interface WorkoutPlan {
   schedule?: string[]; // e.g., ['Monday', 'Wednesday', 'Friday']
   isActive: boolean;
   lastPerformed?: Date;
+  visibility?: 'private' | 'shared' | 'public';
+  ownerId?: string;
+}
+
+export interface CreateExerciseInput {
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  muscleGroup?: string;
+  exerciseType?: string;
+  metValue?: number;
+  visibility?: 'default' | 'private' | 'shared';
 }
