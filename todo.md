@@ -35,6 +35,7 @@ Audit status last updated: 2026-02-28.
 - [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
 - [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
 - [ ] Apply the same compact share-icon pattern to exercise sharing actions.
+- [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init.
 
 ### Post-MVP / Remaining TODO
 
@@ -133,7 +134,7 @@ Audit status last updated: 2026-02-28.
 
 ### 10) Admin Menu + Default Seed Data
 - [ ] Add admin submenu entries for:
-	- [ ] default exercises creation/management (Default exercises admin section exists, but no dedicated submenu)
+	- [ ] default exercises creation/management (Default exercises admin section exists, but no dedicated submenu). Also add better description for each field in Default Exercises generation.
 	- [ ] default workout plans creation/management
 - [ ] Add predefined seed file(s) for default exercises/plans.
 - [ ] Implement first app initialization flow to load seed data into DB.
