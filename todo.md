@@ -29,12 +29,13 @@ Audit status last updated: 2026-02-28.
 - [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
 - [ ] Implement default exercises/plans first-run seed load (idempotent).
 - [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
-- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB.
+- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
 - [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
 - [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
 - [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
 - [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
 - [ ] Apply the same compact share-icon pattern to exercise sharing actions.
+- [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init.
 
 ### Post-MVP / Remaining TODO
 
@@ -133,7 +134,7 @@ Audit status last updated: 2026-02-28.
 
 ### 10) Admin Menu + Default Seed Data
 - [ ] Add admin submenu entries for:
-	- [ ] default exercises creation/management (Default exercises admin section exists, but no dedicated submenu)
+	- [ ] default exercises creation/management (Default exercises admin section exists, but no dedicated submenu). Also add better description for each field in Default Exercises generation.
 	- [ ] default workout plans creation/management
 - [ ] Add predefined seed file(s) for default exercises/plans.
 - [ ] Implement first app initialization flow to load seed data into DB.

@@ -19,8 +19,7 @@ export const AdminGuard: CanActivateFn = async (_route, _state) => {
   }
 
   try {
-    const { data: sessionData } = await client.auth.getSession();
-    const user = sessionData?.session?.user ?? null;
+    const user = await auth.getSessionUser();
     if (!user) {
       router.navigate(['/login']);
       return false;
