@@ -29,6 +29,12 @@ Audit status last updated: 2026-02-28.
 - [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
 - [ ] Implement default exercises/plans first-run seed load (idempotent).
 - [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
+- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB.
+- [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
+- [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
+- [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
+- [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
+- [ ] Apply the same compact share-icon pattern to exercise sharing actions.
 
 ### Post-MVP / Remaining TODO
 
@@ -91,6 +97,7 @@ Audit status last updated: 2026-02-28.
 	- [x] create/edit default exercise records
 	- [x] upload/manage images in Supabase Storage
 	- [x] link image paths/URLs in exercise records
+- [ ] Enforce upload-based custom images for exercise and plan visuals (no manual/external image URL entry); persist uploaded storage path/public URL in DB and always render from saved DB value.
 
 ### 6) Completed Workouts + History
 - [x] Persist completed workout session metadata (plan, timestamps, duration, calories, owner).

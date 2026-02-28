@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise, WorkoutPlan } from '../../core/models/models';
@@ -10,14 +12,14 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-plan-create',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule, RouterLink],
+  imports: [CommonModule, MatIconModule, MatSnackBarModule, FormsModule, RouterLink],
   template: `
     <div class="h-screen flex flex-col bg-white">
       <header class="px-6 py-4 flex items-center border-b border-gray-100">
         <button routerLink="/plans" class="mr-4 text-gray-600">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <h1 class="text-xl font-bold text-gray-900">Create New Plan</h1>
+        <h1 class="text-xl font-bold text-gray-900">{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h1>
       </header>
 
       <div class="flex-1 overflow-y-auto p-6 space-y-6">
@@ -159,7 +161,7 @@ import { AuthService } from '../../core/services/auth.service';
         <button (click)="createPlan()" 
                 [disabled]="!isValid()"
                 class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none">
-          Create Plan
+          {{ isEditMode ? 'Save Changes' : 'Create Plan' }}
         </button>
         @if (planSaveMessage) {
           <p class="text-xs text-red-500 mt-2">{{ planSaveMessage }}</p>
@@ -175,11 +177,15 @@ import { AuthService } from '../../core/services/auth.service';
 })
 export class PlanCreateComponent {
   router = inject(Router);
+  route = inject(ActivatedRoute);
+  snackBar = inject(MatSnackBar);
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
 
   name = '';
   description = '';
+  isEditMode = false;
+  editingPlanId: string | null = null;
   creatingExercise = false;
   sharingExercise = false;
   customExerciseMessage = '';
@@ -200,7 +206,26 @@ export class PlanCreateComponent {
   myCustomExercises = signal<Exercise[]>([]);
 
   constructor() {
+    this.initializeEditMode();
     this.syncMyCustomExercises();
+  }
+
+  private initializeEditMode() {
+    const planId = this.route.snapshot.paramMap.get('planId');
+    if (!planId) return;
+
+    const plan = this.workoutService.getPlanById(planId);
+    const currentUserId = this.authService.currentUser()?.id;
+    if (!plan || !currentUserId || plan.ownerId !== currentUserId) {
+      this.planSaveMessage = 'Plan not found or you do not have permission to edit it.';
+      return;
+    }
+
+    this.isEditMode = true;
+    this.editingPlanId = planId;
+    this.name = plan.name;
+    this.description = plan.description;
+    this.selectedExercises.set([...plan.exercises]);
   }
 
   private syncMyCustomExercises() {
@@ -312,10 +337,31 @@ export class PlanCreateComponent {
   async createPlan() {
     if (!this.isValid()) return;
 
+    const trimmedName = this.name.trim();
+    const trimmedDescription = this.description.trim();
+
+    if (this.isEditMode && this.editingPlanId) {
+      const ok = await this.workoutService.updatePlan(this.editingPlanId, {
+        name: trimmedName,
+        description: trimmedDescription,
+        exercises: this.selectedExercises(),
+      });
+
+      if (!ok) {
+        this.planSaveMessage = 'Failed to update plan. Please try again.';
+        return;
+      }
+
+      this.planSaveMessage = '';
+      this.snackBar.open('Plan updated successfully.', 'Close', { duration: 2500 });
+      this.router.navigate(['/plans']);
+      return;
+    }
+
     const newPlan: WorkoutPlan = {
       id: Math.random().toString(36).substr(2, 9),
-      name: this.name,
-      description: this.description,
+      name: trimmedName,
+      description: trimmedDescription,
       exercises: this.selectedExercises(),
       isActive: false
     };
@@ -327,6 +373,7 @@ export class PlanCreateComponent {
     }
 
     this.planSaveMessage = '';
+    this.snackBar.open('Plan created successfully.', 'Close', { duration: 2500 });
     this.router.navigate(['/plans']);
   }
 }

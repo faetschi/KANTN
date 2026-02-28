@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "node scripts/dev.js",
     "dev": "node scripts/dev.js",
     "dev:local": "cross-env NG_ALLOWED_HOSTS=localhost,localhost:4000 node scripts/dev.js",
     "dev:nohmr": "cross-env DISABLE_HMR=1 node scripts/dev.js",

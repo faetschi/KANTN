@@ -275,6 +275,42 @@ export class WorkoutRepository {
     return planInsert.id;
   }
 
+  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises'>) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error: planError } = await client
+      .from('workout_plans')
+      .update({
+        name: plan.name,
+        description: plan.description,
+      })
+      .eq('id', planId)
+      .eq('owner_id', userId);
+
+    if (planError) return false;
+
+    const { error: deleteError } = await client
+      .from('workout_plan_exercises')
+      .delete()
+      .eq('plan_id', planId);
+
+    if (deleteError) return false;
+
+    if (plan.exercises.length) {
+      const rows = plan.exercises.map((exercise, index) => ({
+        plan_id: planId,
+        exercise_id: exercise.id,
+        position: index,
+      }));
+
+      const { error: insertError } = await client.from('workout_plan_exercises').insert(rows);
+      if (insertError) return false;
+    }
+
+    return true;
+  }
+
   async createExercise(userId: string, input: CreateExerciseInput) {
     const client = this.supabase.getClient();
     if (!client) return null;

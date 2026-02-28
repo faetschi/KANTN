@@ -15,10 +15,17 @@ drop table if exists exercise_shares cascade;
 drop table if exists exercises cascade;
 drop table if exists profiles cascade;
 
+-- Drop storage policies before dropping helper functions they reference.
+drop policy if exists "exercise_images_select" on storage.objects;
+drop policy if exists "exercise_images_insert_admin" on storage.objects;
+drop policy if exists "exercise_images_update_admin" on storage.objects;
+drop policy if exists "exercise_images_delete_admin" on storage.objects;
+
 drop function if exists is_admin();
 drop function if exists touch_updated_at();
 drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
+drop function if exists set_user_role_by_email(text, boolean, boolean);
 
 -- Core profile data
 create table if not exists profiles (
@@ -209,6 +216,58 @@ as $$
     and ws.created_at < to_ts;
 $$;
 
+create or replace function set_user_role_by_email(
+  target_email text,
+  target_approved boolean default true,
+  target_is_admin boolean default false
+)
+returns table (
+  user_id uuid,
+  email text,
+  approved boolean,
+  is_admin boolean
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if target_email is null or btrim(target_email) = '' then
+    raise exception 'target_email must not be empty';
+  end if;
+
+  if not exists (
+    select 1
+    from auth.users u
+    where lower(u.email) = lower(target_email)
+  ) then
+    raise exception 'No auth.users row found for email: %', target_email;
+  end if;
+
+  insert into profiles (id, email, display_name, approved, is_admin)
+  select
+    u.id,
+    u.email,
+    coalesce(u.raw_user_meta_data ->> 'name', split_part(u.email, '@', 1)),
+    target_approved,
+    target_is_admin
+  from auth.users u
+  where lower(u.email) = lower(target_email)
+  on conflict (id) do update
+  set
+    email = excluded.email,
+    approved = excluded.approved,
+    is_admin = excluded.is_admin,
+    updated_at = now();
+
+  return query
+  select p.id, p.email, p.approved, p.is_admin
+  from profiles p
+  where lower(p.email) = lower(target_email);
+end;
+$$;
+
 grant select on table profiles to anon;
 grant select, insert, update on table profiles to authenticated;
 
@@ -225,6 +284,11 @@ grant select, insert, update, delete on table workout_session_sets to authentica
 
 grant execute on function calc_burned_calories(numeric, numeric, integer) to authenticated;
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
+
+revoke execute on function set_user_role_by_email(text, boolean, boolean) from public;
+revoke execute on function set_user_role_by_email(text, boolean, boolean) from anon;
+revoke execute on function set_user_role_by_email(text, boolean, boolean) from authenticated;
+grant execute on function set_user_role_by_email(text, boolean, boolean) to service_role;
 
 alter table profiles enable row level security;
 alter table exercises enable row level security;
@@ -620,3 +684,6 @@ create policy "exercise_images_delete_admin" on storage.objects
 -- Example admin user insertion (optional):
 -- insert into profiles (id, email, display_name, approved, is_admin)
 -- values ('00000000-0000-0000-0000-000000000000','admin@example.com','Admin',true,true);
+
+-- Example helper usage (run in SQL editor or with service_role key):
+-- select * from set_user_role_by_email('faetschi.ai@gmail.com', true, true);

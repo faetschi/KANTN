@@ -126,6 +126,17 @@ export class WorkoutService {
     return planId;
   }
 
+  async updatePlan(planId: string, updates: Pick<WorkoutPlan, 'name' | 'description' | 'exercises'>) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.updatePlan(userId, planId, updates);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
   async createExercise(input: CreateExerciseInput) {
     const userId = this.getCurrentUserId();
     if (!userId) return null;

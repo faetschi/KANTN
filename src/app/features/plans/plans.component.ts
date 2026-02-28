@@ -81,6 +81,11 @@ import { AuthService } from '../../core/services/auth.service';
               <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
                 Start
               </button>
+              @if (isOwnedPlan(plan.id)) {
+                <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
+                  Edit
+                </button>
+              }
               @if (!plan.isActive) {
                 <button (click)="activatePlan(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
                   Activate
@@ -106,6 +111,12 @@ export class PlansComponent {
   myOwnedPlans() {
     const currentUserId = this.authService.currentUser()?.id;
     return this.plans().filter(plan => !!currentUserId && plan.ownerId === currentUserId);
+  }
+
+  isOwnedPlan(planId: string) {
+    const currentUserId = this.authService.currentUser()?.id;
+    if (!currentUserId) return false;
+    return this.plans().some(plan => plan.id === planId && plan.ownerId === currentUserId);
   }
 
   async activatePlan(id: string) {
