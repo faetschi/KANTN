@@ -2,6 +2,7 @@ import { Injectable, signal, computed, inject } from '@angular/core';
 import { User } from '../models/models';
 import { MOCK_USER } from '../models/mock-data';
 import { SupabaseService } from './supabase.service';
+import { Session } from '@supabase/supabase-js';
 
 type DevWindow = Window & { __env?: { ENABLE_DEV_AUTH?: string }; __DEV_FAKE_AUTH?: boolean };
 type CryptoWithUUID = Crypto & { randomUUID?: () => string };
@@ -12,6 +13,7 @@ type AuthUser = User & { is_admin?: boolean };
 })
 export class AuthService {
   private currentUserSignal = signal<AuthUser | null>(null);
+  private profileLoadInFlight: Promise<void> | null = null;
 
   currentUser = computed(() => this.currentUserSignal());
 
@@ -47,33 +49,70 @@ export class AuthService {
     if (!client) return;
 
     try {
-      await this.loadProfileFromSession();
+      const session = await this.getSessionSafely();
+      await this.loadProfileFromSession(session);
     } catch (error) {
       console.warn('Failed to load profile from session', error);
     }
 
-    client.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) {
-        this.currentUserSignal.set(null);
-        return;
-      }
-
-      try {
-        await this.loadProfileFromSession();
-      } catch (error) {
-        console.warn('Failed to refresh profile after auth change', error);
-      }
+    client.auth.onAuthStateChange((_event, session) => {
+      void this.handleAuthStateChange(session);
     });
   }
 
-  private async loadProfileFromSession() {
+  private async handleAuthStateChange(session: Session | null) {
+    if (!session?.user) {
+      this.currentUserSignal.set(null);
+      return;
+    }
+
+    try {
+      await this.loadProfileFromSession(session);
+    } catch (error) {
+      console.warn('Failed to refresh profile after auth change', error);
+    }
+  }
+
+  private async getSessionSafely(): Promise<Session | null> {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    try {
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError) throw sessionError;
+      return sessionData?.session ?? null;
+    } catch (error: any) {
+      const message = String(error?.message || error || '');
+      const isLockTimeout = message.includes('Navigator LockManager lock') && message.includes('timed out');
+      if (!isLockTimeout) throw error;
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 150));
+      const { data: sessionData, error: retryError } = await client.auth.getSession();
+      if (retryError) throw retryError;
+      return sessionData?.session ?? null;
+    }
+  }
+
+  private async loadProfileFromSession(session?: Session | null) {
+    if (this.profileLoadInFlight) {
+      await this.profileLoadInFlight;
+      return;
+    }
+
+    this.profileLoadInFlight = this.loadProfileFromSessionInternal(session);
+    try {
+      await this.profileLoadInFlight;
+    } finally {
+      this.profileLoadInFlight = null;
+    }
+  }
+
+  private async loadProfileFromSessionInternal(session?: Session | null) {
     const client = this.supabase.getClient();
     if (!client) return;
 
-    const { data: sessionData, error: sessionError } = await client.auth.getSession();
-    if (sessionError) throw sessionError;
-
-    const user = sessionData?.session?.user ?? null;
+    const resolvedSession = session ?? await this.getSessionSafely();
+    const user = resolvedSession?.user ?? null;
     if (!user) {
       this.currentUserSignal.set(null);
       return;
