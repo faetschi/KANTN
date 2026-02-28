@@ -28,6 +28,9 @@ import { Exercise, WorkoutPlan, WorkoutSession, Set } from '../../core/models/mo
 
       <!-- Content -->
       <div class="flex-1 overflow-y-auto p-6">
+        @if (saveErrorMessage) {
+          <div class="mb-4 rounded-xl bg-red-50 text-red-600 text-sm px-4 py-3 border border-red-100">{{ saveErrorMessage }}</div>
+        }
         @if (currentExercise(); as exercise) {
           <div class="mb-8 animate-fade-in">
             <div class="aspect-video rounded-2xl overflow-hidden mb-6 shadow-sm bg-gray-100">
@@ -131,6 +134,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   startTime = new Date();
   elapsedTime = signal(0);
   timerInterval: any;
+  saveErrorMessage = '';
   
   showInfo = false;
 
@@ -139,6 +143,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       const id = params.get('planId');
       if (id) {
         this.planId.set(id);
+        this.startTime = new Date();
+        this.elapsedTime.set(0);
+        clearInterval(this.timerInterval);
         this.initializeWorkoutData();
         this.startTimer();
       }
@@ -233,17 +240,18 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   cancelWorkout() {
     if (confirm('Are you sure you want to cancel this workout?')) {
+      clearInterval(this.timerInterval);
       this.router.navigate(['/home']);
     }
   }
 
-  finishWorkout() {
+  async finishWorkout() {
     const plan = this.plan();
     if (!plan) return;
 
     const exercises = Array.from(this.workoutData().entries()).map(([exerciseId, sets]) => ({
       exerciseId,
-      sets: sets.filter(s => s.completed) // Only save completed sets? Or all? Let's save all but mark completed
+      sets
     }));
 
     const session: WorkoutSession = {
@@ -253,11 +261,18 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       startTime: this.startTime,
       endTime: new Date(),
       duration: this.elapsedTime(),
-      caloriesBurned: Math.floor(this.elapsedTime() / 60 * 5), // Rough estimate: 5 cal/min
       exercises
     };
 
-    this.workoutService.addSession(session);
+    clearInterval(this.timerInterval);
+    const saved = await this.workoutService.addSession(session);
+    if (!saved) {
+      this.saveErrorMessage = 'Failed to save workout session. Please try again.';
+      this.startTimer();
+      return;
+    }
+
+    this.saveErrorMessage = '';
     this.router.navigate(['/home']);
   }
 }
