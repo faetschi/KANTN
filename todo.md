@@ -29,7 +29,7 @@ Audit status last updated: 2026-02-28.
 - [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
 - [ ] Implement default exercises/plans first-run seed load (idempotent).
 - [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
-- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB.
+- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
 - [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
 - [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
 - [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
