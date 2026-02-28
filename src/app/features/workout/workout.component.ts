@@ -14,7 +14,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
   template: `
     <div class="h-screen flex flex-col bg-white">
       <!-- Header -->
-      <header class="px-6 py-4 flex justify-between items-center border-b border-gray-100">
+      <header class="sticky top-0 z-20 bg-white px-6 py-4 flex justify-between items-center border-b border-gray-100">
         <button (click)="cancelWorkout()" class="text-gray-400">
           <mat-icon>close</mat-icon>
         </button>
@@ -48,7 +48,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                 (valueChange)="exerciseSearchQuery = $event"
                 placeholder="Search exercises"
               />
-              <div class="max-h-52 overflow-y-auto space-y-2">
+              <div class="mt-5 max-h-52 overflow-y-auto space-y-2">
                 @for (exercise of filteredExerciseOptions(); track exercise.id) {
                   <button
                     type="button"
@@ -141,7 +141,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </div>
 
       <!-- Footer Navigation -->
-      <div class="bg-white border-t border-gray-100 p-4 safe-area-pb">
+      <div class="sticky bottom-0 z-20 bg-white border-t border-gray-100 p-4 safe-area-pb">
         <div class="flex justify-between items-center">
           <button (click)="prevExercise()" [disabled]="currentExerciseIndex() === 0" class="p-4 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
             <mat-icon>arrow_back</mat-icon>
@@ -157,6 +157,32 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
           </button>
         </div>
       </div>
+
+      @if (showFreestyleSaveModal()) {
+        <div class="fixed inset-0 z-40 bg-black/40 flex items-end sm:items-center justify-center p-4">
+          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+            <div>
+              <h3 class="text-base font-bold text-gray-900">Save as workout plan?</h3>
+              <p class="text-sm text-gray-500 mt-1">Your freestyle session is saved. Optionally save these exercises as a reusable plan.</p>
+            </div>
+
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Plan Name</label>
+              <input
+                type="text"
+                [(ngModel)]="freestylePlanName"
+                class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Freestyle plan name"
+              />
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+              <button type="button" (click)="skipFreestylePlanSave()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Skip</button>
+              <button type="button" (click)="saveFreestylePlanFromModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Save Plan</button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -203,6 +229,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showInfo = false;
   showExercisePicker = false;
   exerciseSearchQuery = '';
+  showFreestyleSaveModal = signal(false);
+  freestylePlanName = '';
 
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
@@ -396,26 +424,42 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.saveErrorMessage = '';
 
     if (this.freestyleMode()) {
-      const shouldCreatePlan = confirm('Save this freestyle workout as a new workout plan?');
-      if (shouldCreatePlan) {
-        const defaultName = `Freestyle ${new Date().toLocaleDateString()}`;
-        const planName = (prompt('Enter name for the new plan', defaultName) || '').trim();
-        if (planName) {
-          const created = await this.workoutService.createPlan({
-            id: Math.random().toString(36).substr(2, 9),
-            name: planName,
-            description: 'Created from freestyle workout',
-            exercises: this.freestyleExercises(),
-            isActive: false,
-          });
-
-          if (!created) {
-            this.saveErrorMessage = 'Workout saved, but failed to create plan from freestyle session.';
-          }
-        }
-      }
+      this.freestylePlanName = `Freestyle ${new Date().toLocaleDateString()}`;
+      this.showFreestyleSaveModal.set(true);
+      return;
     }
 
+    this.router.navigate(['/home']);
+  }
+
+  async saveFreestylePlanFromModal() {
+    const planName = this.freestylePlanName.trim();
+    if (!planName) {
+      this.saveErrorMessage = 'Enter a plan name or skip plan creation.';
+      return;
+    }
+
+    const created = await this.workoutService.createPlan({
+      id: Math.random().toString(36).substr(2, 9),
+      name: planName,
+      description: 'Created from freestyle workout',
+      exercises: this.freestyleExercises(),
+      isActive: false,
+    });
+
+    if (!created) {
+      this.saveErrorMessage = 'Workout saved, but failed to create plan from freestyle session.';
+      return;
+    }
+
+    this.saveErrorMessage = '';
+    this.showFreestyleSaveModal.set(false);
+    this.router.navigate(['/home']);
+  }
+
+  skipFreestylePlanSave() {
+    this.saveErrorMessage = '';
+    this.showFreestyleSaveModal.set(false);
     this.router.navigate(['/home']);
   }
 }

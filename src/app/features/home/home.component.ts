@@ -160,6 +160,7 @@ export class HomeComponent {
   );
 
   getPlanName(planId: string) {
+    if (!planId) return 'Freestyle';
     return this.workoutService.getPlanById(planId)?.name || 'Unknown Plan';
   }
 

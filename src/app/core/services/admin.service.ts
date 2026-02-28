@@ -119,10 +119,11 @@ export class AdminService {
 
     // Remove the profile record for declined registrations
     const result = await this.withRetry(() =>
-      client.from('profiles').delete().eq('id', id).select('id').maybeSingle()
+      client.from('profiles').delete().eq('id', id).select('id')
     );
 
-    if (!(result as any)?.error && !(result as any)?.data) {
+    const rows = (result as any)?.data as Array<{ id: string }> | null | undefined;
+    if (!(result as any)?.error && (!rows || rows.length === 0)) {
       return { data: null, error: { message: 'No matching user found to decline.' } };
     }
 

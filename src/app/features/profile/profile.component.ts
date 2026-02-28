@@ -1,10 +1,11 @@
-import { Component, inject, effect } from '@angular/core';
+import { Component, inject, effect, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 import { StatsService } from '../../core/services/stats.service';
 import { SupabaseService } from '../../core/services/supabase.service';
+import { optimizeImageForUpload } from '../../core/domain/image-upload-domain';
 import { Router } from '@angular/router';
 
 @Component({
@@ -191,15 +192,15 @@ import { Router } from '@angular/router';
           <div class="flex flex-col items-center gap-3">
             <img [src]="user()?.avatarUrl || form.avatarUrl || defaultAvatar" class="w-24 h-24 rounded-full object-cover bg-gray-100" />
             <input #avatarUploadInput type="file" accept="image/*" (change)="uploadAvatar($event)" class="hidden" />
-            <button type="button" (click)="avatarUploadInput.click()" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl w-full">
-              {{ avatarUploading ? 'Uploading...' : 'Upload Photo' }}
+            <button type="button" [disabled]="avatarUploading" (click)="avatarUploadInput.click()" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl w-full disabled:opacity-70">
+              Upload Photo
             </button>
             <span class="text-xs text-gray-500 text-center" *ngIf="avatarUploadMessage">{{ avatarUploadMessage }}</span>
           </div>
 
           <div class="flex justify-end gap-2 mt-4">
             <button type="button" (click)="closeAvatarModal()" class="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-700">Cancel</button>
-            <button type="button" (click)="saveAvatarAndClose()" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold">Done</button>
+            <button type="button" [disabled]="avatarUploading" (click)="saveAvatarAndClose()" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:opacity-70">Done</button>
           </div>
         </div>
       </div>
@@ -263,6 +264,7 @@ export class ProfileComponent {
   statsService = inject(StatsService);
   supabase = inject(SupabaseService);
   router = inject(Router);
+  cdr = inject(ChangeDetectorRef);
   user = this.authService.currentUser;
   activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | null = null;
   avatarModalOpen = false;
@@ -381,11 +383,15 @@ export class ProfileComponent {
   openAvatarModal() {
     this.avatarModalOpen = true;
     this.avatarUploadMessage = '';
+    this.avatarUploading = false;
+    this.cdr.detectChanges();
   }
 
   closeAvatarModal() {
     this.avatarModalOpen = false;
     this.avatarUploadMessage = '';
+    this.avatarUploading = false;
+    this.cdr.detectChanges();
   }
 
   async saveAvatarAndClose() {
@@ -403,34 +409,55 @@ export class ProfileComponent {
     const current = this.user();
     if (!client || !current) {
       this.avatarUploadMessage = 'Please reload and try again.';
+      this.cdr.detectChanges();
       return;
     }
 
     this.avatarUploading = true;
     this.avatarUploadMessage = 'Uploading...';
+    this.cdr.detectChanges();
 
     try {
-      const extension = file.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const optimizedFile = await optimizeImageForUpload(file, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        quality: 0.8,
+        maxProcessingMs: 1800,
+      });
+
+      const extension = optimizedFile.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '').toLowerCase();
       const fileName = `avatar-${Date.now()}${extension ? '.' + extension : ''}`;
       const path = `${current.id}/${fileName}`;
       const bucket = client.storage.from('avatars');
 
-      const { error } = await bucket.upload(path, file, { upsert: true });
+      const uploadPromise = bucket.upload(path, optimizedFile, { upsert: true });
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>(resolve => {
+        setTimeout(() => resolve({ data: null, error: { message: 'Upload timed out. Please try again.' } }), 10000); // 10 seconds timeout
+      });
+
+      const { error } = await Promise.race([uploadPromise, timeoutPromise]);
       if (error) {
         this.avatarUploadMessage = error.message || 'Avatar upload failed.';
+        this.cdr.detectChanges();
         return;
       }
 
       const { data } = bucket.getPublicUrl(path);
       if (!data?.publicUrl) {
         this.avatarUploadMessage = 'Avatar uploaded but preview unavailable.';
+        this.cdr.detectChanges();
         return;
       }
 
       this.form.avatarUrl = data.publicUrl;
-      this.avatarUploadMessage = 'Avatar ready. Save to apply.';
+      this.avatarUploadMessage = 'Uploaded! Save to apply.';
+      this.cdr.detectChanges();
+    } catch {
+      this.avatarUploadMessage = 'Avatar upload failed.';
+      this.cdr.detectChanges();
     } finally {
       this.avatarUploading = false;
+      this.cdr.detectChanges();
     }
   }
 

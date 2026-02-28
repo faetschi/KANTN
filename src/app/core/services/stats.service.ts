@@ -16,6 +16,12 @@ interface StatsRpcRow {
   total_calories: number | string | null;
 }
 
+function parseNumberOrFallback(value: number | string | null | undefined, fallback: number): number {
+  if (value === null || value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -72,9 +78,9 @@ export class StatsService {
     if (!row) return fallback;
 
     return {
-      count: Number(row.workout_count || 0),
-      duration: Number(row.total_duration_seconds || 0),
-      calories: Number(row.total_calories || 0),
+      count: parseNumberOrFallback(row.workout_count, fallback.count),
+      duration: parseNumberOrFallback(row.total_duration_seconds, fallback.duration),
+      calories: parseNumberOrFallback(row.total_calories, fallback.calories),
     };
   }
 

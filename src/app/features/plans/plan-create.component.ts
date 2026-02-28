@@ -51,7 +51,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             (valueChange)="exerciseSearchQuery = $event"
             placeholder="Search exercises"
           />
-          <div class="space-y-3">
+          <div class="mt-5 space-y-3">
             @for (exercise of filteredAvailableExercises(); track exercise.id) {
               <button type="button" (click)="toggleExercise(exercise)" 
                    class="w-full flex items-center p-3 rounded-xl border transition-all cursor-pointer"
@@ -181,7 +181,7 @@ export class PlanCreateComponent {
       }
 
       this.planSaveMessage = '';
-      this.snackBar.open('Plan updated successfully.', 'Close', { duration: 2500 });
+      this.snackBar.open('Plan updated successfully.', 'Close', { duration: 3000 });
       this.router.navigate(['/plans']);
       return;
     }
@@ -201,7 +201,7 @@ export class PlanCreateComponent {
     }
 
     this.planSaveMessage = '';
-    this.snackBar.open('Plan created successfully.', 'Close', { duration: 2500 });
+    this.snackBar.open('Plan created successfully.', 'Close', { duration: 3000 });
     this.router.navigate(['/plans']);
   }
 }

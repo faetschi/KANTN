@@ -182,16 +182,20 @@ export class CustomExercisesComponent {
 
     this.imageUploading = true;
     this.imageUploadMessage = 'Uploading image...';
-    const url = await this.workoutService.uploadExerciseImage(file);
-    this.imageUploading = false;
+    try {
+      const url = await this.workoutService.uploadExerciseImage(file);
+      if (!url) {
+        this.imageUploadMessage = 'Image upload failed.';
+        return;
+      }
 
-    if (!url) {
+      this.customExercise.imageUrl = url;
+      this.imageUploadMessage = 'Image uploaded.';
+    } catch {
       this.imageUploadMessage = 'Image upload failed.';
-      return;
+    } finally {
+      this.imageUploading = false;
     }
-
-    this.customExercise.imageUrl = url;
-    this.imageUploadMessage = 'Image uploaded.';
   }
 
   async createCustomExercise() {

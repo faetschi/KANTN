@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../services/supabase.service';
 import { CreateExerciseInput, Exercise, WorkoutPlan, WorkoutSession } from '../models/models';
 import { PersistedSessionPayload } from '../domain/workout-domain';
+import { optimizeImageForUpload } from '../domain/image-upload-domain';
 
 interface ExerciseRow {
   id: string;
@@ -476,14 +477,27 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return null;
 
-    const fileExt = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+    const optimizedFile = await optimizeImageForUpload(file, {
+      maxWidth: 1280,
+      maxHeight: 1280,
+      quality: 0.82,
+    });
+    const fileExt = optimizedFile.name.includes('.') ? optimizedFile.name.split('.').pop() : 'jpg';
     const safeExt = (fileExt || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
     const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${safeExt}`;
 
-    const { error: uploadError } = await client
+    const uploadPromise = client
       .storage
       .from('exercise-images')
-      .upload(filePath, file, { upsert: false });
+      .upload(filePath, optimizedFile, { upsert: false });
+
+    const timeoutMs = 20000;
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+      setTimeout(() => resolve({ data: null, error: { message: 'Upload timed out. Please try again.' } }), timeoutMs);
+    });
+
+    const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+    const uploadError = uploadResult?.error;
 
     if (uploadError) return null;
 

@@ -46,8 +46,8 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
 
         <div class="flex items-center gap-2">
           <input #exerciseFileInput type="file" accept="image/*" (change)="onExerciseImageSelected($event)" class="hidden" />
-          <button type="button" (click)="exerciseFileInput.click()" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm">
-            {{ exerciseBusy ? 'Uploading...' : 'Upload Image' }}
+          <button type="button" [disabled]="imageUploading" (click)="exerciseFileInput.click()" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm disabled:opacity-60">
+            {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
           </button>
           @if (exerciseMessage) {
             <span class="text-sm text-gray-500">{{ exerciseMessage }}</span>
@@ -55,7 +55,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         </div>
 
         <div class="flex items-center gap-2">
-          <button (click)="saveDefaultExercise()" [disabled]="exerciseBusy" class="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-50">
+          <button (click)="saveDefaultExercise()" [disabled]="exerciseBusy || imageUploading" class="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-50">
             {{ selectedExerciseId ? 'Update Exercise' : 'Create Default Exercise' }}
           </button>
           @if (selectedExerciseId) {
@@ -111,6 +111,7 @@ export class AdminExercisesComponent {
   defaultExercises: Exercise[] = [];
   exercisesLoading = true;
   exerciseBusy = false;
+  imageUploading = false;
   exerciseMessage = '';
   selectedExerciseId: string | null = null;
   searchQuery = '';
@@ -174,19 +175,24 @@ export class AdminExercisesComponent {
     const input = event.target as HTMLInputElement;
     const file = input?.files?.[0];
     if (!file) return;
+    input.value = '';
 
-    this.exerciseBusy = true;
+    this.imageUploading = true;
     this.exerciseMessage = 'Uploading image...';
-    const url = await this.workoutService.uploadExerciseImage(file);
-    this.exerciseBusy = false;
+    try {
+      const url = await this.workoutService.uploadExerciseImage(file);
+      if (!url) {
+        this.exerciseMessage = 'Image upload failed.';
+        return;
+      }
 
-    if (!url) {
+      this.exerciseForm.imageUrl = url;
+      this.exerciseMessage = 'Image uploaded.';
+    } catch {
       this.exerciseMessage = 'Image upload failed.';
-      return;
+    } finally {
+      this.imageUploading = false;
     }
-
-    this.exerciseForm.imageUrl = url;
-    this.exerciseMessage = 'Image uploaded.';
   }
 
   async saveDefaultExercise() {
