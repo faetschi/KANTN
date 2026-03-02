@@ -1,6 +1,15 @@
-# KANTN Angular App
+# KANTN — Workout App
 
-Angular frontend with Supabase backend, deployed on Vercel.
+Train with purpose. Stay consistent. See results.
+
+KANTN is a modern workout platform designed to make fitness simple, structured, and motivating. Create personalized plans, build custom exercises, track your workout history, and turn every session into measurable progress.
+
+### Why KANTN
+- 🗓️ **Personal workout plans**: Build and follow plans tailored to your goals.
+- 🏋️ **Custom exercise builder**: Create and save exercises that fit your style.
+- ✅ **Guided workout flow**: Start sessions, follow sets, and stay on track.
+- 📊 **Workout history & details**: Review completed sessions and performance trends.
+- 👤 **Personal profile**: Keep your account and fitness journey organized in one place.
 
 ## Quick Start (Dev)
 
