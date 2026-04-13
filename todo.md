@@ -78,6 +78,12 @@ another user (bug, fix this)
 - [ ] Apply the same compact share-icon pattern to exercise sharing actions.
 - [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init. Default Exercises that wxist at start should include: WeightLifting (Squats, Bench Press, ...), Cardio (Running, Cycling, ...)
 - [ ] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
+Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings zu viel tippen muss? Lösung: Signaltöne
+- [ ] For specific Cardio exercises, add GPS capability (e.g. Running/Cycling, mit abgespielten Signalton (konfigurierbar) bei bestimmer (konfigurierbarer) Distanz, z.B. alle 5km)
+- [ ] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
+
+
+
 
 ### Post-MVP / Remaining TODO
 
@@ -200,6 +206,10 @@ another user (bug, fix this)
 - [ ] Document production deployment steps.
 
 ## Future Feature Ideas (Backlog)
+
+- [ ] Challenge other Users (only if added to Friends) for a specific Exercise (e.g. "I challenge you for a better time at running 5km / or more weight at Bench Press"), then if both users accept the challenge both do the Exercise in the next 48 Hours and see whos better.
+
+
 
 ### A) Start Workout Without Predefined Plan
 - [ ] Allow users to start a workout by selecting exercises on the fly.
