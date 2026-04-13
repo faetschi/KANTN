@@ -1,5 +1,19 @@
 # IXD Feature Requirements
 
+# Roadmap / Meilensteinplan
+
+Projekt Beginn: 15.04
+
+Milestone 1: Technische Implementation fertiggestellt
+Milestone 2: 1. Feedbacktermin mit Johannes Robier + Feedback umgesetzt
+Milestone 3: 2. Feedbacktermin mit Johannes Robier + Feedback umgesetzt
+Milestone 4: Real-User UX Tests durchgeführt
+Milestone 5: Feedback von Tests umgesetzt
+
+Projekt Deadline: offen
+
+<Mermaid Diagram of Milestone Plan>
+
 # Epics
 
 ## Persuasive Design & Gamification (B2B-Ansatz)
