@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise, WorkoutPlan, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
+import { Exercise, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
@@ -67,7 +67,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         @if (currentExercise(); as exercise) {
           <div class="mb-8 animate-fade-in">
             <div class="aspect-video rounded-2xl overflow-hidden mb-6 shadow-sm bg-gray-100">
-              <img [src]="exercise.imageUrl" class="w-full h-full object-cover">
+              <img [src]="exercise.imageUrl" [alt]="exercise.name" class="w-full h-full object-cover">
             </div>
             
             <div class="flex justify-between items-start mb-2">
@@ -141,7 +141,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </div>
 
       <!-- Footer Navigation -->
-      <div class="fixed left-0 right-0 bottom-[-1px] z-40 bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
+      <div class="fixed left-0 right-0 bottom-[-1px] z-50 bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
         <div class="flex justify-between items-center max-w-screen-xl mx-auto">
           <button (click)="prevExercise()" [disabled]="currentExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
             <mat-icon>arrow_back</mat-icon>
@@ -175,7 +175,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       }
 
       @if (showFreestyleSaveModal()) {
-        <div class="fixed inset-0 z-40 bg-black/40 flex items-end sm:items-center justify-center p-4">
+        <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
             <div>
               <h3 class="text-base font-bold text-gray-900">Save as workout plan?</h3>
@@ -183,8 +183,9 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             </div>
 
             <div class="space-y-2">
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Plan Name</label>
+              <label for="freestyle-plan-name" class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Plan Name</label>
               <input
+                id="freestyle-plan-name"
                 type="text"
                 [(ngModel)]="freestylePlanName"
                 class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -242,7 +243,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   
   startTime = new Date();
   elapsedTime = signal(0);
-  timerInterval: any;
+  timerInterval: ReturnType<typeof setInterval> | undefined;
   saveErrorMessage = '';
   
   showInfo = false;
@@ -265,7 +266,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         this.startTime = new Date();
         this.elapsedTime.set(0);
         this.currentExerciseIndex.set(0);
-        clearInterval(this.timerInterval);
+        if (this.timerInterval !== undefined) {
+          clearInterval(this.timerInterval);
+          this.timerInterval = undefined;
+        }
         this.initializeWorkoutData();
         this.startTimer();
       }
@@ -273,7 +277,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    clearInterval(this.timerInterval);
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
   }
 
   initializeWorkoutData() {
@@ -413,7 +420,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   confirmCancelWorkout() {
     this.showCancelWorkoutModal.set(false);
-    clearInterval(this.timerInterval);
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
     this.router.navigate(['/home']);
   }
 
@@ -440,7 +450,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       exercises
     };
 
-    clearInterval(this.timerInterval);
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
     const saved = await this.workoutService.addSession(session);
     if (!saved) {
       this.saveErrorMessage = 'Failed to save workout session. Please try again.';
