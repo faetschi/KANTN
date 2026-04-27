@@ -239,8 +239,9 @@ export class AdminExercisesComponent {
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/:/g, '-');
       a.href = url;
-      a.download = `kantn-backup-${new Date().toISOString()}.json`;
+      a.download = `kantn-backup-${timestamp}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
