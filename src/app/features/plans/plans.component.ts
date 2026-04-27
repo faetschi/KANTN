@@ -88,6 +88,11 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             <div class="flex justify-between items-start mb-3">
               <div>
                 <h3 class="text-lg font-bold text-gray-900">{{ plan.name }}</h3>
+                @if (plan.category) {
+                  <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600 mb-1">
+                    {{ plan.category }}
+                  </span>
+                }
                 <p class="text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
               </div>
               @if (plan.isActive) {
@@ -163,7 +168,7 @@ export class PlansComponent {
     if (!query) return sorted;
 
     return sorted.filter(plan => {
-      const haystack = [plan.name, plan.description || ''].join(' ').toLowerCase();
+      const haystack = [plan.name, plan.description || '', plan.category || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
   });

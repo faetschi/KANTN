@@ -21,6 +21,7 @@ interface WorkoutPlanRow {
   id: string;
   owner_id: string;
   name: string;
+  category: string | null;
   description: string | null;
   visibility: 'private' | 'shared' | 'public';
   is_active: boolean;
@@ -115,6 +116,7 @@ export class WorkoutRepository {
       return {
         id: row.id,
         name: row.name,
+        category: (row.category as WorkoutPlan['category']) || undefined,
         description: row.description || '',
         exercises: exerciseRows
           .sort((a, b) => a.position - b.position)
@@ -228,6 +230,7 @@ export class WorkoutRepository {
       .insert({
         owner_id: userId,
         name: plan.name,
+        category: plan.category || null,
         description: plan.description,
         visibility: plan.visibility || 'private',
         is_active: !!plan.isActive,
@@ -264,7 +267,7 @@ export class WorkoutRepository {
     return planInsert.id;
   }
 
-  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises'>) {
+  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category'>) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
@@ -272,6 +275,7 @@ export class WorkoutRepository {
       .from('workout_plans')
       .update({
         name: plan.name,
+        category: plan.category || null,
         description: plan.description,
       })
       .eq('id', planId)

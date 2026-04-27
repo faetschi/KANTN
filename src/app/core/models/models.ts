@@ -49,6 +49,7 @@ export interface WorkoutPlan {
   id: string;
   name: string;
   description: string;
+  category?: 'upper body' | 'lower body' | 'core' | 'cardio' | 'mobility';
   exercises: Exercise[];
   schedule?: string[]; // e.g., ['Monday', 'Wednesday', 'Friday']
   isActive: boolean;

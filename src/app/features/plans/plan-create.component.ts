@@ -30,6 +30,18 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         </div>
 
         <div>
+          <div class="block text-sm font-medium text-gray-700 mb-2">Category</div>
+          <select [(ngModel)]="category" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+            <option value="">Select Category (Optional)</option>
+            <option value="upper body">Upper Body</option>
+            <option value="lower body">Lower Body</option>
+            <option value="core">Core</option>
+            <option value="cardio">Cardio</option>
+            <option value="mobility">Mobility</option>
+          </select>
+        </div>
+
+        <div>
           <div class="block text-sm font-medium text-gray-700 mb-2">Description</div>
           <textarea [(ngModel)]="description" rows="3" placeholder="Brief description..." class="w-full bg-gray-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500"></textarea>
         </div>
@@ -103,6 +115,7 @@ export class PlanCreateComponent {
   authService = inject(AuthService);
 
   name = '';
+  category: WorkoutPlan['category'] | '' = '';
   description = '';
   isEditMode = false;
   editingPlanId: string | null = null;
@@ -129,6 +142,7 @@ export class PlanCreateComponent {
     this.isEditMode = true;
     this.editingPlanId = planId;
     this.name = plan.name;
+    this.category = plan.category || '';
     this.description = plan.description;
     this.selectedExercises.set([...plan.exercises]);
   }
@@ -167,10 +181,12 @@ export class PlanCreateComponent {
 
     const trimmedName = this.name.trim();
     const trimmedDescription = this.description.trim();
+    const planCategory = this.category || undefined;
 
     if (this.isEditMode && this.editingPlanId) {
       const ok = await this.workoutService.updatePlan(this.editingPlanId, {
         name: trimmedName,
+        category: planCategory,
         description: trimmedDescription,
         exercises: this.selectedExercises(),
       });
@@ -190,6 +206,7 @@ export class PlanCreateComponent {
       id: Math.random().toString(36).substr(2, 9),
       name: trimmedName,
       description: trimmedDescription,
+      category: planCategory,
       exercises: this.selectedExercises(),
       isActive: false
     };

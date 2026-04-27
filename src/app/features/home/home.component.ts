@@ -67,7 +67,14 @@ import { StatsService } from '../../core/services/stats.service';
               <div class="flex justify-between items-start mb-6">
                 <div>
                   <h3 class="text-xl font-bold mb-1">{{ plan.name }}</h3>
-                  <p class="text-gray-400 text-sm">{{ plan.exercises.length }} Exercises</p>
+                  <div class="flex items-center gap-2 mb-1">
+                    @if (plan.category) {
+                      <span class="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur-sm">
+                        {{ plan.category }}
+                      </span>
+                    }
+                    <p class="text-gray-400 text-sm">{{ plan.exercises.length }} Exercises</p>
+                  </div>
                 </div>
                 <div class="bg-white/10 p-2 rounded-xl backdrop-blur-sm">
                   <mat-icon class="text-white">fitness_center</mat-icon>

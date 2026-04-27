@@ -86,6 +86,7 @@ create table if not exists workout_plans (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references profiles(id) on delete cascade,
   name text not null,
+  category text check (category in ('upper body', 'lower body', 'core', 'cardio', 'mobility')),
   description text,
   visibility text not null default 'private' check (visibility in ('private', 'shared', 'public')),
   is_active boolean not null default false,

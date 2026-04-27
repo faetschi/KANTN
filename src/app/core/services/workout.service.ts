@@ -211,7 +211,7 @@ export class WorkoutService {
     return planId;
   }
 
-  async updatePlan(planId: string, updates: Pick<WorkoutPlan, 'name' | 'description' | 'exercises'>) {
+  async updatePlan(planId: string, updates: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category'>) {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 
