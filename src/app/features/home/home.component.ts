@@ -78,7 +78,7 @@ import { StatsService } from '../../core/services/stats.service';
                 </div>
                 <div class="w-full sm:w-auto">
                   <button [routerLink]="['/workout', plan.id]" class="w-full bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center justify-center whitespace-nowrap">
-                    Start Workout
+                    {{ isPlanWorkoutActive(plan.id) ? 'Continue Workout' : 'Start Workout' }}
                   </button>
                 </div>
               </div>
@@ -103,7 +103,7 @@ import { StatsService } from '../../core/services/stats.service';
               <p class="text-xs text-gray-200 mt-1">Free workout mode without a selected plan.</p>
               <div class="mt-3">
                 <button [routerLink]="['/workout', 'freestyle']" class="inline-flex items-center justify-center rounded-lg bg-white text-gray-900 px-3 py-1.5 text-xs font-semibold shadow-sm whitespace-nowrap active:scale-95 transition-transform">
-                  Start Freestyle Workout
+                  {{ isFreestyleWorkoutActive() ? 'Continue Freestyle' : 'Start Freestyle Workout' }}
                 </button>
               </div>
             </div>
@@ -162,6 +162,14 @@ export class HomeComponent {
   getPlanName(planId: string) {
     if (!planId) return 'Freestyle';
     return this.workoutService.getPlanById(planId)?.name || 'Unknown Plan';
+  }
+
+  isPlanWorkoutActive(planId: string) {
+    return this.workoutService.activeWorkoutId() === planId;
+  }
+
+  isFreestyleWorkoutActive() {
+    return this.workoutService.activeWorkoutId() === 'freestyle';
   }
 
   logout() {

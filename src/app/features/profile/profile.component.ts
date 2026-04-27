@@ -7,6 +7,7 @@ import { StatsService } from '../../core/services/stats.service';
 import { SupabaseService } from '../../core/services/supabase.service';
 import { optimizeImageForUpload } from '../../core/domain/image-upload-domain';
 import { Router } from '@angular/router';
+import { NotificationService } from '../../core/services/notification.service';
 
 @Component({
   selector: 'app-profile',
@@ -171,15 +172,6 @@ import { Router } from '@angular/router';
         </div>
       </div>
 
-      <div
-        *ngIf="message"
-        class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 text-white text-sm px-4 py-2 rounded-xl shadow-lg"
-        [class.bg-green-600]="toastType === 'success'"
-        [class.bg-red-600]="toastType === 'error'"
-      >
-        {{ message }}
-      </div>
-
       <div *ngIf="avatarModalOpen" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100">
           <div class="flex items-center justify-between mb-4">
@@ -263,14 +255,12 @@ export class ProfileComponent {
   authService = inject(AuthService);
   statsService = inject(StatsService);
   supabase = inject(SupabaseService);
+  notifications = inject(NotificationService);
   router = inject(Router);
   cdr = inject(ChangeDetectorRef);
   user = this.authService.currentUser;
   activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | null = null;
   avatarModalOpen = false;
-  message = '';
-  toastType: 'success' | 'error' = 'success';
-  private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
   avatarUploading = false;
   avatarUploadMessage = '';
   defaultAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=kantn';
@@ -305,23 +295,6 @@ export class ProfileComponent {
 
   beginInlineEdit(field: 'name' | 'funFact' | 'height' | 'weight' | 'age') {
     this.activeField = field;
-    this.message = '';
-    if (this.toastTimeoutId) {
-      clearTimeout(this.toastTimeoutId);
-      this.toastTimeoutId = null;
-    }
-  }
-
-  private showToast(text: string, type: 'success' | 'error' = 'success') {
-    this.message = text;
-    this.toastType = type;
-    if (this.toastTimeoutId) {
-      clearTimeout(this.toastTimeoutId);
-    }
-    this.toastTimeoutId = setTimeout(() => {
-      this.message = '';
-      this.toastTimeoutId = null;
-    }, 3000);
   }
 
   private validateActiveField(): string | null {
@@ -354,7 +327,7 @@ export class ProfileComponent {
 
     const validationError = this.validateActiveField();
     if (validationError) {
-      this.showToast(validationError, 'error');
+      this.notifications.error(validationError);
       return;
     }
 
@@ -478,11 +451,11 @@ export class ProfileComponent {
     }).eq('id', current.id);
 
     if (error) {
-      this.showToast(error.message || 'Failed to save profile.', 'error');
+      this.notifications.error(error.message || 'Failed to save profile.');
       return;
     }
 
-    this.showToast('Saved.');
+    this.notifications.success('Saved.');
     await this.authService.refreshProfile();
   }
 }

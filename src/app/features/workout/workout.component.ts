@@ -4,8 +4,19 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { Exercise, WorkoutPlan, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+
+interface ActiveWorkoutDraft {
+  workoutId: string;
+  freestyleMode: boolean;
+  startTimeIso: string;
+  elapsedSeconds: number;
+  currentExerciseIndex: number;
+  freestyleExerciseIds: string[];
+  setsByExerciseId: Record<string, WorkoutSet[]>;
+}
 
 @Component({
   selector: 'app-workout',
@@ -174,31 +185,6 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         </div>
       }
 
-      @if (showFreestyleSaveModal()) {
-        <div class="fixed inset-0 z-40 bg-black/40 flex items-end sm:items-center justify-center p-4">
-          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
-            <div>
-              <h3 class="text-base font-bold text-gray-900">Save as workout plan?</h3>
-              <p class="text-sm text-gray-500 mt-1">Your freestyle session is saved. Optionally save these exercises as a reusable plan.</p>
-            </div>
-
-            <div class="space-y-2">
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Plan Name</label>
-              <input
-                type="text"
-                [(ngModel)]="freestylePlanName"
-                class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Freestyle plan name"
-              />
-            </div>
-
-            <div class="flex items-center justify-end gap-2">
-              <button type="button" (click)="skipFreestylePlanSave()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Skip</button>
-              <button type="button" (click)="saveFreestylePlanFromModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Save Plan</button>
-            </div>
-          </div>
-        </div>
-      }
     </div>
   `,
   styles: [`
@@ -221,6 +207,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   route = inject(ActivatedRoute);
   router = inject(Router);
   workoutService = inject(WorkoutService);
+  notifications = inject(NotificationService);
 
   planId = signal<string>('');
   plan = computed(() => this.workoutService.getPlanById(this.planId()));
@@ -249,8 +236,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showExercisePicker = false;
   exerciseSearchQuery = '';
   showCancelWorkoutModal = signal(false);
-  showFreestyleSaveModal = signal(false);
-  freestylePlanName = '';
+  private persistDraftOnDestroy = true;
 
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
@@ -258,6 +244,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       if (id) {
         this.planId.set(id);
         this.freestyleMode.set(id === 'freestyle');
+        this.workoutService.setActiveWorkout(id === 'freestyle' ? 'freestyle' : id);
         if (id === 'freestyle') {
           this.freestyleExercises.set([]);
           this.showExercisePicker = true;
@@ -267,13 +254,72 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         this.currentExerciseIndex.set(0);
         clearInterval(this.timerInterval);
         this.initializeWorkoutData();
+        this.restoreDraftIfPossible(id);
         this.startTimer();
       }
     });
   }
 
   ngOnDestroy() {
+    if (this.persistDraftOnDestroy) {
+      this.persistDraft();
+    }
     clearInterval(this.timerInterval);
+  }
+
+  private persistDraft() {
+    if (!this.currentExercise() && !this.freestyleExercises().length) return;
+
+    const setsByExerciseId: Record<string, WorkoutSet[]> = {};
+    for (const [exerciseId, sets] of this.workoutData().entries()) {
+      setsByExerciseId[exerciseId] = sets.map(set => ({ ...set }));
+    }
+
+    const draft: ActiveWorkoutDraft = {
+      workoutId: this.freestyleMode() ? 'freestyle' : this.planId(),
+      freestyleMode: this.freestyleMode(),
+      startTimeIso: this.startTime.toISOString(),
+      elapsedSeconds: this.elapsedTime(),
+      currentExerciseIndex: this.currentExerciseIndex(),
+      freestyleExerciseIds: this.freestyleExercises().map(exercise => exercise.id),
+      setsByExerciseId,
+    };
+
+    this.workoutService.saveActiveWorkoutDraft(JSON.stringify(draft));
+  }
+
+  private restoreDraftIfPossible(workoutId: string) {
+    const draftRaw = this.workoutService.readActiveWorkoutDraft();
+    if (!draftRaw) return;
+
+    try {
+      const draft = JSON.parse(draftRaw) as ActiveWorkoutDraft;
+      if (draft.workoutId !== workoutId) return;
+
+      if (draft.freestyleMode) {
+        const byId = new Map(this.workoutService.exercises().map(exercise => [exercise.id, exercise]));
+        const restoredFreestyle = draft.freestyleExerciseIds
+          .map(id => byId.get(id))
+          .filter((exercise): exercise is Exercise => !!exercise);
+        this.freestyleExercises.set(restoredFreestyle);
+        this.showExercisePicker = restoredFreestyle.length === 0;
+      }
+
+      const restoredMap = new Map<string, WorkoutSet[]>();
+      for (const [exerciseId, sets] of Object.entries(draft.setsByExerciseId || {})) {
+        restoredMap.set(exerciseId, sets.map(set => ({ ...set })));
+      }
+      if (restoredMap.size > 0) {
+        this.workoutData.set(restoredMap);
+      }
+
+      this.startTime = new Date(draft.startTimeIso || new Date().toISOString());
+      this.elapsedTime.set(Math.max(0, Number(draft.elapsedSeconds || 0)));
+      const maxIndex = Math.max(0, this.totalExercisesCount() - 1);
+      this.currentExerciseIndex.set(Math.min(Math.max(0, Number(draft.currentExerciseIndex || 0)), maxIndex));
+    } catch {
+      // Ignore invalid persisted draft payload.
+    }
   }
 
   initializeWorkoutData() {
@@ -321,6 +367,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       
       sets.push({ ...lastSet, completed: false });
       this.workoutData.update(m => new Map(m.set(exId, sets)));
+      this.persistDraft();
     }
   }
 
@@ -349,6 +396,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     });
     this.currentExerciseIndex.set(Math.max(0, this.freestyleExercises().length - 1));
     this.showExercisePicker = false;
+    this.persistDraft();
   }
 
   removeSet(index: number) {
@@ -360,6 +408,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     sets.splice(index, 1);
     this.workoutData.update(m => new Map(m.set(exId, sets)));
+    this.persistDraft();
   }
 
   toggleSet(index: number) {
@@ -368,6 +417,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       const sets = this.workoutData().get(exId) || [];
       sets[index].completed = !sets[index].completed;
       this.workoutData.update(m => new Map(m.set(exId, sets)));
+      this.persistDraft();
     }
   }
 
@@ -386,6 +436,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   prevExercise() {
     if (this.currentExerciseIndex() > 0) {
       this.currentExerciseIndex.update(i => i - 1);
+      this.persistDraft();
     }
   }
 
@@ -396,6 +447,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.finishWorkout();
     } else {
       this.currentExerciseIndex.update(i => i + 1);
+      this.persistDraft();
     }
   }
 
@@ -413,7 +465,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   confirmCancelWorkout() {
     this.showCancelWorkoutModal.set(false);
+    this.persistDraftOnDestroy = false;
     clearInterval(this.timerInterval);
+    this.workoutService.clearActiveWorkout();
+    this.workoutService.clearActiveWorkoutDraft();
     this.router.navigate(['/home']);
   }
 
@@ -451,18 +506,40 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.saveErrorMessage = '';
 
     if (this.freestyleMode()) {
-      this.freestylePlanName = `Freestyle ${new Date().toLocaleDateString()}`;
-      this.showFreestyleSaveModal.set(true);
+      await this.handleFreestylePlanPrompt();
       return;
     }
 
+    this.persistDraftOnDestroy = false;
+    this.workoutService.clearActiveWorkout();
+    this.workoutService.clearActiveWorkoutDraft();
     this.router.navigate(['/home']);
   }
 
-  async saveFreestylePlanFromModal() {
-    const planName = this.freestylePlanName.trim();
+  private async handleFreestylePlanPrompt() {
+    const promptResult = await this.notifications.openPrompt({
+      title: 'Save as workout plan?',
+      message: 'Your freestyle session is saved. Optionally save these exercises as a reusable plan.',
+      inputLabel: 'Plan Name',
+      inputPlaceholder: 'Freestyle plan name',
+      inputInitialValue: `Freestyle ${new Date().toLocaleDateString()}`,
+      confirmText: 'Save Plan',
+      cancelText: 'Skip',
+    });
+
+    if (!promptResult.confirmed) {
+      this.saveErrorMessage = '';
+      this.persistDraftOnDestroy = false;
+      this.workoutService.clearActiveWorkout();
+      this.workoutService.clearActiveWorkoutDraft();
+      this.router.navigate(['/home']);
+      return;
+    }
+
+    const planName = promptResult.inputValue.trim();
     if (!planName) {
-      this.saveErrorMessage = 'Enter a plan name or skip plan creation.';
+      this.notifications.error('Enter a plan name or skip plan creation.');
+      await this.handleFreestylePlanPrompt();
       return;
     }
 
@@ -475,18 +552,16 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     });
 
     if (!created) {
-      this.saveErrorMessage = 'Workout saved, but failed to create plan from freestyle session.';
+      this.notifications.error('Workout saved, but failed to create plan from freestyle session.');
+      await this.handleFreestylePlanPrompt();
       return;
     }
 
     this.saveErrorMessage = '';
-    this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
-  }
-
-  skipFreestylePlanSave() {
-    this.saveErrorMessage = '';
-    this.showFreestyleSaveModal.set(false);
+    this.persistDraftOnDestroy = false;
+    this.workoutService.clearActiveWorkout();
+    this.workoutService.clearActiveWorkoutDraft();
+    this.notifications.success('Saved.');
     this.router.navigate(['/home']);
   }
 }

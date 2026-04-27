@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Exercise } from '../../core/models/models';
+import { NotificationService } from '../../core/services/notification.service';
 
 @Component({
   selector: 'app-custom-exercises',
@@ -33,7 +34,7 @@ import { Exercise } from '../../core/models/models';
       <div class="flex-1 overflow-y-auto p-6 space-y-6">
         <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900">Create Custom Exercise</h3>
+            <h3 class="text-sm font-semibold text-gray-900">{{ editingExerciseId ? 'Edit Custom Exercise' : 'Create Custom Exercise' }}</h3>
             <span class="text-xs text-gray-500">Private to you by default</span>
           </div>
 
@@ -58,18 +59,26 @@ import { Exercise } from '../../core/models/models';
               <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                [(ngModel)]="customExercise.exerciseType"
-                placeholder="Exercise type"
-                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
-              <input
-                type="number"
-                [(ngModel)]="customExercise.metValue"
-                placeholder="MET"
-                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Exercise type</label>
+                <input
+                  type="text"
+                  [(ngModel)]="customExercise.exerciseType"
+                  placeholder="general (default)"
+                  class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                >
+                <p class="mt-1 text-[11px] text-gray-500">Use values like strength, cardio, or mobility.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">MET value</label>
+                <input
+                  type="number"
+                  [(ngModel)]="customExercise.metValue"
+                  placeholder="5 (default)"
+                  class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                >
+                <p class="mt-1 text-[11px] text-gray-500">Higher MET means higher estimated calorie burn.</p>
+              </div>
             </div>
             <textarea
               rows="2"
@@ -82,17 +91,63 @@ import { Exercise } from '../../core/models/models';
           <div class="flex items-center gap-3">
             <button
               type="button"
-              (click)="createCustomExercise()"
-              [disabled]="creatingExercise"
+              (click)="editingExerciseId ? saveCustomExercise() : createCustomExercise()"
+              [disabled]="creatingExercise || savingExercise"
               class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
             >
-              {{ creatingExercise ? 'Creating…' : 'Add Custom Exercise' }}
+              {{ creatingExercise ? 'Creating…' : savingExercise ? 'Saving…' : editingExerciseId ? 'Save Changes' : 'Add Custom Exercise' }}
             </button>
+            @if (editingExerciseId) {
+              <button
+                type="button"
+                (click)="cancelEdit()"
+                class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl"
+              >
+                Cancel
+              </button>
+            }
             @if (customExerciseMessage) {
               <span class="text-xs text-gray-500">{{ customExerciseMessage }}</span>
             }
           </div>
         </section>
+
+        @if (myCustomExercises().length > 0) {
+        <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-gray-900">Manage My Custom Exercises</h3>
+          <div class="space-y-2">
+            @for (exercise of myCustomExercises(); track exercise.id) {
+              <div class="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-900 truncate">{{ exercise.name }}</p>
+                  @if (exercise.muscleGroup) {
+                    <p class="text-xs text-gray-500 truncate">{{ exercise.muscleGroup }}</p>
+                  }
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="startEdit(exercise)"
+                    class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"
+                    aria-label="Edit custom exercise"
+                  >
+                    <mat-icon class="text-base">edit</mat-icon>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="deleteExercise(exercise)"
+                    [disabled]="deletingExerciseId === exercise.id"
+                    class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 disabled:opacity-50"
+                    aria-label="Delete custom exercise"
+                  >
+                    <mat-icon class="text-base">{{ deletingExerciseId === exercise.id ? 'hourglass_top' : 'delete' }}</mat-icon>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+        }
 
         @if (showSharePanel) {
         <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
@@ -133,14 +188,17 @@ import { Exercise } from '../../core/models/models';
         </section>
         }
       </div>
+
     </div>
   `,
 })
 export class CustomExercisesComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  notifications = inject(NotificationService);
 
   creatingExercise = false;
+  savingExercise = false;
   sharingExercise = false;
   unsharingExercise = false;
   imageUploading = false;
@@ -150,6 +208,9 @@ export class CustomExercisesComponent {
   showSharePanel = false;
   shareExerciseId = '';
   shareEmail = '';
+  editingExerciseId: string | null = null;
+  deletingExerciseId: string | null = null;
+  private customExerciseMessageTimer: ReturnType<typeof setTimeout> | null = null;
   customExercise = {
     name: '',
     description: '',
@@ -199,6 +260,7 @@ export class CustomExercisesComponent {
   }
 
   async createCustomExercise() {
+    this.creatingExercise = false;
     const payload = {
       name: this.customExercise.name.trim(),
       description: this.customExercise.description.trim() || undefined,
@@ -210,20 +272,58 @@ export class CustomExercisesComponent {
     };
 
     if (!payload.name) {
-      this.customExerciseMessage = 'Please enter a name for your custom exercise.';
+      const validationMessage = 'Please enter a name for your custom exercise.';
+      this.setCustomExerciseMessage(validationMessage);
+      this.notifications.error(validationMessage);
       return;
     }
 
     this.creatingExercise = true;
-    this.customExerciseMessage = '';
-    const created = await this.workoutService.createExercise(payload);
-    this.creatingExercise = false;
+    this.clearCustomExerciseMessage();
+    try {
+      const created = await this.workoutService.createExercise(payload);
+      if (!created) {
+        const failureMessage = 'Failed to create custom exercise.';
+        this.setCustomExerciseMessage(failureMessage);
+        this.notifications.error(failureMessage);
+        return;
+      }
 
-    if (!created) {
-      this.customExerciseMessage = 'Failed to create custom exercise.';
-      return;
+      this.customExercise = {
+        name: '',
+        description: '',
+        muscleGroup: '',
+        imageUrl: '',
+        exerciseType: 'general',
+        metValue: 5,
+      };
+      this.clearCustomExerciseMessage();
+      this.notifications.success('Saved.');
+      this.syncMyCustomExercises();
+    } catch {
+      const errorMessage = 'Failed to create custom exercise.';
+      this.setCustomExerciseMessage(errorMessage);
+      this.notifications.error(errorMessage);
+    } finally {
+      this.creatingExercise = false;
     }
+  }
 
+  startEdit(exercise: Exercise) {
+    this.editingExerciseId = exercise.id;
+    this.customExercise = {
+      name: exercise.name,
+      description: exercise.description || '',
+      muscleGroup: exercise.muscleGroup || '',
+      imageUrl: exercise.imageUrl || '',
+      exerciseType: exercise.exerciseType || 'general',
+      metValue: exercise.metValue || 5,
+    };
+    this.clearCustomExerciseMessage();
+  }
+
+  cancelEdit() {
+    this.editingExerciseId = null;
     this.customExercise = {
       name: '',
       description: '',
@@ -232,8 +332,105 @@ export class CustomExercisesComponent {
       exerciseType: 'general',
       metValue: 5,
     };
-    this.customExerciseMessage = 'Custom exercise created.';
-    this.syncMyCustomExercises();
+    this.clearCustomExerciseMessage();
+  }
+
+  async saveCustomExercise() {
+    if (!this.editingExerciseId) return;
+
+    const payload = {
+      name: this.customExercise.name.trim(),
+      description: this.customExercise.description.trim() || undefined,
+      muscleGroup: this.customExercise.muscleGroup.trim() || undefined,
+      imageUrl: this.customExercise.imageUrl.trim() || undefined,
+      exerciseType: this.customExercise.exerciseType.trim() || 'general',
+      metValue: Number(this.customExercise.metValue) || 5,
+    };
+
+    if (!payload.name) {
+      const validationMessage = 'Please enter a name for your custom exercise.';
+      this.setCustomExerciseMessage(validationMessage);
+      this.notifications.error(validationMessage);
+      return;
+    }
+
+    this.savingExercise = true;
+    this.clearCustomExerciseMessage();
+
+    try {
+      const updated = await this.workoutService.updateExercise(this.editingExerciseId, payload);
+      if (!updated) {
+        const failureMessage = 'Failed to save custom exercise.';
+        this.setCustomExerciseMessage(failureMessage);
+        this.notifications.error(failureMessage);
+        return;
+      }
+
+      this.cancelEdit();
+      this.clearCustomExerciseMessage();
+      this.notifications.success('Saved.');
+      this.syncMyCustomExercises();
+    } catch {
+      const failureMessage = 'Failed to save custom exercise.';
+      this.setCustomExerciseMessage(failureMessage);
+      this.notifications.error(failureMessage);
+    } finally {
+      this.savingExercise = false;
+    }
+  }
+
+  async deleteExercise(exercise: Exercise) {
+    const confirmed = typeof window !== 'undefined'
+      ? window.confirm(`Delete custom exercise \"${exercise.name}\"?`)
+      : true;
+    if (!confirmed) return;
+
+    this.deletingExerciseId = exercise.id;
+    this.clearCustomExerciseMessage();
+
+    try {
+      const ok = await this.workoutService.deleteExercise(exercise.id);
+      if (!ok) {
+        const failureMessage = 'Failed to delete custom exercise.';
+        this.setCustomExerciseMessage(failureMessage);
+        this.notifications.error(failureMessage);
+        return;
+      }
+
+      if (this.editingExerciseId === exercise.id) {
+        this.cancelEdit();
+      }
+
+      this.clearCustomExerciseMessage();
+      this.notifications.success('Deleted.');
+      this.syncMyCustomExercises();
+    } catch {
+      const failureMessage = 'Failed to delete custom exercise.';
+      this.setCustomExerciseMessage(failureMessage);
+      this.notifications.error(failureMessage);
+    } finally {
+      this.deletingExerciseId = null;
+    }
+  }
+
+  private setCustomExerciseMessage(message: string) {
+    this.customExerciseMessage = message;
+    if (this.customExerciseMessageTimer) {
+      clearTimeout(this.customExerciseMessageTimer);
+      this.customExerciseMessageTimer = null;
+    }
+    this.customExerciseMessageTimer = setTimeout(() => {
+      this.customExerciseMessage = '';
+      this.customExerciseMessageTimer = null;
+    }, this.notifications.config.maxDurationMs);
+  }
+
+  private clearCustomExerciseMessage() {
+    this.customExerciseMessage = '';
+    if (this.customExerciseMessageTimer) {
+      clearTimeout(this.customExerciseMessageTimer);
+      this.customExerciseMessageTimer = null;
+    }
   }
 
   async shareCustomExercise() {

@@ -4,16 +4,19 @@ import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
 import { SupabaseService } from '../core/services/supabase.service';
 import { AuthService } from '../core/services/auth.service';
+import { NotificationOutletComponent } from '../shared/components/notification-outlet.component';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, NotificationOutletComponent],
   template: `
     <div class="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans">
       <main class="flex-1 overflow-y-auto pb-20">
         <router-outlet></router-outlet>
       </main>
+
+      <app-notification-outlet />
 
       <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
         <nav class="px-6 pt-3 pb-3 flex justify-between items-center">

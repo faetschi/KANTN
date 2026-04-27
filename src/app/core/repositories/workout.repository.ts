@@ -173,8 +173,15 @@ export class WorkoutRepository {
     const clearRes = await client.from('workout_plans').update({ is_active: false }).eq('owner_id', userId);
     if (clearRes.error) return false;
 
-    const setRes = await client.from('workout_plans').update({ is_active: true }).eq('owner_id', userId).eq('id', planId);
-    return !setRes.error;
+    const setRes = await client
+      .from('workout_plans')
+      .update({ is_active: true })
+      .eq('owner_id', userId)
+      .eq('id', planId)
+      .select('id');
+
+    if (setRes.error) return false;
+    return (setRes.data?.length || 0) > 0;
   }
 
   async ensureFirstRunSeed(userId: string) {
@@ -334,15 +341,33 @@ export class WorkoutRepository {
     return this.mapExercise(data as ExerciseRow);
   }
 
+  async deleteExercise(userId: string, exerciseId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('exercises')
+      .delete()
+      .eq('id', exerciseId)
+      .eq('created_by', userId)
+      .eq('visibility', 'private');
+
+    return !error;
+  }
+
   async shareExercise(userId: string, exerciseId: string, sharedWithUserId: string) {
     const client = this.supabase.getClient();
     if (!client) return false;
+
+    const authRes = await client.auth.getUser();
+    const actorId = authRes.data.user?.id;
+    if (!actorId) return false;
 
     const { error } = await client.from('exercise_shares').upsert(
       {
         exercise_id: exerciseId,
         shared_with_user_id: sharedWithUserId,
-        created_by: userId,
+        created_by: actorId,
       },
       { onConflict: 'exercise_id,shared_with_user_id' }
     );
@@ -398,11 +423,15 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return false;
 
+    const authRes = await client.auth.getUser();
+    const actorId = authRes.data.user?.id;
+    if (!actorId) return false;
+
     const { error } = await client.from('workout_plan_shares').upsert(
       {
         plan_id: planId,
         shared_with_user_id: sharedWithUserId,
-        created_by: userId,
+        created_by: actorId,
       },
       { onConflict: 'plan_id,shared_with_user_id' }
     );
