@@ -198,6 +198,28 @@ export class WorkoutService {
     return true;
   }
 
+  async deleteExercise(exerciseId: string) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.deleteExercise(userId, exerciseId);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
+  async deletePlan(planId: string) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.deletePlan(userId, planId);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
   async resolveUserIdByEmail(email: string) {
     return this.repository.resolveUserIdByEmail(email);
   }

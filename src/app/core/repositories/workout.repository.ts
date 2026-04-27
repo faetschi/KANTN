@@ -310,6 +310,39 @@ export class WorkoutRepository {
     return this.mapExercise(data as ExerciseRow);
   }
 
+  async deleteExercise(userId: string, exerciseId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    // remove shares referencing this exercise created by user
+    const { error: shareDelError } = await client
+      .from('exercise_shares')
+      .delete()
+      .eq('exercise_id', exerciseId)
+      .eq('created_by', userId);
+
+    if (shareDelError) return false;
+
+    // remove from any workout_plan_exercises
+    const { error: planRelError } = await client
+      .from('workout_plan_exercises')
+      .delete()
+      .eq('exercise_id', exerciseId);
+
+    if (planRelError) return false;
+
+    // soft-delete exercise by marking inactive
+    const { error: exerciseError } = await client
+      .from('exercises')
+      .update({ is_active: false })
+      .eq('id', exerciseId)
+      .eq('created_by', userId);
+
+    if (exerciseError) return false;
+
+    return true;
+  }
+
   async updateExercise(exerciseId: string, updates: Partial<CreateExerciseInput>) {
     const client = this.supabase.getClient();
     if (!client) return null;
@@ -332,6 +365,25 @@ export class WorkoutRepository {
 
     if (error || !data) return null;
     return this.mapExercise(data as ExerciseRow);
+  }
+
+  async deletePlan(userId: string, planId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    // prevent deleting active plans accidentally
+    const { data: planRow } = await client.from('workout_plans').select('is_active,owner_id').eq('id', planId).maybeSingle();
+    if (!planRow) return false;
+    if (planRow.owner_id !== userId) return false;
+    if (planRow.is_active) return false;
+
+    const { error: relError } = await client.from('workout_plan_exercises').delete().eq('plan_id', planId);
+    if (relError) return false;
+
+    const { error: delError } = await client.from('workout_plans').delete().eq('id', planId).eq('owner_id', userId);
+    if (delError) return false;
+
+    return true;
   }
 
   async shareExercise(userId: string, exerciseId: string, sharedWithUserId: string) {

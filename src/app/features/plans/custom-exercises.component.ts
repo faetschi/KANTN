@@ -132,6 +132,24 @@ import { Exercise } from '../../core/models/models';
           }
         </section>
         }
+
+        <section class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <h3 class="text-sm font-semibold mb-3">Your Custom Exercises</h3>
+          <div class="space-y-2">
+            @for (exercise of myCustomExercises(); track exercise.id) {
+              <div class="flex items-center justify-between p-2 rounded-lg border">
+                <div>
+                  <div class="font-medium text-gray-900">{{ exercise.name }}</div>
+                  <div class="text-xs text-gray-500">{{ exercise.muscleGroup }}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button (click)="shareExerciseId = exercise.id; showSharePanel = true" class="text-sm text-blue-600">Share</button>
+                  <button (click)="deleteCustomExercise(exercise.id)" class="text-sm text-red-600">Delete</button>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
       </div>
     </div>
   `,
@@ -161,6 +179,18 @@ export class CustomExercisesComponent {
   myCustomExercises = signal<Exercise[]>([]);
 
   constructor() {
+    this.syncMyCustomExercises();
+  }
+
+  async deleteCustomExercise(id: string) {
+    if (!confirm('Delete this custom exercise? This will remove it from your plans.')) return;
+    const ok = await this.workoutService.deleteExercise(id);
+    if (!ok) {
+      this.customExerciseMessage = 'Failed to delete exercise.';
+      return;
+    }
+
+    await this.workoutService.refresh();
     this.syncMyCustomExercises();
   }
 
