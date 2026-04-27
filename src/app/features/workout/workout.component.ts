@@ -158,22 +158,6 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         </div>
       </div>
 
-      @if (false) {
-        <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4">
-          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
-            <div>
-              <h3 class="text-base font-bold text-gray-900">Cancel workout?</h3>
-              <p class="text-sm text-gray-500 mt-1">Are you sure you want to cancel this workout?</p>
-            </div>
-
-            <div class="flex items-center justify-end gap-2">
-              <button type="button" (click)="dismissCancelWorkoutModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">No</button>
-              <button type="button" (click)="confirmCancelWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-red-600">Yes</button>
-            </div>
-          </div>
-        </div>
-      }
-
       @if (showExitOptionsModal()) {
         <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
@@ -294,10 +278,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showExercisePicker = false;
   showExerciseListModal = signal(false);
   exerciseSearchQuery = '';
-  showCancelWorkoutModal = signal(false);
   showExitOptionsModal = signal(false);
   showFreestyleSaveModal = signal(false);
   freestylePlanName = '';
+  private persistThrottleTimer: ReturnType<typeof setTimeout> | undefined;
 
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
@@ -362,9 +346,17 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    if (this.persistThrottleTimer !== undefined) {
+      clearTimeout(this.persistThrottleTimer);
+      this.persistThrottleTimer = undefined;
+    }
     if (this.timerInterval !== undefined) {
       clearInterval(this.timerInterval);
       this.timerInterval = undefined;
+    }
+    // Persist latest state so the user can resume if they navigated away
+    if (this.workoutService.inProgress()) {
+      this.persistInProgress();
     }
   }
 
@@ -416,6 +408,17 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.workoutService.setInProgress(payload);
   }
 
+  /** Debounce persist calls so rapid mutations (e.g. toggling sets) don't flood the service. */
+  private throttledPersist() {
+    if (this.persistThrottleTimer !== undefined) {
+      clearTimeout(this.persistThrottleTimer);
+    }
+    this.persistThrottleTimer = setTimeout(() => {
+      this.persistThrottleTimer = undefined;
+      this.persistInProgress();
+    }, 2000);
+  }
+
   currentSets = computed(() => {
     const exId = this.currentExercise()?.id;
     if (!exId) return [];
@@ -430,6 +433,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       
       sets.push({ ...lastSet, completed: false });
       this.workoutData.update(m => new Map(m.set(exId, sets)));
+      this.throttledPersist();
     }
   }
 
@@ -538,12 +542,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.router.navigate(['/home']);
   }
 
-  dismissCancelWorkoutModal() {
-    this.showCancelWorkoutModal.set(false);
-  }
-
   async confirmCancelWorkout() {
-    this.showCancelWorkoutModal.set(false);
     if (this.timerInterval !== undefined) {
       clearInterval(this.timerInterval);
       this.timerInterval = undefined;

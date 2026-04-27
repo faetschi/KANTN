@@ -114,7 +114,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                 <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
                   Edit
                 </button>
-                <button (click)="confirmDeletePlan(plan.id)" class="px-4 py-3 bg-red-50 text-red-600 rounded-xl font-semibold text-sm">
+                <button (click)="confirmDeletePlan(plan.id)" [disabled]="plan.isActive" [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''" class="px-4 py-3 bg-red-50 text-red-600 rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   Delete
                 </button>
               }
