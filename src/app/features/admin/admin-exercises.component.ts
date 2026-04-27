@@ -34,7 +34,12 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
           </div>
           <div>
             <div class="block text-xs font-semibold text-gray-500 mb-1">Exercise Type</div>
-            <input [(ngModel)]="exerciseForm.exerciseType" placeholder="strength" class="w-full border border-gray-200 rounded-xl px-3 py-2" />
+            <select [(ngModel)]="exerciseForm.exerciseType" class="w-full border border-gray-200 rounded-xl px-3 py-2">
+              <option value="strength">Strength</option>
+              <option value="cardio">Cardio</option>
+              <option value="mobility">Mobility</option>
+              <option value="general">General</option>
+            </select>
           </div>
           <div>
             <div class="block text-xs font-semibold text-gray-500 mb-1">MET Value</div>

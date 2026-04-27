@@ -50,23 +50,19 @@ import { Exercise } from '../../core/models/models';
               placeholder="Muscle group (optional)"
               class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
-            <div class="flex items-center gap-3">
-              <input #customExerciseImageInput type="file" accept="image/*" (change)="onCustomExerciseImageSelected($event)" class="hidden" />
-              <button type="button" (click)="customExerciseImageInput.click()" class="bg-gray-200 text-gray-800 text-sm font-semibold px-3 py-2 rounded-xl">
-                {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
-              </button>
-              <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
-            </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <input
-                  type="text"
+                <select
                   [(ngModel)]="customExercise.exerciseType"
-                  placeholder="Exercise type"
                   aria-describedby="exercise-type-help"
                   class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
                 >
-                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (e.g. strength, cardio, mobility). Default: "general".</div>
+                  <option value="strength">Strength</option>
+                  <option value="cardio">Cardio</option>
+                  <option value="mobility">Mobility</option>
+                  <option value="general">General</option>
+                </select>
+                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (strength, cardio, mobility). Default: "general".</div>
               </div>
               <div>
                 <input
@@ -78,6 +74,13 @@ import { Exercise } from '../../core/models/models';
                 >
                 <div id="met-help" class="text-xs text-gray-500 mt-1">MET is metabolic equivalent used to estimate calories burned (default: 5).</div>
               </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <input #customExerciseImageInput type="file" accept="image/*" (change)="onCustomExerciseImageSelected($event)" class="hidden" />
+              <button type="button" (click)="customExerciseImageInput.click()" class="bg-gray-200 text-gray-800 text-sm font-semibold px-3 py-2 rounded-xl">
+                {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
+              </button>
+              <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
             </div>
             <textarea
               rows="2"
