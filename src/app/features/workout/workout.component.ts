@@ -348,6 +348,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.initializeWorkoutData();
       this.startTimer();
 
+      // Optimistically mark the plan as started so UI shows it as started
+      if (!this.freestyleMode()) {
+        const plan = this.plan();
+        if (plan) {
+          this.workoutService.markPlanStartedLocally(plan.id, this.startTime);
+        }
+      }
+
       // persist lightweight in-progress marker so user can resume after navigation
       this.persistInProgress();
     });
@@ -589,6 +597,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     // clear in-progress marker on successful finish
     this.workoutService.clearInProgress();
+
+    // Optimistically mark the plan as completed so UI reflects the finished workout
+    if (!this.freestyleMode()) {
+      const plan = this.plan();
+      if (plan) {
+        this.workoutService.markPlanCompletedLocally(plan.id, session.endTime || new Date());
+      }
+    }
 
     this.saveErrorMessage = '';
 

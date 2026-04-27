@@ -33,6 +33,8 @@ Audit status last updated: 2026-02-28.
 - [x] Make workout footer sit flush at bottom (adjusted `.workout-content` padding and `.workout-action-bar` bottom).
 - [x] Make bottom navigation icons inherit link color so the active tab icon turns blue.
 
+- [x] Allow activating default/public plans: clone the default/public plan into a user-owned private plan and activate the clone (fix RLS/0-row update issue).
+
 ### MVP Must-Haves (Before Production)
 - [x] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
 - [x] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).

@@ -87,6 +87,34 @@ export class WorkoutService {
     return this.plansSignal().find(p => p.id === id);
   }
 
+  /**
+   * Apply an optimistic local active toggle for UI responsiveness.
+   * Pass `planId` to activate that plan locally, or `null` to clear active.
+   */
+  setActiveLocally(planId: string | null) {
+    const before = this.plansSignal().map(p => ({ id: p.id, isActive: p.isActive }));
+    console.debug('[WorkoutService] setActiveLocally before: ' + JSON.stringify(before));
+    this.plansSignal.update(plans => plans.map(p => ({ ...p, isActive: (planId ? p.id === planId : false) })));
+    const after = this.plansSignal().map(p => ({ id: p.id, isActive: p.isActive }));
+    console.debug('[WorkoutService] setActiveLocally after: ' + JSON.stringify(after));
+  }
+
+  /**
+   * Mark a plan as started locally (optimistic UI). This sets `lastPerformed`
+   * to the provided start time so the UI reflects the workout as started.
+   */
+  markPlanStartedLocally(planId: string, startedAt: Date) {
+    this.plansSignal.update(plans => plans.map(p => p.id === planId ? ({ ...p, lastPerformed: startedAt }) : p));
+  }
+
+  /**
+   * Mark a plan as completed locally (optimistic UI). This sets `lastPerformed`
+   * to the provided finish time so the UI reflects completion immediately.
+   */
+  markPlanCompletedLocally(planId: string, finishedAt: Date) {
+    this.plansSignal.update(plans => plans.map(p => p.id === planId ? ({ ...p, lastPerformed: finishedAt }) : p));
+  }
+
   getExerciseById(id: string) {
     return this.exercisesSignal().find(e => e.id === id);
   }
@@ -95,11 +123,64 @@ export class WorkoutService {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 
-    const success = await this.repository.setActivePlan(userId, planId);
-    if (!success) return false;
+    const targetPlan = this.plansSignal().find(p => p.id === planId);
+    if (!targetPlan) return false;
 
-    await this.refresh();
-    return true;
+    const isOwnedTarget = targetPlan.ownerId === userId;
+
+    if (isOwnedTarget && targetPlan.isActive) {
+      return true;
+    }
+
+    const previousActive = this.plansSignal().find(p => p.isActive && p.ownerId === userId)?.id || null;
+
+    if (!isOwnedTarget) {
+      // Shared/public plans cannot be directly updated due to RLS.
+      // Create a user-owned copy and activate that copy instead.
+      try {
+        const clonedPlanId = await this.repository.createPlan(userId, {
+          ...targetPlan,
+          id: '',
+          isActive: true,
+          visibility: 'private',
+          ownerId: userId,
+        });
+
+        if (!clonedPlanId) return false;
+
+        await this.refresh();
+        return this.plansSignal().some(p => p.id === clonedPlanId && p.isActive && p.ownerId === userId);
+      } catch (err) {
+        console.error('[WorkoutService] setActivePlan clone+activate error', err);
+        return false;
+      }
+    }
+
+    // Optimistic local update
+    console.debug('[WorkoutService] setActivePlan optimistic start: ' + planId + ' previousActive=' + previousActive);
+    this.setActiveLocally(planId);
+
+    try {
+      const success = await this.repository.setActivePlan(userId, planId);
+      if (!success) {
+        // revert optimistic change
+        console.debug('[WorkoutService] setActivePlan repository failed, reverting to ' + previousActive);
+        this.setActiveLocally(previousActive);
+        return false;
+      }
+      // Re-sync from backend to keep local state canonical.
+      await this.refresh();
+      const confirmed = this.plansSignal().some(p => p.id === planId && p.isActive);
+      if (!confirmed) {
+        console.debug('[WorkoutService] setActivePlan not confirmed after refresh for ' + planId);
+      }
+      console.debug('[WorkoutService] setActivePlan repository success for ' + planId);
+      return confirmed;
+    } catch (err) {
+      console.error('[WorkoutService] setActivePlan error', err);
+      this.setActiveLocally(previousActive);
+      return false;
+    }
   }
 
   async addSession(session: WorkoutSession) {

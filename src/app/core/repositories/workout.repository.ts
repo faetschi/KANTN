@@ -170,11 +170,25 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const clearRes = await client.from('workout_plans').update({ is_active: false }).eq('owner_id', userId);
-    if (clearRes.error) return false;
+    // First ensure the requested plan is actually owned and updatable by this user.
+    // If no row is returned, treat activation as failed instead of a false-positive success.
+    const setRes = await client
+      .from('workout_plans')
+      .update({ is_active: true })
+      .eq('owner_id', userId)
+      .eq('id', planId)
+      .select('id');
 
-    const setRes = await client.from('workout_plans').update({ is_active: true }).eq('owner_id', userId).eq('id', planId);
-    return !setRes.error;
+    if (setRes.error || !setRes.data?.length) return false;
+
+    const clearRes = await client
+      .from('workout_plans')
+      .update({ is_active: false })
+      .eq('owner_id', userId)
+      .neq('id', planId)
+      .eq('is_active', true);
+
+    return !clearRes.error;
   }
 
   async ensureFirstRunSeed(userId: string) {
