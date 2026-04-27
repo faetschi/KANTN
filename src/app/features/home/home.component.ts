@@ -26,23 +26,29 @@ import { StatsService } from '../../core/services/stats.service';
         </div>
       </header>
 
-      <!-- Weekly Stats -->
+      <!-- Weekly/Monthly Stats Toggle -->
       <section class="grid grid-cols-2 gap-4">
+        <div class="flex items-center gap-2 col-span-2">
+          <div class="text-sm text-gray-600">Show:</div>
+          <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
+          <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+        </div>
+
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex items-center space-x-2 mb-2 text-orange-500">
             <mat-icon class="text-sm">local_fire_department</mat-icon>
             <span class="text-xs font-semibold uppercase tracking-wider">Calories</span>
           </div>
-          <p class="text-2xl font-bold text-gray-900">{{ statsService.weeklyStats().calories }}</p>
-          <p class="text-xs text-gray-400">This week</p>
+          <p class="text-2xl font-bold text-gray-900">{{ currentStats().calories }}</p>
+          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex items-center space-x-2 mb-2 text-blue-500">
             <mat-icon class="text-sm">timer</mat-icon>
             <span class="text-xs font-semibold uppercase tracking-wider">Minutes</span>
           </div>
-          <p class="text-2xl font-bold text-gray-900">{{ (statsService.weeklyStats().duration / 60) | number:'1.0-0' }}</p>
-          <p class="text-xs text-gray-400">This week</p>
+          <p class="text-2xl font-bold text-gray-900">{{ (currentStats().duration / 60) | number:'1.0-0' }}</p>
+          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
         </div>
       </section>
 
@@ -148,6 +154,12 @@ export class HomeComponent {
   workoutService = inject(WorkoutService);
   statsService = inject(StatsService);
   router = inject(Router);
+
+  showPeriod: 'week' | 'month' = 'week';
+
+  currentStats() {
+    return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
+  }
 
   user = this.authService.currentUser;
   activePlan = this.workoutService.activePlan;

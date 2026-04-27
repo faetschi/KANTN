@@ -102,6 +102,15 @@ import { Exercise } from '../../core/models/models';
           </div>
         </section>
 
+        <div
+          *ngIf="toastMessage"
+          class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 text-white text-sm px-4 py-2 rounded-xl shadow-lg"
+          [class.bg-green-600]="toastType === 'success'"
+          [class.bg-red-600]="toastType === 'error'"
+        >
+          {{ toastMessage }}
+        </div>
+
         @if (showSharePanel) {
         <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3">
@@ -185,6 +194,9 @@ export class CustomExercisesComponent {
     metValue: 5,
   };
   myCustomExercises = signal<Exercise[]>([]);
+  toastMessage = '';
+  toastType: 'success' | 'error' = 'success';
+  private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.syncMyCustomExercises();
@@ -254,11 +266,18 @@ export class CustomExercisesComponent {
 
     this.creatingExercise = true;
     this.customExerciseMessage = '';
-    const created = await this.workoutService.createExercise(payload);
-    this.creatingExercise = false;
+    let created = null;
+    try {
+      created = await this.workoutService.createExercise(payload);
+    } catch (err) {
+      console.error('createCustomExercise error', err);
+      this.customExerciseMessage = 'Failed to create custom exercise.';
+    } finally {
+      this.creatingExercise = false;
+    }
 
     if (!created) {
-      this.customExerciseMessage = 'Failed to create custom exercise.';
+      this.showToast('Failed to create custom exercise.', 'error');
       return;
     }
 
@@ -272,6 +291,19 @@ export class CustomExercisesComponent {
     };
     this.customExerciseMessage = 'Custom exercise created.';
     this.syncMyCustomExercises();
+    this.showToast('Custom exercise saved.', 'success');
+  }
+
+  private showToast(text: string, type: 'success' | 'error' = 'success') {
+    this.toastMessage = text;
+    this.toastType = type;
+    if (this.toastTimeoutId) {
+      clearTimeout(this.toastTimeoutId);
+    }
+    this.toastTimeoutId = setTimeout(() => {
+      this.toastMessage = '';
+      this.toastTimeoutId = null;
+    }, 3000);
   }
 
   async shareCustomExercise() {
