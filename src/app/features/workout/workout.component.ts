@@ -141,7 +141,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </div>
 
       <!-- Footer Navigation -->
-      <div class="fixed left-0 right-0 bottom-[-1px] z-50 bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
+      <div class="fixed left-0 right-0 bottom-[-1px] z-60 bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
         <div class="flex justify-between items-center max-w-screen-xl mx-auto">
           <button (click)="prevExercise()" [disabled]="currentExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
             <mat-icon>arrow_back</mat-icon>
