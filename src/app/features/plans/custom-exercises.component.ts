@@ -94,8 +94,9 @@ import { Exercise } from '../../core/models/models';
               [disabled]="creatingExercise"
               class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
             >
-              {{ creatingExercise ? 'Creating…' : 'Add Custom Exercise' }}
+                {{ creatingExercise ? (selectedExerciseId ? 'Saving…' : 'Creating…') : (selectedExerciseId ? 'Save Changes' : 'Add Custom Exercise') }}
             </button>
+              <button *ngIf="selectedExerciseId" type="button" (click)="cancelEdit()" class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl">Cancel</button>
             @if (customExerciseMessage) {
               <span class="text-xs text-gray-500">{{ customExerciseMessage }}</span>
             }
@@ -160,6 +161,7 @@ import { Exercise } from '../../core/models/models';
                   <div class="text-xs text-gray-500">{{ exercise.muscleGroup }}</div>
                 </div>
                 <div class="flex items-center gap-2">
+                  <button (click)="editCustomExercise(exercise)" class="text-sm text-gray-700">Edit</button>
                   <button (click)="shareExerciseId = exercise.id; showSharePanel = true" class="text-sm text-blue-600">Share</button>
                   <button (click)="deleteCustomExercise(exercise.id)" class="text-sm text-red-600">Delete</button>
                 </div>
@@ -197,6 +199,7 @@ export class CustomExercisesComponent {
   toastMessage = '';
   toastType: 'success' | 'error' = 'success';
   private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  selectedExerciseId: string | null = null;
 
   constructor() {
     this.syncMyCustomExercises();
@@ -268,7 +271,12 @@ export class CustomExercisesComponent {
     this.customExerciseMessage = '';
     let created = null;
     try {
-      created = await this.workoutService.createExercise(payload);
+      if (this.selectedExerciseId) {
+        const updated = await this.workoutService.updateExercise(this.selectedExerciseId, payload);
+        created = updated;
+      } else {
+        created = await this.workoutService.createExercise(payload);
+      }
     } catch (err) {
       console.error('createCustomExercise error', err);
       this.customExerciseMessage = 'Failed to create custom exercise.';
@@ -277,7 +285,7 @@ export class CustomExercisesComponent {
     }
 
     if (!created) {
-      this.showToast('Failed to create custom exercise.', 'error');
+      this.showToast('Failed to save custom exercise.', 'error');
       return;
     }
 
@@ -291,7 +299,13 @@ export class CustomExercisesComponent {
     };
     this.customExerciseMessage = 'Custom exercise created.';
     this.syncMyCustomExercises();
-    this.showToast('Custom exercise saved.', 'success');
+    // If we updated, show updated message
+    if (this.selectedExerciseId) {
+      this.showToast('Custom exercise updated.', 'success');
+    } else {
+      this.showToast('Custom exercise saved.', 'success');
+    }
+    this.selectedExerciseId = null;
   }
 
   private showToast(text: string, type: 'success' | 'error' = 'success') {
@@ -375,5 +389,32 @@ export class CustomExercisesComponent {
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
     }
+  }
+
+  editCustomExercise(ex: Exercise) {
+    this.selectedExerciseId = ex.id;
+    this.customExercise = {
+      name: ex.name || '',
+      description: ex.description || '',
+      muscleGroup: ex.muscleGroup || '',
+      imageUrl: ex.imageUrl || '',
+      exerciseType: ex.exerciseType || 'general',
+      metValue: ex.metValue ?? 5,
+    };
+    this.customExerciseMessage = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  cancelEdit() {
+    this.selectedExerciseId = null;
+    this.customExercise = {
+      name: '',
+      description: '',
+      muscleGroup: '',
+      imageUrl: '',
+      exerciseType: 'general',
+      metValue: 5,
+    };
+    this.customExerciseMessage = '';
   }
 }
