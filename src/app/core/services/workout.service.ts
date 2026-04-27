@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AuthService } from './auth.service';
-import { CreateExerciseInput, Exercise, WorkoutPlan, WorkoutSession } from '../models/models';
+import { CreateExerciseInput, Exercise, InProgressWorkout, WorkoutPlan, WorkoutSession } from '../models/models';
 import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SESSIONS } from '../models/mock-data';
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
@@ -17,7 +17,7 @@ export class WorkoutService {
   private sessionsSignal = signal<WorkoutSession[]>(MOCK_SESSIONS);
   private loadedUserIdSignal = signal<string | null>(null);
   // In-progress workout saved across route changes so users can continue
-  private inProgressSignal = signal<any | null>(null);
+  private inProgressSignal = signal<InProgressWorkout | null>(null);
 
   exercises = computed(() => this.exercisesSignal());
   plans = computed(() => this.plansSignal());
@@ -320,7 +320,7 @@ export class WorkoutService {
       .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
   }
 
-  setInProgress(payload: any) {
+  setInProgress(payload: InProgressWorkout) {
     this.inProgressSignal.set(payload);
   }
 
@@ -328,7 +328,7 @@ export class WorkoutService {
     this.inProgressSignal.set(null);
   }
 
-  inProgress() {
+  inProgress(): InProgressWorkout | null {
     return this.inProgressSignal();
   }
 

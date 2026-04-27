@@ -57,6 +57,16 @@ export interface WorkoutPlan {
   ownerId?: string;
 }
 
+export interface InProgressWorkout {
+  planId: string | null;
+  freestyleMode: boolean;
+  startTime: string; // ISO string
+  elapsedTime: number;
+  currentExerciseIndex: number;
+  workoutData: Record<string, Set[]>;
+  freestyleExercises: Exercise[];
+}
+
 export interface CreateExerciseInput {
   name: string;
   description?: string;

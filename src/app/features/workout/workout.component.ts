@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
+import { Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
@@ -316,11 +316,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         const restored = new Map<string, WorkoutSet[]>();
         if (inProgress.workoutData) {
           for (const [exId, sets] of Object.entries(inProgress.workoutData)) {
-            restored.set(exId, (sets as any) as WorkoutSet[]);
+            restored.set(exId, sets as WorkoutSet[]);
           }
         }
         if (this.freestyleMode()) {
-          this.freestyleExercises.set((inProgress.freestyleExercises || []).map((e: any) => e));
+          this.freestyleExercises.set(inProgress.freestyleExercises || []);
         }
         this.workoutData.set(restored);
         if (this.timerInterval !== undefined) {
@@ -400,12 +400,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   persistInProgress() {
-    const plan = this.plan();
     const dataObj: Record<string, WorkoutSet[]> = {};
     for (const [k, v] of this.workoutData().entries()) {
       dataObj[k] = v;
     }
-    const payload: any = {
+    const payload: InProgressWorkout = {
       planId: this.planId(),
       freestyleMode: this.freestyleMode(),
       startTime: this.startTime.toISOString(),
