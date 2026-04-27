@@ -7,6 +7,7 @@ import { StatsService } from '../../core/services/stats.service';
 import { SupabaseService } from '../../core/services/supabase.service';
 import { optimizeImageForUpload } from '../../core/domain/image-upload-domain';
 import { Router } from '@angular/router';
+import { NotificationService } from '../../core/services/notification.service';
 
 @Component({
   selector: 'app-profile',
@@ -171,15 +172,6 @@ import { Router } from '@angular/router';
         </div>
       </div>
 
-      <div
-        *ngIf="message"
-        class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 text-white text-sm px-4 py-2 rounded-xl shadow-lg"
-        [class.bg-green-600]="toastType === 'success'"
-        [class.bg-red-600]="toastType === 'error'"
-      >
-        {{ message }}
-      </div>
-
       <div *ngIf="avatarModalOpen" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100">
           <div class="flex items-center justify-between mb-4">
@@ -205,21 +197,28 @@ import { Router } from '@angular/router';
         </div>
       </div>
 
-      <!-- Monthly Stats -->
+      <!-- Period Toggle + Stats -->
       <section>
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Monthly Overview</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-gray-900">Overview</h3>
+          <div class="flex items-center gap-2">
+            <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+            <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
+          </div>
+        </div>
+
         <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl">
           <div class="grid grid-cols-2 gap-6">
             <div>
-              <p class="text-3xl font-bold text-blue-400">{{ statsService.monthlyStats().count }}</p>
+              <p class="text-3xl font-bold text-blue-400">{{ currentStats().count }}</p>
               <p class="text-sm text-gray-400 mt-1">Workouts</p>
             </div>
             <div>
-              <p class="text-3xl font-bold text-orange-400">{{ (statsService.monthlyStats().calories / 1000).toFixed(1) }}k</p>
+              <p class="text-3xl font-bold text-orange-400">{{ (currentStats().calories / 1000).toFixed(1) }}k</p>
               <p class="text-sm text-gray-400 mt-1">Calories</p>
             </div>
             <div class="col-span-2 pt-4 border-t border-gray-800">
-              <p class="text-3xl font-bold text-white">{{ (statsService.monthlyStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
+              <p class="text-3xl font-bold text-white">{{ (currentStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
               <p class="text-sm text-gray-400 mt-1">Total Active Time</p>
             </div>
           </div>
@@ -263,14 +262,12 @@ export class ProfileComponent {
   authService = inject(AuthService);
   statsService = inject(StatsService);
   supabase = inject(SupabaseService);
+  notifications = inject(NotificationService);
   router = inject(Router);
   cdr = inject(ChangeDetectorRef);
   user = this.authService.currentUser;
   activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | null = null;
   avatarModalOpen = false;
-  message = '';
-  toastType: 'success' | 'error' = 'success';
-  private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
   avatarUploading = false;
   avatarUploadMessage = '';
   defaultAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=kantn';
@@ -298,6 +295,12 @@ export class ProfileComponent {
     });
   }
 
+  showPeriod: 'week' | 'month' = 'month';
+
+  currentStats() {
+    return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
+  }
+
   logout() {
     this.authService.logout();
     this.router.navigate(['/login']);
@@ -305,23 +308,6 @@ export class ProfileComponent {
 
   beginInlineEdit(field: 'name' | 'funFact' | 'height' | 'weight' | 'age') {
     this.activeField = field;
-    this.message = '';
-    if (this.toastTimeoutId) {
-      clearTimeout(this.toastTimeoutId);
-      this.toastTimeoutId = null;
-    }
-  }
-
-  private showToast(text: string, type: 'success' | 'error' = 'success') {
-    this.message = text;
-    this.toastType = type;
-    if (this.toastTimeoutId) {
-      clearTimeout(this.toastTimeoutId);
-    }
-    this.toastTimeoutId = setTimeout(() => {
-      this.message = '';
-      this.toastTimeoutId = null;
-    }, 3000);
   }
 
   private validateActiveField(): string | null {
@@ -354,7 +340,7 @@ export class ProfileComponent {
 
     const validationError = this.validateActiveField();
     if (validationError) {
-      this.showToast(validationError, 'error');
+      this.notifications.error(validationError);
       return;
     }
 
@@ -478,11 +464,11 @@ export class ProfileComponent {
     }).eq('id', current.id);
 
     if (error) {
-      this.showToast(error.message || 'Failed to save profile.', 'error');
+      this.notifications.error(error.message || 'Failed to save profile.');
       return;
     }
 
-    this.showToast('Saved.');
+    this.notifications.success('Saved.');
     await this.authService.refreshProfile();
   }
 }

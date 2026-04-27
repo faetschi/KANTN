@@ -14,7 +14,10 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
     <div class="p-6 space-y-6">
       <header class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-gray-900">Default Exercises</h1>
-        <a routerLink="/admin" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm">Back</a>
+        <div class="flex items-center gap-2">
+          <button (click)="backupData()" class="px-3 py-2 rounded-xl bg-yellow-100 text-yellow-800 text-sm">Backup</button>
+          <a routerLink="/admin" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm">Back</a>
+        </div>
       </header>
 
       <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
@@ -49,18 +52,14 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
           <button type="button" [disabled]="imageUploading" (click)="exerciseFileInput.click()" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm disabled:opacity-60">
             {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
           </button>
-          @if (exerciseMessage) {
-            <span class="text-sm text-gray-500">{{ exerciseMessage }}</span>
-          }
+          <span *ngIf="exerciseMessage" class="text-sm text-gray-500">{{ exerciseMessage }}</span>
         </div>
 
         <div class="flex items-center gap-2">
           <button (click)="saveDefaultExercise()" [disabled]="exerciseBusy || imageUploading" class="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-50">
             {{ selectedExerciseId ? 'Update Exercise' : 'Create Default Exercise' }}
           </button>
-          @if (selectedExerciseId) {
-            <button (click)="resetExerciseForm()" class="px-4 py-2 rounded-xl bg-gray-200 text-gray-800">Cancel</button>
-          }
+          <button *ngIf="selectedExerciseId" (click)="resetExerciseForm()" class="px-4 py-2 rounded-xl bg-gray-200 text-gray-800">Cancel</button>
         </div>
       </section>
 
@@ -79,15 +78,11 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
           <div class="text-right">Actions</div>
         </div>
 
-        @if (exercisesLoading) {
-          <div class="p-2 text-sm text-gray-500">Loading exercises...</div>
-        }
+        <div *ngIf="exercisesLoading" class="p-2 text-sm text-gray-500">Loading exercises...</div>
 
-        @if (!exercisesLoading && !filteredDefaultExercises().length) {
-          <div class="p-2 text-sm text-gray-500">No matching default exercises.</div>
-        }
+        <div *ngIf="!exercisesLoading && !filteredDefaultExercises().length" class="p-2 text-sm text-gray-500">No matching default exercises.</div>
 
-        @for (ex of filteredDefaultExercises(); track ex.id) {
+        <ng-container *ngFor="let ex of filteredDefaultExercises(); let i = index">
           <div class="grid grid-cols-6 gap-2 p-2 items-center border-b border-gray-50">
             <div class="col-span-2 min-w-0">
               <div class="font-medium text-gray-900 truncate">{{ ex.name }}</div>
@@ -100,7 +95,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
               <button (click)="editExercise(ex)" class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">Edit</button>
             </div>
           </div>
-        }
+        </ng-container>
       </section>
     </div>
   `,
@@ -228,6 +223,33 @@ export class AdminExercisesComponent {
     await this.loadDefaultExercises();
     if (!this.exerciseMessage.toLowerCase().includes('failed')) {
       this.resetExerciseForm();
+    }
+  }
+
+  async backupData() {
+    this.exerciseMessage = 'Preparing backup...';
+    try {
+      await this.workoutService.refresh();
+      const payload = {
+        exercises: this.workoutService.exercises(),
+        plans: this.workoutService.plans(),
+        sessions: this.workoutService.sessions ? this.workoutService.sessions() : []
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/:/g, '-');
+      a.href = url;
+      a.download = `kantn-backup-${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      this.exerciseMessage = 'Backup prepared. Download started.';
+    } catch (err) {
+      console.error(err);
+      this.exerciseMessage = 'Failed to prepare backup.';
     }
   }
 }

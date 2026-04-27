@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise, WorkoutPlan, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
+import { Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 
 @Component({
@@ -15,7 +15,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
     <div class="h-screen flex flex-col bg-white">
       <!-- Header -->
       <header class="sticky top-0 z-20 bg-white px-6 py-4 flex justify-between items-center border-b border-gray-100">
-        <button (click)="cancelWorkout()" class="text-gray-400">
+        <button (click)="openExitOptions()" class="text-gray-400">
           <mat-icon>close</mat-icon>
         </button>
         <div class="text-center">
@@ -67,7 +67,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         @if (currentExercise(); as exercise) {
           <div class="mb-8 animate-fade-in">
             <div class="aspect-video rounded-2xl overflow-hidden mb-6 shadow-sm bg-gray-100">
-              <img [src]="exercise.imageUrl" class="w-full h-full object-cover">
+              <img [src]="exercise.imageUrl" [alt]="exercise.name" class="w-full h-full object-cover">
             </div>
             
             <div class="flex justify-between items-start mb-2">
@@ -141,15 +141,15 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </div>
 
       <!-- Footer Navigation -->
-      <div class="fixed left-0 right-0 bottom-[-1px] z-40 bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
+      <div class="fixed left-0 right-0 bottom-[-1px] z-[60] bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-white workout-action-bar">
         <div class="flex justify-between items-center max-w-screen-xl mx-auto">
           <button (click)="prevExercise()" [disabled]="currentExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
             <mat-icon>arrow_back</mat-icon>
           </button>
           
-          <span class="text-sm font-medium text-gray-500">
+          <button type="button" (click)="openExerciseListModal()" class="text-sm font-medium text-gray-500">
             {{ currentExercise() ? currentExerciseIndex() + 1 : 0 }} / {{ totalExercisesCount() }}
-          </span>
+          </button>
 
           <button (click)="nextExercise()" class="px-6 py-2.5 rounded-full bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 flex items-center space-x-2">
             <span>{{ isLastExercise() ? 'Finish' : 'Next' }}</span>
@@ -158,24 +158,25 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         </div>
       </div>
 
-      @if (showCancelWorkoutModal()) {
-        <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4">
+      @if (showExitOptionsModal()) {
+        <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
             <div>
-              <h3 class="text-base font-bold text-gray-900">Cancel workout?</h3>
-              <p class="text-sm text-gray-500 mt-1">Are you sure you want to cancel this workout?</p>
+              <h3 class="text-base font-bold text-gray-900">Exit workout</h3>
+              <p class="text-sm text-gray-500 mt-1">Do you want to pause and exit (resume later), cancel the workout, or continue?</p>
             </div>
 
             <div class="flex items-center justify-end gap-2">
-              <button type="button" (click)="dismissCancelWorkoutModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">No</button>
-              <button type="button" (click)="confirmCancelWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-red-600">Yes</button>
+              <button type="button" (click)="dismissExitOptionsModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Continue</button>
+              <button type="button" (click)="exitWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Pause & Exit</button>
+              <button type="button" (click)="cancelWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-red-600">Cancel Workout</button>
             </div>
           </div>
         </div>
       }
 
       @if (showFreestyleSaveModal()) {
-        <div class="fixed inset-0 z-40 bg-black/40 flex items-end sm:items-center justify-center p-4">
+        <div class="fixed top-0 left-0 right-0 z-50 bg-black/40 flex items-center justify-center p-4" style="bottom: calc(72px + env(safe-area-inset-bottom, 20px));">
           <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
             <div>
               <h3 class="text-base font-bold text-gray-900">Save as workout plan?</h3>
@@ -183,8 +184,9 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             </div>
 
             <div class="space-y-2">
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Plan Name</label>
+              <label for="freestyle-plan-name" class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Plan Name</label>
               <input
+                id="freestyle-plan-name"
                 type="text"
                 [(ngModel)]="freestylePlanName"
                 class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -199,14 +201,41 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
           </div>
         </div>
       }
+      
+      @if (showExerciseListModal()) {
+        <div class="fixed top-0 left-0 right-0 z-70 bg-black/40 flex items-center justify-center p-4" style="bottom: calc(72px + env(safe-area-inset-bottom, 20px));">
+          <div class="w-full max-w-lg bg-white rounded-2xl p-4 shadow-xl border border-gray-100 space-y-3" style="max-height: calc(100vh - (72px + env(safe-area-inset-bottom, 20px)) - 32px); overflow:auto;">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-900">Exercises</h3>
+              <button type="button" (click)="closeExerciseListModal()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            <div class="max-h-64 overflow-y-auto space-y-2">
+              @for (exercise of (freestyleMode() ? freestyleExercises() : (plan()?.exercises || [])); track exercise.id) {
+                <button type="button" (click)="selectExercise($index)" class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between">
+                  <span class="font-medium text-gray-900">{{ exercise.name }}</span>
+                  <span class="text-xs text-gray-400">{{ $index + 1 }}</span>
+                </button>
+              }
+            </div>
+
+            <div class="flex justify-end">
+              <button type="button" (click)="closeExerciseListModal()" class="px-3 py-2 rounded-lg bg-gray-100 text-sm">Close</button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
     .workout-content {
-      padding-bottom: calc(176px + env(safe-area-inset-bottom, 20px));
+      padding-bottom: calc(72px + env(safe-area-inset-bottom, 20px));
     }
     .workout-action-bar {
-      bottom: calc(72px + env(safe-area-inset-bottom, 20px));
+      bottom: 0;
+      z-index: 60;
     }
     .animate-fade-in {
       animation: fadeIn 0.3s ease-out;
@@ -242,38 +271,93 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   
   startTime = new Date();
   elapsedTime = signal(0);
-  timerInterval: any;
+  timerInterval: ReturnType<typeof setInterval> | undefined;
   saveErrorMessage = '';
   
   showInfo = false;
   showExercisePicker = false;
+  showExerciseListModal = signal(false);
   exerciseSearchQuery = '';
-  showCancelWorkoutModal = signal(false);
+  showExitOptionsModal = signal(false);
   showFreestyleSaveModal = signal(false);
   freestylePlanName = '';
+  private persistThrottleTimer: ReturnType<typeof setTimeout> | undefined;
 
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
       const id = params.get('planId');
-      if (id) {
+      if (!id) return;
+
+      // If there is an in-progress workout matching this id, resume it
+      const inProgress = this.workoutService.inProgress();
+      if (inProgress && inProgress.planId === id) {
         this.planId.set(id);
-        this.freestyleMode.set(id === 'freestyle');
-        if (id === 'freestyle') {
-          this.freestyleExercises.set([]);
-          this.showExercisePicker = true;
+        this.freestyleMode.set(!!inProgress.freestyleMode);
+        this.currentExerciseIndex.set(inProgress.currentExerciseIndex || 0);
+        this.startTime = inProgress.startTime ? new Date(inProgress.startTime) : new Date();
+        this.elapsedTime.set(inProgress.elapsedTime || 0);
+        // restore workoutData map
+        const restored = new Map<string, WorkoutSet[]>();
+        if (inProgress.workoutData) {
+          for (const [exId, sets] of Object.entries(inProgress.workoutData)) {
+            restored.set(exId, sets as WorkoutSet[]);
+          }
         }
-        this.startTime = new Date();
-        this.elapsedTime.set(0);
-        this.currentExerciseIndex.set(0);
-        clearInterval(this.timerInterval);
-        this.initializeWorkoutData();
+        if (this.freestyleMode()) {
+          this.freestyleExercises.set(inProgress.freestyleExercises || []);
+        }
+        this.workoutData.set(restored);
+        if (this.timerInterval !== undefined) {
+          clearInterval(this.timerInterval);
+          this.timerInterval = undefined;
+        }
         this.startTimer();
+        return;
       }
+
+      // No resume – start a fresh workout
+      this.planId.set(id);
+      this.freestyleMode.set(id === 'freestyle');
+      if (id === 'freestyle') {
+        this.freestyleExercises.set([]);
+        this.showExercisePicker = true;
+      }
+      this.startTime = new Date();
+      this.elapsedTime.set(0);
+      this.currentExerciseIndex.set(0);
+      if (this.timerInterval !== undefined) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = undefined;
+      }
+      this.initializeWorkoutData();
+      this.startTimer();
+
+      // Optimistically mark the plan as started so UI shows it as started
+      if (!this.freestyleMode()) {
+        const plan = this.plan();
+        if (plan) {
+          this.workoutService.markPlanStartedLocally(plan.id, this.startTime);
+        }
+      }
+
+      // persist lightweight in-progress marker so user can resume after navigation
+      this.persistInProgress();
     });
   }
 
   ngOnDestroy() {
-    clearInterval(this.timerInterval);
+    if (this.persistThrottleTimer !== undefined) {
+      clearTimeout(this.persistThrottleTimer);
+      this.persistThrottleTimer = undefined;
+    }
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
+    // Persist latest state so the user can resume if they navigated away
+    if (this.workoutService.inProgress()) {
+      this.persistInProgress();
+    }
   }
 
   initializeWorkoutData() {
@@ -307,6 +391,34 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  persistInProgress() {
+    const dataObj: Record<string, WorkoutSet[]> = {};
+    for (const [k, v] of this.workoutData().entries()) {
+      dataObj[k] = v;
+    }
+    const payload: InProgressWorkout = {
+      planId: this.planId(),
+      freestyleMode: this.freestyleMode(),
+      startTime: this.startTime.toISOString(),
+      elapsedTime: this.elapsedTime(),
+      currentExerciseIndex: this.currentExerciseIndex(),
+      workoutData: dataObj,
+      freestyleExercises: this.freestyleExercises() || [],
+    };
+    this.workoutService.setInProgress(payload);
+  }
+
+  /** Debounce persist calls so rapid mutations (e.g. toggling sets) don't flood the service. */
+  private throttledPersist() {
+    if (this.persistThrottleTimer !== undefined) {
+      clearTimeout(this.persistThrottleTimer);
+    }
+    this.persistThrottleTimer = setTimeout(() => {
+      this.persistThrottleTimer = undefined;
+      this.persistInProgress();
+    }, 2000);
+  }
+
   currentSets = computed(() => {
     const exId = this.currentExercise()?.id;
     if (!exId) return [];
@@ -321,6 +433,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       
       sets.push({ ...lastSet, completed: false });
       this.workoutData.update(m => new Map(m.set(exId, sets)));
+      this.throttledPersist();
     }
   }
 
@@ -404,17 +517,46 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   cancelWorkout() {
-    this.showCancelWorkoutModal.set(true);
+    void this.confirmCancelWorkout();
   }
 
-  dismissCancelWorkoutModal() {
-    this.showCancelWorkoutModal.set(false);
+  openExitOptions() {
+    this.showExitOptionsModal.set(true);
   }
 
-  confirmCancelWorkout() {
-    this.showCancelWorkoutModal.set(false);
-    clearInterval(this.timerInterval);
+  dismissExitOptionsModal() {
+    this.showExitOptionsModal.set(false);
+  }
+
+  /**
+   * Exit the workout without cancelling. Persist current in-progress state
+   * so the user can resume later, and navigate away.
+   */
+  exitWorkout() {
+    // stop timer but keep state
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
+    this.persistInProgress();
     this.router.navigate(['/home']);
+  }
+
+  async confirmCancelWorkout() {
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
+
+    // clear in-progress marker when cancelling
+    this.workoutService.clearInProgress();
+
+    // Ensure navigation completes and double-check clear (race safety)
+    try {
+      await this.router.navigate(['/home']);
+    } finally {
+      this.workoutService.clearInProgress();
+    }
   }
 
   async finishWorkout() {
@@ -440,12 +582,26 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       exercises
     };
 
-    clearInterval(this.timerInterval);
+    if (this.timerInterval !== undefined) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
     const saved = await this.workoutService.addSession(session);
     if (!saved) {
       this.saveErrorMessage = 'Failed to save workout session. Please try again.';
       this.startTimer();
       return;
+    }
+
+    // clear in-progress marker on successful finish
+    this.workoutService.clearInProgress();
+
+    // Optimistically mark the plan as completed so UI reflects the finished workout
+    if (!this.freestyleMode()) {
+      const plan = this.plan();
+      if (plan) {
+        this.workoutService.markPlanCompletedLocally(plan.id, session.endTime || new Date());
+      }
     }
 
     this.saveErrorMessage = '';
@@ -488,5 +644,18 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
     this.router.navigate(['/home']);
+  }
+
+  openExerciseListModal() {
+    this.showExerciseListModal.set(true);
+  }
+
+  closeExerciseListModal() {
+    this.showExerciseListModal.set(false);
+  }
+
+  selectExercise(index: number) {
+    this.currentExerciseIndex.set(index);
+    this.showExerciseListModal.set(false);
   }
 }

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -62,16 +62,20 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             {{ unsharingPlan ? 'Revoking…' : 'Unshare' }}
           </button>
         </div>
-        <span class="text-xs text-gray-500" *ngIf="shareMessage">{{ shareMessage }}</span>
+        @if (shareMessage) {
+          <span class="text-xs text-gray-500">{{ shareMessage }}</span>
+        }
       </section>
       }
 
-      <span class="text-xs text-red-500" *ngIf="activationMessage">{{ activationMessage }}</span>
+      @if (activationMessage) {
+        <span class="text-xs text-red-500">{{ activationMessage }}</span>
+      }
 
       <app-search-bar
         class="block mb-5"
-        [value]="planSearchQuery"
-        (valueChange)="planSearchQuery = $event"
+        [value]="planSearchQuery()"
+        (valueChange)="planSearchQuery.set($event)"
         placeholder="Search workout plans"
       />
 
@@ -110,10 +114,13 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                 <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
                   Edit
                 </button>
+                <button (click)="confirmDeletePlan(plan.id)" [disabled]="plan.isActive" [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''" class="px-4 py-3 bg-red-50 text-red-600 rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                  Delete
+                </button>
               }
               @if (!plan.isActive) {
-                <button (click)="activatePlan(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
-                  Activate
+                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId && activatingPlanId !== plan.id" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
+                  {{ activatingPlanId === plan.id ? 'Activating…' : 'Activate' }}
                 </button>
               }
             </div>
@@ -126,15 +133,17 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
 export class PlansComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  
   plans = this.workoutService.plans;
   sharePlanId = '';
   shareEmail = '';
   showSharePanel = false;
-  planSearchQuery = '';
+  planSearchQuery = signal('');
   sharingPlan = false;
   unsharingPlan = false;
   shareMessage = '';
   activationMessage = '';
+  activatingPlanId = '';
 
   myOwnedPlans() {
     const currentUserId = this.authService.currentUser()?.id;
@@ -147,8 +156,8 @@ export class PlansComponent {
     return this.plans().some(plan => plan.id === planId && plan.ownerId === currentUserId);
   }
 
-  filteredPlans() {
-    const query = this.planSearchQuery.trim().toLowerCase();
+  filteredPlans = computed(() => {
+    const query = this.planSearchQuery().trim().toLowerCase();
     const allPlans = this.plans();
     const sorted = [...allPlans].sort((a, b) => Number(!!b.isActive) - Number(!!a.isActive));
     if (!query) return sorted;
@@ -157,12 +166,35 @@ export class PlansComponent {
       const haystack = [plan.name, plan.description || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
-  }
+  });
 
   async activatePlan(id: string) {
     this.activationMessage = '';
-    const ok = await this.workoutService.setActivePlan(id);
+    this.activatingPlanId = id;
+
+    const currentUserId = this.authService.currentUser()?.id;
+    const currentActive = this.plans().find(p => p.isActive && !!currentUserId && p.ownerId === currentUserId);
+    const previousActiveId = currentActive?.id;
+
+    // Delegate optimistic local update to the service
+    console.debug('[PlansComponent] activatePlan start id=' + id + ' previousActiveId=' + previousActiveId);
+
+    let ok = false;
+    try {
+      ok = await this.workoutService.setActivePlan(id);
+    } catch {
+      ok = false;
+    }
+
+    this.activatingPlanId = '';
+
+    // Log current plans snapshot after activation attempt
+    console.debug('[PlansComponent] activatePlan result=' + ok + ' currentPlans=' + JSON.stringify(this.plans().map(p => ({ id: p.id, isActive: p.isActive }))));
+
     if (!ok) {
+      // Revert optimistic change via service
+      console.debug('[PlansComponent] activatePlan revert to previousActiveId=', previousActiveId);
+      this.workoutService.setActiveLocally(previousActiveId || null);
       this.activationMessage = 'Failed to activate plan.';
     }
   }
@@ -235,6 +267,14 @@ export class PlansComponent {
     this.shareMessage = ok ? 'Plan unshared successfully.' : 'Failed to unshare plan.';
     if (ok) {
       this.shareEmail = '';
+    }
+  }
+
+  async confirmDeletePlan(id: string) {
+    if (!confirm('Delete this plan? This cannot be undone.')) return;
+    const ok = await this.workoutService.deletePlan(id);
+    if (!ok) {
+      this.activationMessage = 'Failed to delete plan.';
     }
   }
 }
