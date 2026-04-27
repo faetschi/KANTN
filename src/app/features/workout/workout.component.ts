@@ -147,9 +147,9 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             <mat-icon>arrow_back</mat-icon>
           </button>
           
-          <span class="text-sm font-medium text-gray-500">
+          <button type="button" (click)="openExerciseListModal()" class="text-sm font-medium text-gray-500">
             {{ currentExercise() ? currentExerciseIndex() + 1 : 0 }} / {{ totalExercisesCount() }}
-          </span>
+          </button>
 
           <button (click)="nextExercise()" class="px-6 py-2.5 rounded-full bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 flex items-center space-x-2">
             <span>{{ isLastExercise() ? 'Finish' : 'Next' }}</span>
@@ -196,6 +196,32 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             <div class="flex items-center justify-end gap-2">
               <button type="button" (click)="skipFreestylePlanSave()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Skip</button>
               <button type="button" (click)="saveFreestylePlanFromModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Save Plan</button>
+            </div>
+          </div>
+        </div>
+      }
+      
+      @if (showExerciseListModal()) {
+        <div class="fixed inset-0 z-70 bg-black/40 flex items-center justify-center p-4">
+          <div class="w-full max-w-lg bg-white rounded-2xl p-4 shadow-xl border border-gray-100 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-900">Exercises</h3>
+              <button type="button" (click)="closeExerciseListModal()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            <div class="max-h-64 overflow-y-auto space-y-2">
+              @for (exercise of (freestyleMode() ? freestyleExercises() : (plan()?.exercises || [])); track exercise.id) {
+                <button type="button" (click)="selectExercise($index)" class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between">
+                  <span class="font-medium text-gray-900">{{ exercise.name }}</span>
+                  <span class="text-xs text-gray-400">{{ $index + 1 }}</span>
+                </button>
+              }
+            </div>
+
+            <div class="flex justify-end">
+              <button type="button" (click)="closeExerciseListModal()" class="px-3 py-2 rounded-lg bg-gray-100 text-sm">Close</button>
             </div>
           </div>
         </div>
@@ -248,6 +274,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   
   showInfo = false;
   showExercisePicker = false;
+  showExerciseListModal = signal(false);
   exerciseSearchQuery = '';
   showCancelWorkoutModal = signal(false);
   showFreestyleSaveModal = signal(false);
@@ -501,5 +528,18 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
     this.router.navigate(['/home']);
+  }
+
+  openExerciseListModal() {
+    this.showExerciseListModal.set(true);
+  }
+
+  closeExerciseListModal() {
+    this.showExerciseListModal.set(false);
+  }
+
+  selectExercise(index: number) {
+    this.currentExerciseIndex.set(index);
+    this.showExerciseListModal.set(false);
   }
 }
