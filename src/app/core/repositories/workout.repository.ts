@@ -337,14 +337,25 @@ export class WorkoutRepository {
 
     if (shareDelError) return false;
 
-    // remove from any workout_plan_exercises
-    const { error: planRelError } = await client
-      .from('workout_plan_exercises')
-      .delete()
-      .eq('exercise_id', exerciseId);
+    // remove from workout_plan_exercises only for plans owned by the user
+    const { data: ownedPlans, error: ownedPlansError } = await client
+      .from('workout_plans')
+      .select('id')
+      .eq('user_id', userId);
 
-    if (planRelError) return false;
+    if (ownedPlansError) return false;
 
+    const ownedPlanIds = (ownedPlans ?? []).map((plan) => plan.id);
+
+    if (ownedPlanIds.length > 0) {
+      const { error: planRelError } = await client
+        .from('workout_plan_exercises')
+        .delete()
+        .eq('exercise_id', exerciseId)
+        .in('plan_id', ownedPlanIds);
+
+      if (planRelError) return false;
+    }
     // soft-delete exercise by marking inactive
     const { error: exerciseError } = await client
       .from('exercises')
