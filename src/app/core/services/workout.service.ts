@@ -16,6 +16,8 @@ export class WorkoutService {
   private plansSignal = signal<WorkoutPlan[]>(MOCK_PLANS);
   private sessionsSignal = signal<WorkoutSession[]>(MOCK_SESSIONS);
   private loadedUserIdSignal = signal<string | null>(null);
+  // In-progress workout saved across route changes so users can continue
+  private inProgressSignal = signal<any | null>(null);
 
   exercises = computed(() => this.exercisesSignal());
   plans = computed(() => this.plansSignal());
@@ -235,5 +237,23 @@ export class WorkoutService {
     return this.sessionsSignal()
       .filter(s => s.planId === planId)
       .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+  }
+
+  setInProgress(payload: any) {
+    this.inProgressSignal.set(payload);
+  }
+
+  clearInProgress() {
+    this.inProgressSignal.set(null);
+  }
+
+  inProgress() {
+    return this.inProgressSignal();
+  }
+
+  hasInProgressForPlan(planId: string) {
+    const p = this.inProgressSignal();
+    if (!p) return false;
+    return p.planId === planId;
   }
 }

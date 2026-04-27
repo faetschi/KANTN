@@ -22,6 +22,17 @@ Audit status last updated: 2026-02-28.
 - [x] Structure backend in modular targets (repositories, domain, application services).
 - [x] Add user workout history with month filtering and full workout detail page (including set-level reps/weight) plus previous/next session navigation.
 
+### Recent UI Fixes (2026-04-27)
+
+- [x] Show paused in-progress workout in Home Recent Activity and add Resume button.
+- [x] Merge paused UI into recent activity list (remove separate paused block).
+- [x] Ensure `inProgress` computed declared before `recentSessions` to avoid initializer order issues.
+- [x] Fix cancel flow so cancelling works after resuming (clear in-progress marker and await navigation).
+- [x] Remove/disable the cancel confirmation modal so cancel performs immediately.
+- [x] Show `pause` (yellow) icon for in-progress session in Recent Activity.
+- [x] Make workout footer sit flush at bottom (adjusted `.workout-content` padding and `.workout-action-bar` bottom).
+- [x] Make bottom navigation icons inherit link color so the active tab icon turns blue.
+
 ### MVP Must-Haves (Before Production)
 - [x] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
 - [x] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
@@ -52,7 +63,7 @@ Audit status last updated: 2026-02-28.
  - [x] In "Create Custom Exercise", it should provide more description for the user what each field is, e.g. ExerciseName and Muscle Group (optional) is already there, but nothign for the other 2 fields (whats the default "general" or "5"?), so he can reliably create a correct exercise.
  - [x] In "Create Custom Exercise", after pressing "Create" it is stuck in "Creating..." endless loop and no feedback. Implement "Saved" pop up similiar to how it is handled in profile page when editing/saving metadata.
 - [x] Users can create "Custom" exercises, but they cant manage their custom exercises anywhere. After a user created a personal custom exercise, it should be able to be managed or edited. Users can only edit their own custom exercises, NOT default ones or shared ones.
-- [ ] When a user starts a workout, and is currently inside the active workout but then switches pages (e.g. accidently goes back to home page), he should be able to go back into the active workout in the home page (the active plan card already has something like this "Not started yet". This could change when a workout is currently active in the background and the user accidently switched pages, the user could return with a button in this active plan card, the button in the card could be switched out with a new Continue button (instead of "Start Workout" button a "Continue" button could appear). Similiarly behaviour in Freestyle Mode.
+- [X] When a user starts a workout, and is currently inside the active workout but then switches pages (e.g. accidently goes back to home page), he should be able to go back into the active workout in the home page (the active plan card already has something like this "Not started yet". This could change when a workout is currently active in the background and the user accidently switched pages, the user could return with a button in this active plan card, the button in the card could be switched out with a new Continue button (instead of "Start Workout" button a "Continue" button could appear). Similiarly behaviour in Freestyle Mode.
 - [x] In Freestyle Mode, the pop up "Save as workout plan?" looks good, but it should be centered of the page (is currently on the bottom and HIDDEN by the footer which is on top of it). Make the pop up appear in the middle of the page and be fully visible.
 - [x] During a workout, the user should be able to press a button or the e.g. "1/3" in the bottom action bar to reveal the list of all exercises in the current workout plan. Similiar in freestyle mode it should show the current list of exercises in the freestyle workout.
 - [ ] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 

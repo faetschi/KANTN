@@ -84,7 +84,7 @@ import { StatsService } from '../../core/services/stats.service';
                 </div>
                 <div class="w-full sm:w-auto">
                   <button [routerLink]="['/workout', plan.id]" class="w-full bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center justify-center whitespace-nowrap">
-                    Start Workout
+                    {{ workoutService.hasInProgressForPlan(plan.id) ? 'Continue' : 'Start Workout' }}
                   </button>
                 </div>
               </div>
@@ -127,18 +127,30 @@ import { StatsService } from '../../core/services/stats.service';
           @for (session of recentSessions(); track session.id) {
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
               <div class="flex items-center space-x-4">
-                <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <mat-icon>check_circle</mat-icon>
-                </div>
+                @if (session.id === 'in-progress') {
+                  <div class="w-12 h-12 rounded-xl bg-yellow-50 text-yellow-700 flex items-center justify-center">
+                    <mat-icon>pause</mat-icon>
+                  </div>
+                } @else {
+                  <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <mat-icon>check_circle</mat-icon>
+                  </div>
+                }
                 <div>
                   <h4 class="font-semibold text-gray-900">{{ getPlanName(session.planId) }}</h4>
                   <p class="text-xs text-gray-500">{{ session.date | date:'MMM d, h:mm a' }} • {{ (session.duration || 0) / 60 | number:'1.0-0' }} min</p>
                 </div>
               </div>
-              <div class="text-right">
-                <p class="font-bold text-gray-900">{{ session.caloriesBurned }}</p>
-                <p class="text-[10px] text-gray-400 uppercase">Kcal</p>
-              </div>
+              @if (session.id === 'in-progress') {
+                <div class="text-right">
+                  <button (click)="resumeInProgress()" class="px-3 py-1.5 rounded-lg bg-white text-blue-600 font-semibold">Resume</button>
+                </div>
+              } @else {
+                <div class="text-right">
+                  <p class="font-bold text-gray-900">{{ session.caloriesBurned }}</p>
+                  <p class="text-[10px] text-gray-400 uppercase">Kcal</p>
+                </div>
+              }
             </div>
           }
           @if (recentSessions().length === 0) {
@@ -165,11 +177,34 @@ export class HomeComponent {
   activePlan = this.workoutService.activePlan;
   today = new Date();
 
-  recentSessions = computed(() => 
-    this.workoutService.sessions()
-      .sort((a, b) => b.date.getTime() - a.date.getTime())
-      .slice(0, 5)
-  );
+  inProgress = computed(() => this.workoutService.inProgress());
+
+  recentSessions = computed(() => {
+    const sessions = this.workoutService.sessions()
+      .slice()
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    const inP = this.inProgress();
+    if (!inP) return sessions.slice(0, 5);
+
+    const pseudoSession: any = {
+      id: 'in-progress',
+      planId: inP.planId,
+      date: inP.startTime ? new Date(inP.startTime) : new Date(),
+      duration: inP.elapsedTime || 0,
+      caloriesBurned: 0
+    };
+
+    const combined = [pseudoSession, ...sessions];
+    combined.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return combined.slice(0, 5);
+  });
+
+  resumeInProgress() {
+    const p = this.inProgress();
+    if (!p) return;
+    void this.router.navigate(['/workout', p.planId || 'freestyle']);
+  }
 
   getPlanName(planId: string) {
     if (!planId) return 'Freestyle';

@@ -31,6 +31,25 @@ import { WorkoutService } from '../../core/services/workout.service';
       </section>
 
       <section class="space-y-4">
+        @if (inProgress()) {
+          <article class="bg-yellow-50 rounded-2xl shadow-sm border border-yellow-100 overflow-hidden">
+            <button type="button" (click)="resumeInProgress()" class="w-full p-4 flex items-center justify-between text-left">
+              <div class="flex items-center space-x-4">
+                <div class="w-12 h-12 rounded-xl bg-yellow-100 text-yellow-700 flex items-center justify-center">
+                  <mat-icon>pause</mat-icon>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-gray-900">Paused: {{ getPlanName(inProgress().planId) }}</h3>
+                  <p class="text-xs text-gray-500">Paused at {{ (inProgress().elapsedTime || 0) | number:'1.0-0' }}s • {{ inProgress().startTime | date:'MMM d, y, h:mm a' }}</p>
+                </div>
+              </div>
+              <div class="text-right flex items-center gap-3">
+                <button class="px-3 py-1.5 rounded-lg bg-white text-blue-600 font-semibold">Resume</button>
+                <mat-icon class="text-gray-400">chevron_right</mat-icon>
+              </div>
+            </button>
+          </article>
+        }
         @for (session of filteredSessions(); track session.id) {
           <article class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <button
@@ -72,6 +91,8 @@ export class HistoryComponent {
 
   selectedMonth = 'all';
 
+  inProgress = computed(() => this.workoutService.inProgress());
+
   private sortedSessions = computed(() =>
     this.workoutService.sessions()
       .slice()
@@ -104,6 +125,12 @@ export class HistoryComponent {
 
   openSession(sessionId: string) {
     void this.router.navigate(['/history', sessionId]);
+  }
+
+  resumeInProgress() {
+    const p = this.inProgress();
+    if (!p) return;
+    void this.router.navigate(['/workout', p.planId || 'freestyle']);
   }
 
   private toMonthKey(date: Date) {
