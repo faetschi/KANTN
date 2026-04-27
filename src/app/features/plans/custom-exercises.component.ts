@@ -58,18 +58,26 @@ import { Exercise } from '../../core/models/models';
               <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                [(ngModel)]="customExercise.exerciseType"
-                placeholder="Exercise type"
-                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
-              <input
-                type="number"
-                [(ngModel)]="customExercise.metValue"
-                placeholder="MET"
-                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
+              <div>
+                <input
+                  type="text"
+                  [(ngModel)]="customExercise.exerciseType"
+                  placeholder="Exercise type"
+                  aria-describedby="exercise-type-help"
+                  class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                >
+                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (e.g. strength, cardio, mobility). Default: "general".</div>
+              </div>
+              <div>
+                <input
+                  type="number"
+                  [(ngModel)]="customExercise.metValue"
+                  placeholder="MET"
+                  aria-describedby="met-help"
+                  class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                >
+                <div id="met-help" class="text-xs text-gray-500 mt-1">MET is metabolic equivalent used to estimate calories burned (default: 5).</div>
+              </div>
             </div>
             <textarea
               rows="2"
