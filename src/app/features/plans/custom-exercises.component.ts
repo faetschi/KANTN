@@ -213,7 +213,6 @@ export class CustomExercisesComponent {
       return;
     }
 
-    await this.workoutService.refresh();
     this.syncMyCustomExercises();
   }
 
