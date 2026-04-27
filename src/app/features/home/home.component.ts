@@ -28,10 +28,16 @@ import { StatsService } from '../../core/services/stats.service';
 
       <!-- Weekly/Monthly Stats Toggle -->
       <section class="grid grid-cols-2 gap-4">
-        <div class="flex items-center gap-2 col-span-2">
-          <div class="text-sm text-gray-600">Show:</div>
-          <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
-          <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+        <div class="flex items-center justify-between col-span-2">
+          <div class="flex items-center gap-2">
+            <div class="text-sm text-gray-600">Show:</div>
+            <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
+            <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+          </div>
+          <a routerLink="/calendar" class="text-blue-600 text-xs font-semibold flex items-center gap-1">
+            <mat-icon class="text-xs">calendar_month</mat-icon>
+            Calendar
+          </a>
         </div>
 
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
