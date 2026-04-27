@@ -96,8 +96,9 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             <div class="text-sm text-gray-700">{{ ex.exerciseType || 'general' }}</div>
             <div class="text-sm text-gray-700">{{ ex.visibility || 'default' }}</div>
             <div class="text-sm text-gray-700">{{ ex.metValue || 5 }}</div>
-            <div class="flex justify-end">
+            <div class="flex justify-end gap-2">
               <button (click)="editExercise(ex)" class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">Edit</button>
+              <button (click)="deleteExercise(ex)" class="px-2 py-1 text-xs rounded bg-red-100 text-red-600">Delete</button>
             </div>
           </div>
         </ng-container>
@@ -156,6 +157,29 @@ export class AdminExercisesComponent {
       metValue: exercise.metValue || 5,
     };
     this.exerciseMessage = '';
+  }
+
+  async deleteExercise(exercise: Exercise) {
+    if (!confirm(`Are you sure you want to delete "${exercise.name}"? This will remove it from default exercises.`)) {
+      return;
+    }
+
+    this.exerciseBusy = true;
+    this.exerciseMessage = 'Deleting...';
+    try {
+      // Assuming deleteExercise exists in workoutService as it's typically required for CRUD
+      const success = await this.workoutService.deleteExercise(exercise.id);
+      if (success) {
+        this.exerciseMessage = 'Exercise deleted.';
+        await this.loadDefaultExercises();
+      } else {
+        this.exerciseMessage = 'Failed to delete exercise.';
+      }
+    } catch {
+      this.exerciseMessage = 'Error deleting exercise.';
+    } finally {
+      this.exerciseBusy = false;
+    }
   }
 
   resetExerciseForm() {
