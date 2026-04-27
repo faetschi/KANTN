@@ -53,6 +53,13 @@ This runbook defines the staged rollout path for backend persistence and Supabas
 - Confirm non-admin users can upload images but cannot mutate other users' avatar objects.
 - Confirm shared resources are inaccessible once unshared.
 
+### Operational checklist (staging run)
+- Run smoke checks during a 30-minute window with monitoring enabled.
+- Verify database slow queries and error rates remain within baseline (use `EXPLAIN ANALYZE` for any slow plans).
+- Confirm backups completed successfully immediately before any production SQL apply.
+- Validate storage policy metrics (failed uploads, permission denials) are zero or within expected low thresholds.
+- Ensure alerting channels (Slack/email) receive test notifications for a sample error event.
+
 ## Rollback Steps (DB + Policy Changes)
 
 ### Trigger conditions
@@ -82,6 +89,34 @@ This runbook defines the staged rollout path for backend persistence and Supabas
 - Re-run the same staging smoke checks from this document.
 - Confirm no cross-user access.
 - Confirm profile and workout persistence are healthy.
+
+## Run Execution Template
+Use the template below when executing the staging verification run. Fill results and attach evidence.
+
+- Run start: ___________________
+- Run end: ___________________
+- Executor: ___________________
+- Environment (staging URL / DB): ___________________
+
+- Prechecks passed: yes / no
+- Functional checks: (mark pass/fail per item)
+   - Profile save + avatar upload: pass / fail
+   - Create plan: pass / fail
+   - Finish workout (transactional persistence): pass / fail
+   - Share/unshare plan: pass / fail
+   - Share/unshare custom exercise: pass / fail
+   - First-run seed: pass / fail
+
+- Security checks: pass / fail
+- Operational checklist: pass / fail
+
+- Evidence links:
+   - SQL logs: 
+   - Screenshots:
+   - Metrics dashboard:
+
+Notes:
+
 
 ## Evidence to capture
 - SQL execution logs/timestamps.

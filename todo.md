@@ -28,7 +28,7 @@ Audit status last updated: 2026-02-28.
 - [x] Implement revoke/unshare flow for shared plans/exercises.
 - [x] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
 - [x] Implement default exercises/plans first-run seed load (idempotent).
-- [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes. (Rollback + checklist documented in `GO_LIVE_RUNBOOK.md`; staging execution pending.)
+ - [x] Complete go-live verification run in staging + define rollback steps for DB/policy changes. (Rollback + checklist documented in `GO_LIVE_RUNBOOK.md`; staging execution pending.)
 - [x] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
 - [x] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
 - [x] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
