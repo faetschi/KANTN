@@ -197,21 +197,28 @@ import { NotificationService } from '../../core/services/notification.service';
         </div>
       </div>
 
-      <!-- Monthly Stats -->
+      <!-- Period Toggle + Stats -->
       <section>
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Monthly Overview</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-gray-900">Overview</h3>
+          <div class="flex items-center gap-2">
+            <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+            <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
+          </div>
+        </div>
+
         <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl">
           <div class="grid grid-cols-2 gap-6">
             <div>
-              <p class="text-3xl font-bold text-blue-400">{{ statsService.monthlyStats().count }}</p>
+              <p class="text-3xl font-bold text-blue-400">{{ currentStats().count }}</p>
               <p class="text-sm text-gray-400 mt-1">Workouts</p>
             </div>
             <div>
-              <p class="text-3xl font-bold text-orange-400">{{ (statsService.monthlyStats().calories / 1000).toFixed(1) }}k</p>
+              <p class="text-3xl font-bold text-orange-400">{{ (currentStats().calories / 1000).toFixed(1) }}k</p>
               <p class="text-sm text-gray-400 mt-1">Calories</p>
             </div>
             <div class="col-span-2 pt-4 border-t border-gray-800">
-              <p class="text-3xl font-bold text-white">{{ (statsService.monthlyStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
+              <p class="text-3xl font-bold text-white">{{ (currentStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
               <p class="text-sm text-gray-400 mt-1">Total Active Time</p>
             </div>
           </div>
@@ -286,6 +293,12 @@ export class ProfileComponent {
         age: u.age || 0,
       };
     });
+  }
+
+  showPeriod: 'week' | 'month' = 'month';
+
+  currentStats() {
+    return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
   }
 
   logout() {

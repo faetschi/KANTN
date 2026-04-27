@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AuthService } from './auth.service';
-import { CreateExerciseInput, Exercise, WorkoutPlan, WorkoutSession } from '../models/models';
+import { CreateExerciseInput, Exercise, InProgressWorkout, WorkoutPlan, WorkoutSession } from '../models/models';
 import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SESSIONS } from '../models/mock-data';
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
@@ -11,21 +11,18 @@ import { buildPersistedSessionPayload } from '../domain/workout-domain';
 export class WorkoutService {
   private auth = inject(AuthService);
   private repository = inject(WorkoutRepository);
-  private readonly sharedActivePlanStoragePrefix = 'kantn.shared-active-plan:';
-  private readonly activeWorkoutStoragePrefix = 'kantn.active-workout:';
-  private readonly activeWorkoutDraftStoragePrefix = 'kantn.active-workout-draft:';
 
   private exercisesSignal = signal<Exercise[]>(MOCK_EXERCISES);
   private plansSignal = signal<WorkoutPlan[]>(MOCK_PLANS);
   private sessionsSignal = signal<WorkoutSession[]>(MOCK_SESSIONS);
   private loadedUserIdSignal = signal<string | null>(null);
-  private activeWorkoutSignal = signal<string | null>(null);
+  // In-progress workout saved across route changes so users can continue
+  private inProgressSignal = signal<InProgressWorkout | null>(null);
 
   exercises = computed(() => this.exercisesSignal());
   plans = computed(() => this.plansSignal());
   sessions = computed(() => this.sessionsSignal());
   loadedUserId = computed(() => this.loadedUserIdSignal());
-  activeWorkoutId = computed(() => this.activeWorkoutSignal());
   
   activePlan = computed(() => this.plansSignal().find(p => p.isActive));
 
@@ -37,12 +34,7 @@ export class WorkoutService {
         this.exercisesSignal.set(MOCK_EXERCISES);
         this.plansSignal.set(MOCK_PLANS);
         this.sessionsSignal.set(MOCK_SESSIONS);
-        this.activeWorkoutSignal.set(null);
         return;
-      }
-
-      if (this.loadedUserIdSignal() !== currentUser.id) {
-        this.activeWorkoutSignal.set(this.readActiveWorkout(currentUser.id));
       }
 
       if (this.loadedUserIdSignal() !== currentUser.id) {
@@ -57,128 +49,6 @@ export class WorkoutService {
 
   private getUserWeightKg() {
     return this.auth.currentUser()?.weight || 70;
-  }
-
-  private getSharedActivePlanStorageKey(userId: string) {
-    return `${this.sharedActivePlanStoragePrefix}${userId}`;
-  }
-
-  private getActiveWorkoutStorageKey(userId: string) {
-    return `${this.activeWorkoutStoragePrefix}${userId}`;
-  }
-
-  private getActiveWorkoutDraftStorageKey(userId: string) {
-    return `${this.activeWorkoutDraftStoragePrefix}${userId}`;
-  }
-
-  private readSharedActivePlanPreference(userId: string): string | null {
-    try {
-      return localStorage.getItem(this.getSharedActivePlanStorageKey(userId));
-    } catch {
-      return null;
-    }
-  }
-
-  private writeSharedActivePlanPreference(userId: string, planId: string | null) {
-    try {
-      const key = this.getSharedActivePlanStorageKey(userId);
-      if (!planId) {
-        localStorage.removeItem(key);
-        return;
-      }
-      localStorage.setItem(key, planId);
-    } catch {
-      // Ignore storage issues and keep runtime-only state.
-    }
-  }
-
-  private readActiveWorkout(userId: string): string | null {
-    try {
-      return localStorage.getItem(this.getActiveWorkoutStorageKey(userId));
-    } catch {
-      return null;
-    }
-  }
-
-  private writeActiveWorkout(userId: string, workoutId: string | null) {
-    try {
-      const key = this.getActiveWorkoutStorageKey(userId);
-      if (!workoutId) {
-        localStorage.removeItem(key);
-        return;
-      }
-      localStorage.setItem(key, workoutId);
-    } catch {
-      // Ignore storage issues and keep runtime-only state.
-    }
-  }
-
-  setActiveWorkout(workoutId: string | null) {
-    const userId = this.getCurrentUserId();
-    if (!userId) return;
-
-    this.writeActiveWorkout(userId, workoutId);
-    this.activeWorkoutSignal.set(workoutId);
-  }
-
-  clearActiveWorkout() {
-    this.setActiveWorkout(null);
-  }
-
-  saveActiveWorkoutDraft(payload: string) {
-    const userId = this.getCurrentUserId();
-    if (!userId) return;
-
-    try {
-      localStorage.setItem(this.getActiveWorkoutDraftStorageKey(userId), payload);
-    } catch {
-      // Ignore storage issues and keep runtime-only state.
-    }
-  }
-
-  readActiveWorkoutDraft() {
-    const userId = this.getCurrentUserId();
-    if (!userId) return null;
-
-    try {
-      return localStorage.getItem(this.getActiveWorkoutDraftStorageKey(userId));
-    } catch {
-      return null;
-    }
-  }
-
-  clearActiveWorkoutDraft() {
-    const userId = this.getCurrentUserId();
-    if (!userId) return;
-
-    try {
-      localStorage.removeItem(this.getActiveWorkoutDraftStorageKey(userId));
-    } catch {
-      // Ignore storage issues and keep runtime-only state.
-    }
-  }
-
-  private applySharedActivePlanPreference(userId: string, plans: WorkoutPlan[]): WorkoutPlan[] {
-    const preferredPlanId = this.readSharedActivePlanPreference(userId);
-    if (!preferredPlanId) return plans;
-
-    const preferredPlan = plans.find(plan => plan.id === preferredPlanId);
-    if (!preferredPlan || preferredPlan.ownerId === userId) {
-      this.writeSharedActivePlanPreference(userId, null);
-      return plans;
-    }
-
-    return plans.map(plan => ({
-      ...plan,
-      isActive: plan.id === preferredPlanId,
-    }));
-  }
-
-  private setLocalActivePlan(planId: string) {
-    this.plansSignal.update(plans => plans.map(plan => ({
-      ...plan,
-      isActive: plan.id === planId,
-    })));
   }
 
   async refresh() {
@@ -205,7 +75,7 @@ export class WorkoutService {
       }
 
       this.exercisesSignal.set(data.exercises);
-      this.plansSignal.set(this.applySharedActivePlanPreference(userId, data.plans));
+      this.plansSignal.set(data.plans);
       this.sessionsSignal.set(data.sessions);
       this.loadedUserIdSignal.set(userId);
     } catch (error) {
@@ -217,6 +87,34 @@ export class WorkoutService {
     return this.plansSignal().find(p => p.id === id);
   }
 
+  /**
+   * Apply an optimistic local active toggle for UI responsiveness.
+   * Pass `planId` to activate that plan locally, or `null` to clear active.
+   */
+  setActiveLocally(planId: string | null) {
+    const before = this.plansSignal().map(p => ({ id: p.id, isActive: p.isActive }));
+    console.debug('[WorkoutService] setActiveLocally before: ' + JSON.stringify(before));
+    this.plansSignal.update(plans => plans.map(p => ({ ...p, isActive: (planId ? p.id === planId : false) })));
+    const after = this.plansSignal().map(p => ({ id: p.id, isActive: p.isActive }));
+    console.debug('[WorkoutService] setActiveLocally after: ' + JSON.stringify(after));
+  }
+
+  /**
+   * Mark a plan as started locally (optimistic UI). This sets `lastPerformed`
+   * to the provided start time so the UI reflects the workout as started.
+   */
+  markPlanStartedLocally(planId: string, startedAt: Date) {
+    this.plansSignal.update(plans => plans.map(p => p.id === planId ? ({ ...p, lastPerformed: startedAt }) : p));
+  }
+
+  /**
+   * Mark a plan as completed locally (optimistic UI). This sets `lastPerformed`
+   * to the provided finish time so the UI reflects completion immediately.
+   */
+  markPlanCompletedLocally(planId: string, finishedAt: Date) {
+    this.plansSignal.update(plans => plans.map(p => p.id === planId ? ({ ...p, lastPerformed: finishedAt }) : p));
+  }
+
   getExerciseById(id: string) {
     return this.exercisesSignal().find(e => e.id === id);
   }
@@ -225,20 +123,64 @@ export class WorkoutService {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 
-    const success = await this.repository.setActivePlan(userId, planId);
-    if (!success) {
-      const plan = this.plansSignal().find(p => p.id === planId);
-      if (!plan || plan.ownerId === userId) return false;
+    const targetPlan = this.plansSignal().find(p => p.id === planId);
+    if (!targetPlan) return false;
 
-      this.writeSharedActivePlanPreference(userId, planId);
-      this.setLocalActivePlan(planId);
+    const isOwnedTarget = targetPlan.ownerId === userId;
+
+    if (isOwnedTarget && targetPlan.isActive) {
       return true;
     }
 
-    this.writeSharedActivePlanPreference(userId, null);
+    const previousActive = this.plansSignal().find(p => p.isActive && p.ownerId === userId)?.id || null;
 
-    await this.refresh();
-    return true;
+    if (!isOwnedTarget) {
+      // Shared/public plans cannot be directly updated due to RLS.
+      // Create a user-owned copy and activate that copy instead.
+      try {
+        const clonedPlanId = await this.repository.createPlan(userId, {
+          ...targetPlan,
+          id: '',
+          isActive: true,
+          visibility: 'private',
+          ownerId: userId,
+        });
+
+        if (!clonedPlanId) return false;
+
+        await this.refresh();
+        return this.plansSignal().some(p => p.id === clonedPlanId && p.isActive && p.ownerId === userId);
+      } catch (err) {
+        console.error('[WorkoutService] setActivePlan clone+activate error', err);
+        return false;
+      }
+    }
+
+    // Optimistic local update
+    console.debug('[WorkoutService] setActivePlan optimistic start: ' + planId + ' previousActive=' + previousActive);
+    this.setActiveLocally(planId);
+
+    try {
+      const success = await this.repository.setActivePlan(userId, planId);
+      if (!success) {
+        // revert optimistic change
+        console.debug('[WorkoutService] setActivePlan repository failed, reverting to ' + previousActive);
+        this.setActiveLocally(previousActive);
+        return false;
+      }
+      // Re-sync from backend to keep local state canonical.
+      await this.refresh();
+      const confirmed = this.plansSignal().some(p => p.id === planId && p.isActive);
+      if (!confirmed) {
+        console.debug('[WorkoutService] setActivePlan not confirmed after refresh for ' + planId);
+      }
+      console.debug('[WorkoutService] setActivePlan repository success for ' + planId);
+      return confirmed;
+    } catch (err) {
+      console.error('[WorkoutService] setActivePlan error', err);
+      this.setActiveLocally(previousActive);
+      return false;
+    }
   }
 
   async addSession(session: WorkoutSession) {
@@ -299,17 +241,6 @@ export class WorkoutService {
     return mapped;
   }
 
-  async deleteExercise(exerciseId: string) {
-    const userId = this.getCurrentUserId();
-    if (!userId) return false;
-
-    const success = await this.repository.deleteExercise(userId, exerciseId);
-    if (!success) return false;
-
-    this.exercisesSignal.update(exercises => exercises.filter(ex => ex.id !== exerciseId));
-    return true;
-  }
-
   async shareExercise(exerciseId: string, sharedWithUserId: string) {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
@@ -350,6 +281,28 @@ export class WorkoutService {
     return true;
   }
 
+  async deleteExercise(exerciseId: string) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.deleteExercise(userId, exerciseId);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
+  async deletePlan(planId: string) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.deletePlan(userId, planId);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
   async resolveUserIdByEmail(email: string) {
     return this.repository.resolveUserIdByEmail(email);
   }
@@ -365,5 +318,23 @@ export class WorkoutService {
     return this.sessionsSignal()
       .filter(s => s.planId === planId)
       .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+  }
+
+  setInProgress(payload: InProgressWorkout) {
+    this.inProgressSignal.set(payload);
+  }
+
+  clearInProgress() {
+    this.inProgressSignal.set(null);
+  }
+
+  inProgress(): InProgressWorkout | null {
+    return this.inProgressSignal();
+  }
+
+  hasInProgressForPlan(planId: string) {
+    const p = this.inProgressSignal();
+    if (!p) return false;
+    return p.planId === planId;
   }
 }

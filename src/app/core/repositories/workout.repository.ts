@@ -170,9 +170,8 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const clearRes = await client.from('workout_plans').update({ is_active: false }).eq('owner_id', userId);
-    if (clearRes.error) return false;
-
+    // First ensure the requested plan is actually owned and updatable by this user.
+    // If no row is returned, treat activation as failed instead of a false-positive success.
     const setRes = await client
       .from('workout_plans')
       .update({ is_active: true })
@@ -180,8 +179,16 @@ export class WorkoutRepository {
       .eq('id', planId)
       .select('id');
 
-    if (setRes.error) return false;
-    return (setRes.data?.length || 0) > 0;
+    if (setRes.error || !setRes.data?.length) return false;
+
+    const clearRes = await client
+      .from('workout_plans')
+      .update({ is_active: false })
+      .eq('owner_id', userId)
+      .neq('id', planId)
+      .eq('is_active', true);
+
+    return !clearRes.error;
   }
 
   async ensureFirstRunSeed(userId: string) {
@@ -317,6 +324,50 @@ export class WorkoutRepository {
     return this.mapExercise(data as ExerciseRow);
   }
 
+  async deleteExercise(userId: string, exerciseId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    // remove shares referencing this exercise created by user
+    const { error: shareDelError } = await client
+      .from('exercise_shares')
+      .delete()
+      .eq('exercise_id', exerciseId)
+      .eq('created_by', userId);
+
+    if (shareDelError) return false;
+
+    // remove from workout_plan_exercises only for plans owned by the user
+    const { data: ownedPlans, error: ownedPlansError } = await client
+      .from('workout_plans')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (ownedPlansError) return false;
+
+    const ownedPlanIds = (ownedPlans ?? []).map((plan) => plan.id);
+
+    if (ownedPlanIds.length > 0) {
+      const { error: planRelError } = await client
+        .from('workout_plan_exercises')
+        .delete()
+        .eq('exercise_id', exerciseId)
+        .in('plan_id', ownedPlanIds);
+
+      if (planRelError) return false;
+    }
+    // soft-delete exercise by marking inactive
+    const { error: exerciseError } = await client
+      .from('exercises')
+      .update({ is_active: false })
+      .eq('id', exerciseId)
+      .eq('created_by', userId);
+
+    if (exerciseError) return false;
+
+    return true;
+  }
+
   async updateExercise(exerciseId: string, updates: Partial<CreateExerciseInput>) {
     const client = this.supabase.getClient();
     if (!client) return null;
@@ -341,33 +392,34 @@ export class WorkoutRepository {
     return this.mapExercise(data as ExerciseRow);
   }
 
-  async deleteExercise(userId: string, exerciseId: string) {
+  async deletePlan(userId: string, planId: string) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const { error } = await client
-      .from('exercises')
-      .delete()
-      .eq('id', exerciseId)
-      .eq('created_by', userId)
-      .eq('visibility', 'private');
+    // prevent deleting active plans accidentally
+    const { data: planRow } = await client.from('workout_plans').select('is_active,owner_id').eq('id', planId).maybeSingle();
+    if (!planRow) return false;
+    if (planRow.owner_id !== userId) return false;
+    if (planRow.is_active) return false;
 
-    return !error;
+    const { error: relError } = await client.from('workout_plan_exercises').delete().eq('plan_id', planId);
+    if (relError) return false;
+
+    const { error: delError } = await client.from('workout_plans').delete().eq('id', planId).eq('owner_id', userId);
+    if (delError) return false;
+
+    return true;
   }
 
   async shareExercise(userId: string, exerciseId: string, sharedWithUserId: string) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const authRes = await client.auth.getUser();
-    const actorId = authRes.data.user?.id;
-    if (!actorId) return false;
-
     const { error } = await client.from('exercise_shares').upsert(
       {
         exercise_id: exerciseId,
         shared_with_user_id: sharedWithUserId,
-        created_by: actorId,
+        created_by: userId,
       },
       { onConflict: 'exercise_id,shared_with_user_id' }
     );
@@ -423,15 +475,11 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const authRes = await client.auth.getUser();
-    const actorId = authRes.data.user?.id;
-    if (!actorId) return false;
-
     const { error } = await client.from('workout_plan_shares').upsert(
       {
         plan_id: planId,
         shared_with_user_id: sharedWithUserId,
-        created_by: actorId,
+        created_by: userId,
       },
       { onConflict: 'plan_id,shared_with_user_id' }
     );
