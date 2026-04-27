@@ -31,7 +31,7 @@ import { WorkoutService } from '../../core/services/workout.service';
       </section>
 
       <section class="space-y-4">
-        @if (inProgress()) {
+        @if (inProgress(); as current) {
           <article class="bg-yellow-50 rounded-2xl shadow-sm border border-yellow-100 overflow-hidden">
             <button type="button" (click)="resumeInProgress()" class="w-full p-4 flex items-center justify-between text-left">
               <div class="flex items-center space-x-4">
@@ -39,8 +39,11 @@ import { WorkoutService } from '../../core/services/workout.service';
                   <mat-icon>pause</mat-icon>
                 </div>
                 <div>
-                  <h3 class="font-semibold text-gray-900">Paused: {{ getPlanName(inProgress().planId) }}</h3>
-                  <p class="text-xs text-gray-500">Paused at {{ (inProgress().elapsedTime || 0) | number:'1.0-0' }}s • {{ inProgress().startTime | date:'MMM d, y, h:mm a' }}</p>
+                  <h3 class="font-semibold text-gray-900">Paused: {{ getPlanName(current.planId) }}</h3>
+                  <p class="text-xs text-gray-500">
+                    Paused at {{ (current.elapsedTime || 0) | number:'1.0-0' }}s • 
+                    {{ current.startTime | date:'MMM d, y, h:mm a' }}
+                  </p>
                 </div>
               </div>
               <div class="text-right flex items-center gap-3">
@@ -50,6 +53,7 @@ import { WorkoutService } from '../../core/services/workout.service';
             </button>
           </article>
         }
+
         @for (session of filteredSessions(); track session.id) {
           <article class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <button
@@ -94,9 +98,7 @@ export class HistoryComponent {
   inProgress = computed(() => this.workoutService.inProgress());
 
   private sortedSessions = computed(() =>
-    this.workoutService.sessions()
-      .slice()
-      .sort((a, b) => b.date.getTime() - a.date.getTime())
+    [...this.workoutService.sessions()].sort((a, b) => b.date.getTime() - a.date.getTime())
   );
 
   monthOptions = computed(() => {
@@ -105,9 +107,10 @@ export class HistoryComponent {
 
     for (const session of this.sortedSessions()) {
       const value = this.toMonthKey(session.date);
-      if (seen.has(value)) continue;
-      seen.add(value);
-      options.push({ value, label: this.toMonthLabel(session.date) });
+      if (!seen.has(value)) {
+        seen.add(value);
+        options.push({ value, label: this.toMonthLabel(session.date) });
+      }
     }
 
     return options;
@@ -119,7 +122,9 @@ export class HistoryComponent {
     return this.sortedSessions().filter(session => this.toMonthKey(session.date) === selected);
   });
 
-  getPlanName(planId: string) {
+  // planId als optionalen Typ akzeptieren, um TS-Fehler zu vermeiden
+  getPlanName(planId: string | null | undefined) {
+    if (!planId) return 'Workout Session';
     return this.workoutService.getPlanById(planId)?.name || 'Workout Session';
   }
 
