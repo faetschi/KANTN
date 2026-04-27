@@ -32,6 +32,10 @@ import { NotificationOutletComponent } from '../shared/components/notification-o
             <mat-icon class="mb-1 text-current">history</mat-icon>
             <span class="text-[10px] font-medium">History</span>
           </a>
+          <a routerLink="/calendar" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1 text-current">calendar_month</mat-icon>
+            <span class="text-[10px] font-medium">Calendar</span>
+          </a>
           <a routerLink="/profile" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
             <mat-icon class="mb-1 text-current">person</mat-icon>
             <span class="text-[10px] font-medium">Profile</span>

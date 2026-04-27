@@ -73,6 +73,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/history/history-detail.component').then(m => m.HistoryDetailComponent)
       },
       {
+        path: 'calendar',
+        loadComponent: () => import('./features/calendar/calendar.component').then(m => m.CalendarComponent)
+      },
+      {
         path: 'workout/:planId',
         loadComponent: () => import('./features/workout/workout.component').then(m => m.WorkoutComponent)
       },
