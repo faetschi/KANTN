@@ -34,11 +34,13 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         }
 
         @if (freestyleMode()) {
-          <div class="mb-4 flex items-center justify-between">
-            <button type="button" (click)="showExercisePicker = !showExercisePicker" class="px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold">
-              {{ showExercisePicker ? 'Hide Exercise Picker' : 'Add Exercise' }}
-            </button>
-            <span class="text-xs text-gray-500">{{ freestyleExercises().length }} selected</span>
+          <div class="sticky top-0 z-10 -mx-6 px-6 py-3 mb-4 bg-white/95 backdrop-blur border-b border-gray-100">
+            <div class="flex items-center justify-between">
+              <button type="button" (click)="showExercisePicker = !showExercisePicker" class="px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold">
+                {{ showExercisePicker ? 'Hide Exercise Picker' : 'Add Exercise' }}
+              </button>
+              <span class="text-xs text-gray-500">{{ freestyleExercises().length }} selected</span>
+            </div>
           </div>
 
           @if (showExercisePicker) {

@@ -9,6 +9,7 @@ Source: Consolidated from open items in todo.md
 - [x] 2026-04-24: Implemented owner-only custom exercise management in Custom Exercises: users can edit their own custom exercises and delete owned private custom exercises from a dedicated management list.
 - [x] 2026-04-24: Added clearer custom exercise field guidance for Exercise type and MET value (labels, default hints, and helper descriptions).
 - [x] 2026-04-24: Implemented continue-workout recovery for plan and freestyle sessions with persisted active-workout context plus draft restoration (sets, timer, current exercise) after navigation away from /workout.
+- [x] 2026-04-27: Made freestyle workout top controls sticky in /workout so "Add Exercise" remains visible while scrolling, matching the persistent-navigation pattern used by workout bottom actions.
 
 ### Goal
 Deliver a production-safe baseline first, then remove user blockers, then ship the highest-value new product features.
