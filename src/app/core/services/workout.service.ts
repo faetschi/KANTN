@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AuthService } from './auth.service';
-import { CreateExerciseInput, Exercise, InProgressWorkout, WorkoutPlan, WorkoutSession } from '../models/models';
+import { CreateExerciseInput, Exercise, InProgressWorkout, WorkoutPlan, WorkoutPlanInvite, WorkoutSession } from '../models/models';
 import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SESSIONS } from '../models/mock-data';
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
@@ -15,6 +15,7 @@ export class WorkoutService {
   private exercisesSignal = signal<Exercise[]>(MOCK_EXERCISES);
   private plansSignal = signal<WorkoutPlan[]>(MOCK_PLANS);
   private sessionsSignal = signal<WorkoutSession[]>(MOCK_SESSIONS);
+  private planInvitesSignal = signal<WorkoutPlanInvite[]>([]);
   private loadedUserIdSignal = signal<string | null>(null);
   // In-progress workout saved across route changes so users can continue
   private inProgressSignal = signal<InProgressWorkout | null>(null);
@@ -22,6 +23,7 @@ export class WorkoutService {
   exercises = computed(() => this.exercisesSignal());
   plans = computed(() => this.plansSignal());
   sessions = computed(() => this.sessionsSignal());
+  planInvites = computed(() => this.planInvitesSignal());
   loadedUserId = computed(() => this.loadedUserIdSignal());
   
   activePlan = computed(() => this.plansSignal().find(p => p.isActive));
@@ -57,6 +59,7 @@ export class WorkoutService {
       this.exercisesSignal.set(MOCK_EXERCISES);
       this.plansSignal.set(MOCK_PLANS);
       this.sessionsSignal.set(MOCK_SESSIONS);
+      this.planInvitesSignal.set([]);
       this.loadedUserIdSignal.set(userId);
       return;
     }
@@ -70,6 +73,7 @@ export class WorkoutService {
         this.exercisesSignal.set([]);
         this.plansSignal.set([]);
         this.sessionsSignal.set([]);
+        this.planInvitesSignal.set([]);
         this.loadedUserIdSignal.set(userId);
         return;
       }
@@ -77,6 +81,7 @@ export class WorkoutService {
       this.exercisesSignal.set(data.exercises);
       this.plansSignal.set(data.plans);
       this.sessionsSignal.set(data.sessions);
+      this.planInvitesSignal.set(data.planInvites || []);
       this.loadedUserIdSignal.set(userId);
     } catch (error) {
       console.error('Failed to refresh workout data from Supabase', error);
@@ -263,7 +268,23 @@ export class WorkoutService {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 
-    const success = await this.repository.sharePlan(userId, planId, sharedWithUserId);
+    const shareBy = this.auth.currentUser();
+
+    const success = await this.repository.sharePlan(userId, planId, sharedWithUserId, {
+      name: shareBy?.name,
+      email: shareBy?.email,
+    });
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
+  async respondToPlanInvite(shareId: string, accept: boolean) {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.respondToPlanShare(shareId, accept);
     if (!success) return false;
 
     await this.refresh();

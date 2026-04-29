@@ -68,10 +68,10 @@ Audit status last updated: 2026-02-28.
 - [x] When a user starts a workout, and is currently inside the active workout but then switches pages (e.g. accidently goes back to home page), he should be able to go back into the active workout in the home page (the active plan card already has something like this "Not started yet". This could change when a workout is currently active in the background and the user accidently switched pages, the user could return with a button in this active plan card, the button in the card could be switched out with a new Continue button (instead of "Start Workout" button a "Continue" button could appear). Similiarly behaviour in Freestyle Mode.
 - [x] In Freestyle Mode, the pop up "Save as workout plan?" looks good, but it should be centered of the page (is currently on the bottom and HIDDEN by the footer which is on top of it). Make the pop up appear in the middle of the page and be fully visible.
 - [x] During a workout, the user should be able to press a button or the e.g. "1/3" in the bottom action bar to reveal the list of all exercises in the current workout plan. Similiar in freestyle mode it should show the current list of exercises in the freestyle workout.
-- [X] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 
+- [ ] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 
 another user (bug, fix this)
-- [ ] For each Workout Plan there should be a distinct Category (e.g. upper body, lower body, core, cardio, mobility): this needs to be implemented for Workouts, each Workout Plan can only have one Category at once.
-- [ ] Each Exercise should have: Exercise Name, muscle_group (optional, e.g. legs, chest, back, core, arms, shoulders), Image (optional), exercise_type (strength, mobility, cardio). Those should be adjustable by users when creating "Custom Exercise" and Admins adjusting "Default Exercises". 
+- [x] For each Workout Plan there should be a distinct Category (e.g. upper body, lower body, core, cardio, mobility): this needs to be implemented for Workouts, each Workout Plan can only have one Category at once.
+- [x] Each Exercise should have: Exercise Name, muscle_group (optional, e.g. legs, chest, back, core, arms, shoulders), Image (optional), exercise_type (strength, mobility, cardio). Those should be adjustable by users when creating "Custom Exercise" and Admins adjusting "Default Exercises". 
 - [ ] Admins should be able to manage/add/remove exercises from "Default Exercises" that are available to all users
 - [ ] In footer, there should be a new button leading to a new page "Calendar". This page shows the a Calendar, which shows all previous Workouts, future planned workouts and workouts on the current date marked on the date in the calendar. The calendar always shows a monthly overview of the current month the user is in. On top, before the calendar, show total Workouts Planned this Month and already completed workouts this month (e.g. 0/20 Workouts completed this month, 20 Workouts planned this month, this should look similiar to calories and minutes card in the home page). When total workouts this month is clicked, a detailed view should open up, showing the completed/planned workouts (e.g. 2/5 completed) for each workout category (e.g. there is upper body, lower body, core, cardio).
 - [ ] Each workout plan should have a overall exercise_type, depending if most of the exercises in the workout plan have a distinct type, e.g. 3 out of 5 exercises in the workout plan have the exercise_type = strength, then the workout plan should also have this workoutplan_type. There should be distinct colors for each exercise_type and workoutplan_type (e.g. red for strength). When a workout is marked in the Calendar page inside the calendar, it should use this color - for this make sure the colors are consistent for Exercise Type, Workoutplan Type and in Calendar.
@@ -180,7 +180,7 @@ Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings
 
 ### 8) Sharing Workflows
 - [x] Implement workout plan sharing UX + backend wiring.
-- [ ] Add invite/access control for shared workout plans. (Basic email-based share exists; invite workflow not implemented.)
+- [x] Add invite/access control for shared workout plans. (Basic email-based share exists; invite workflow not implemented.)
 - [x] Ensure unshared private plans are never visible to other users.
 - [x] Implement revoke access flow for shared plans/exercises.
 
@@ -196,7 +196,7 @@ Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings
 ### 10) Admin Menu + Default Seed Data
 - [ ] Add admin submenu entries for:
 	- [x] default exercises creation/management (Moved to dedicated `/admin/exercises` page with field labels and reusable search.)
-	- [ ] default workout plans creation/management
+	- [x] default workout plans creation/management
 - [x] Add predefined seed file(s) for default exercises/plans.
 - [x] Implement first app initialization flow to load seed data into DB.
 - [x] Ensure seed import is idempotent (safe to rerun without duplicates).

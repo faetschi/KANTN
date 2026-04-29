@@ -58,6 +58,17 @@ export interface WorkoutPlan {
   ownerId?: string;
 }
 
+export interface WorkoutPlanInvite {
+  id: string;
+  planId: string;
+  planName: string;
+  planDescription: string;
+  sharedByName?: string;
+  sharedByEmail?: string;
+  sharedAt: Date;
+  status: 'pending' | 'accepted' | 'declined';
+}
+
 export interface InProgressWorkout {
   planId: string | null;
   freestyleMode: boolean;

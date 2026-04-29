@@ -60,9 +60,8 @@ import { Exercise } from '../../core/models/models';
                   <option value="strength">Strength</option>
                   <option value="cardio">Cardio</option>
                   <option value="mobility">Mobility</option>
-                  <option value="general">General</option>
                 </select>
-                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (strength, cardio, mobility). Default: "general".</div>
+                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (strength, cardio, mobility).</div>
               </div>
               <div>
                 <input
@@ -195,7 +194,7 @@ export class CustomExercisesComponent {
     description: '',
     muscleGroup: '',
     imageUrl: '',
-    exerciseType: 'general',
+    exerciseType: 'strength',
     metValue: 5,
   };
   myCustomExercises = signal<Exercise[]>([]);
@@ -259,7 +258,7 @@ export class CustomExercisesComponent {
       description: this.customExercise.description.trim() || undefined,
       muscleGroup: this.customExercise.muscleGroup.trim() || undefined,
       imageUrl: this.customExercise.imageUrl.trim() || undefined,
-      exerciseType: this.customExercise.exerciseType.trim() || 'general',
+      exerciseType: this.customExercise.exerciseType.trim() || 'strength',
       metValue: Number(this.customExercise.metValue) || 5,
       visibility: 'private' as const,
     };
@@ -296,7 +295,7 @@ export class CustomExercisesComponent {
       description: '',
       muscleGroup: '',
       imageUrl: '',
-      exerciseType: 'general',
+      exerciseType: 'strength',
       metValue: 5,
     };
     this.customExerciseMessage = 'Custom exercise created.';

@@ -35,6 +35,7 @@ drop function if exists get_my_stats(timestamptz, timestamptz);
 drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
 drop function if exists seed_beginner_plans_for_user(uuid);
 drop function if exists set_user_role_by_email(text, boolean, boolean);
+drop function if exists respond_to_workout_plan_share(uuid, boolean);
 drop trigger if exists trg_auth_users_profile_sync on auth.users;
 drop function if exists sync_profile_from_auth_user();
 
@@ -100,9 +101,53 @@ create table if not exists workout_plan_shares (
   plan_id uuid not null references workout_plans(id) on delete cascade,
   shared_with_user_id uuid not null references profiles(id) on delete cascade,
   created_by uuid not null references profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  accepted_at timestamptz,
+  declined_at timestamptz,
+  plan_name_snapshot text,
+  plan_description_snapshot text,
+  shared_by_email text,
+  shared_by_name text,
   created_at timestamptz not null default now(),
   unique (plan_id, shared_with_user_id)
 );
+
+-- Forward-safe migrations for existing databases.
+alter table workout_plan_shares
+  add column if not exists status text not null default 'pending';
+alter table workout_plan_shares
+  add column if not exists accepted_at timestamptz;
+alter table workout_plan_shares
+  add column if not exists declined_at timestamptz;
+alter table workout_plan_shares
+  add column if not exists plan_name_snapshot text;
+alter table workout_plan_shares
+  add column if not exists plan_description_snapshot text;
+alter table workout_plan_shares
+  add column if not exists shared_by_email text;
+alter table workout_plan_shares
+  add column if not exists shared_by_name text;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'workout_plan_shares_status_check'
+  ) then
+    alter table workout_plan_shares
+      add constraint workout_plan_shares_status_check
+      check (status in ('pending', 'accepted', 'declined'));
+  end if;
+end;
+$$;
+
+-- Preserve legacy shares by treating existing rows as accepted.
+update workout_plan_shares
+set
+  status = 'accepted',
+  accepted_at = coalesce(accepted_at, created_at)
+where status is null or status = 'pending';
 
 create table if not exists workout_plan_exercises (
   id uuid primary key default gen_random_uuid(),
@@ -515,6 +560,32 @@ begin
 end;
 $$;
 
+create or replace function respond_to_workout_plan_share(
+  p_share_id uuid,
+  p_accept boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_updated int;
+begin
+  update workout_plan_shares
+  set
+    status = case when p_accept then 'accepted' else 'declined' end,
+    accepted_at = case when p_accept then now() else null end,
+    declined_at = case when p_accept then null else now() end
+  where id = p_share_id
+    and shared_with_user_id = auth.uid();
+
+  get diagnostics v_updated = row_count;
+  return v_updated > 0;
+end;
+$$;
+
 create or replace function set_user_role_by_email(
   target_email text,
   target_approved boolean default true,
@@ -585,6 +656,7 @@ grant execute on function calc_burned_calories(numeric, numeric, integer) to aut
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
 grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
+grant execute on function respond_to_workout_plan_share(uuid, boolean) to authenticated;
 
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from public;
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from anon;
@@ -703,6 +775,7 @@ create policy "plans_select" on workout_plans
       from workout_plan_shares ps
       where ps.plan_id = workout_plans.id
         and ps.shared_with_user_id = auth.uid()
+        and ps.status = 'accepted'
     )
     or is_admin()
   );
@@ -722,6 +795,7 @@ create policy "plans_delete" on workout_plans
 
 drop policy if exists "plan_shares_select" on workout_plan_shares;
 drop policy if exists "plan_shares_insert" on workout_plan_shares;
+drop policy if exists "plan_shares_update" on workout_plan_shares;
 drop policy if exists "plan_shares_delete" on workout_plan_shares;
 
 create policy "plan_shares_select" on workout_plan_shares
@@ -736,6 +810,7 @@ create policy "plan_shares_insert" on workout_plan_shares
   for insert
   with check (
     created_by = auth.uid()
+    and status = 'pending'
     and exists (
       select 1
       from workout_plans p
@@ -743,6 +818,11 @@ create policy "plan_shares_insert" on workout_plan_shares
         and (p.owner_id = auth.uid() or is_admin())
     )
   );
+
+create policy "plan_shares_update" on workout_plan_shares
+  for update
+  using (created_by = auth.uid() or is_admin())
+  with check (created_by = auth.uid() or is_admin());
 
 create policy "plan_shares_delete" on workout_plan_shares
   for delete
@@ -767,6 +847,7 @@ create policy "plan_exercises_select" on workout_plan_exercises
             select 1 from workout_plan_shares s
             where s.plan_id = p.id
               and s.shared_with_user_id = auth.uid()
+              and s.status = 'accepted'
           )
           or is_admin()
         )

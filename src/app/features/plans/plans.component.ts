@@ -68,6 +68,46 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
       </section>
       }
 
+      @if (pendingInvites().length) {
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+          <h2 class="text-sm font-semibold text-gray-900">Pending plan invites</h2>
+          <div class="space-y-3">
+            @for (invite of pendingInvites(); track invite.id) {
+              <div class="flex flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <div>
+                  <p class="text-sm font-semibold text-gray-900">{{ invite.planName }}</p>
+                  <p class="text-xs text-gray-500 line-clamp-2">{{ invite.planDescription || 'Shared workout plan' }}</p>
+                  @if (invite.sharedByEmail || invite.sharedByName) {
+                    <p class="text-[11px] text-gray-400">Shared by {{ invite.sharedByName || invite.sharedByEmail }}</p>
+                  }
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    (click)="respondToInvite(invite.id, true)"
+                    [disabled]="respondingInviteId === invite.id"
+                    class="flex-1 bg-gray-900 text-white text-xs font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                  >
+                    {{ respondingInviteId === invite.id ? 'Accepting…' : 'Accept' }}
+                  </button>
+                  <button
+                    type="button"
+                    (click)="respondToInvite(invite.id, false)"
+                    [disabled]="respondingInviteId === invite.id"
+                    class="flex-1 bg-white text-gray-600 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 disabled:opacity-50"
+                  >
+                    {{ respondingInviteId === invite.id ? 'Declining…' : 'Decline' }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+          @if (inviteMessage) {
+            <span class="text-xs text-gray-500">{{ inviteMessage }}</span>
+          }
+        </section>
+      }
+
       @if (activationMessage) {
         <span class="text-xs text-red-500">{{ activationMessage }}</span>
       }
@@ -140,6 +180,7 @@ export class PlansComponent {
   authService = inject(AuthService);
   
   plans = this.workoutService.plans;
+  planInvites = this.workoutService.planInvites;
   sharePlanId = '';
   shareEmail = '';
   showSharePanel = false;
@@ -147,8 +188,10 @@ export class PlansComponent {
   sharingPlan = false;
   unsharingPlan = false;
   shareMessage = '';
+  inviteMessage = '';
   activationMessage = '';
   activatingPlanId = '';
+  respondingInviteId = '';
 
   myOwnedPlans() {
     const currentUserId = this.authService.currentUser()?.id;
@@ -172,6 +215,8 @@ export class PlansComponent {
       return haystack.includes(query);
     });
   });
+
+  pendingInvites = computed(() => this.planInvites().filter(invite => invite.status === 'pending'));
 
   async activatePlan(id: string) {
     this.activationMessage = '';
@@ -272,6 +317,18 @@ export class PlansComponent {
     this.shareMessage = ok ? 'Plan unshared successfully.' : 'Failed to unshare plan.';
     if (ok) {
       this.shareEmail = '';
+    }
+  }
+
+  async respondToInvite(shareId: string, accept: boolean) {
+    this.inviteMessage = '';
+    this.respondingInviteId = shareId;
+
+    const ok = await this.workoutService.respondToPlanInvite(shareId, accept);
+    this.respondingInviteId = '';
+
+    if (!ok) {
+      this.inviteMessage = accept ? 'Failed to accept invite.' : 'Failed to decline invite.';
     }
   }
 

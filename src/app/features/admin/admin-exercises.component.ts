@@ -38,7 +38,6 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
               <option value="strength">Strength</option>
               <option value="cardio">Cardio</option>
               <option value="mobility">Mobility</option>
-              <option value="general">General</option>
             </select>
           </div>
           <div>
@@ -121,7 +120,7 @@ export class AdminExercisesComponent {
     description: '',
     imageUrl: '',
     muscleGroup: '',
-    exerciseType: 'general',
+    exerciseType: 'strength',
     metValue: 5,
   };
 
@@ -153,7 +152,7 @@ export class AdminExercisesComponent {
       description: exercise.description || '',
       imageUrl: exercise.imageUrl || '',
       muscleGroup: exercise.muscleGroup || '',
-      exerciseType: exercise.exerciseType || 'general',
+      exerciseType: exercise.exerciseType || 'strength',
       metValue: exercise.metValue || 5,
     };
     this.exerciseMessage = '';
@@ -189,7 +188,7 @@ export class AdminExercisesComponent {
       description: '',
       imageUrl: '',
       muscleGroup: '',
-      exerciseType: 'general',
+      exerciseType: 'strength',
       metValue: 5,
     };
     this.exerciseMessage = '';
@@ -234,7 +233,7 @@ export class AdminExercisesComponent {
       description: this.exerciseForm.description.trim() || undefined,
       imageUrl: this.exerciseForm.imageUrl.trim() || undefined,
       muscleGroup: this.exerciseForm.muscleGroup.trim() || undefined,
-      exerciseType: this.exerciseForm.exerciseType.trim() || 'general',
+      exerciseType: this.exerciseForm.exerciseType.trim() || 'strength',
       metValue: Number(this.exerciseForm.metValue) || 5,
       visibility: 'default' as const,
     };

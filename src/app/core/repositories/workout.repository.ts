@@ -34,6 +34,18 @@ interface WorkoutPlanExerciseRow {
   position: number;
 }
 
+interface WorkoutPlanShareRow {
+  id: string;
+  plan_id: string;
+  plan_name_snapshot: string | null;
+  plan_description_snapshot: string | null;
+  shared_by_email: string | null;
+  shared_by_name: string | null;
+  shared_with_user_id: string;
+  created_at: string;
+  status: 'pending' | 'accepted' | 'declined';
+}
+
 interface WorkoutSessionRow {
   id: string;
   plan_id: string | null;
@@ -85,13 +97,18 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return null;
 
-    const [exercisesRes, plansRes, planExercisesRes, sessionsRes, sessionExercisesRes, sessionSetsRes] = await Promise.all([
+    const [exercisesRes, plansRes, planExercisesRes, sessionsRes, sessionExercisesRes, sessionSetsRes, planSharesRes] = await Promise.all([
       client.from('exercises').select('*').eq('is_active', true).order('name', { ascending: true }),
       client.from('workout_plans').select('*').order('created_at', { ascending: false }),
       client.from('workout_plan_exercises').select('*').order('position', { ascending: true }),
       client.from('workout_sessions').select('*').eq('owner_id', userId).order('created_at', { ascending: false }),
       client.from('workout_session_exercises').select('*').order('position', { ascending: true }),
       client.from('workout_session_sets').select('*').order('set_order', { ascending: true }),
+      client
+        .from('workout_plan_shares')
+        .select('id, plan_id, plan_name_snapshot, plan_description_snapshot, shared_by_email, shared_by_name, shared_with_user_id, created_at, status')
+        .eq('shared_with_user_id', userId)
+        .order('created_at', { ascending: false }),
     ]);
 
     if (exercisesRes.error) throw exercisesRes.error;
@@ -100,6 +117,7 @@ export class WorkoutRepository {
     if (sessionsRes.error) throw sessionsRes.error;
     if (sessionExercisesRes.error) throw sessionExercisesRes.error;
     if (sessionSetsRes.error) throw sessionSetsRes.error;
+    if (planSharesRes.error) throw planSharesRes.error;
 
     const exercises = ((exercisesRes.data || []) as ExerciseRow[]).map(row => this.mapExercise(row));
     const exerciseById = new Map(exercises.map(e => [e.id, e]));
@@ -165,7 +183,18 @@ export class WorkoutRepository {
       };
     });
 
-    return { userId, exercises, plans, sessions };
+    const planInvites = ((planSharesRes.data || []) as WorkoutPlanShareRow[]).map(row => ({
+      id: row.id,
+      planId: row.plan_id,
+      planName: row.plan_name_snapshot || 'Shared workout plan',
+      planDescription: row.plan_description_snapshot || '',
+      sharedByName: row.shared_by_name || undefined,
+      sharedByEmail: row.shared_by_email || undefined,
+      sharedAt: new Date(row.created_at),
+      status: row.status,
+    }));
+
+    return { userId, exercises, plans, sessions, planInvites };
   }
 
   async setActivePlan(userId: string, planId: string) {
@@ -475,18 +504,74 @@ export class WorkoutRepository {
     return true;
   }
 
-  async sharePlan(userId: string, planId: string, sharedWithUserId: string) {
+  async sharePlan(userId: string, planId: string, sharedWithUserId: string, sharedBy?: { name?: string; email?: string }) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const { error } = await client.from('workout_plan_shares').upsert(
-      {
-        plan_id: planId,
-        shared_with_user_id: sharedWithUserId,
-        created_by: userId,
-      },
-      { onConflict: 'plan_id,shared_with_user_id' }
-    );
+    const { data: planRow, error: planError } = await client
+      .from('workout_plans')
+      .select('id, name, description, owner_id')
+      .eq('id', planId)
+      .eq('owner_id', userId)
+      .maybeSingle();
+
+    if (planError || !planRow) return false;
+
+    const { data: existingShare, error: existingError } = await client
+      .from('workout_plan_shares')
+      .select('id, status')
+      .eq('plan_id', planId)
+      .eq('shared_with_user_id', sharedWithUserId)
+      .eq('created_by', userId)
+      .maybeSingle();
+
+    if (existingError) return false;
+
+    if (existingShare && (existingShare as { status: string }).status !== 'declined') {
+      const { error: updateError } = await client
+        .from('workout_plan_shares')
+        .update({
+          plan_name_snapshot: planRow.name,
+          plan_description_snapshot: planRow.description || null,
+          shared_by_email: sharedBy?.email || null,
+          shared_by_name: sharedBy?.name || null,
+        })
+        .eq('id', (existingShare as { id: string }).id)
+        .eq('created_by', userId);
+
+      if (updateError) return false;
+
+      const { error: visibilityError } = await client
+        .from('workout_plans')
+        .update({ visibility: 'shared' })
+        .eq('id', planId)
+        .eq('owner_id', userId);
+
+      if (visibilityError) return false;
+
+      return true;
+    }
+
+    if (existingShare) {
+      const { error: deleteError } = await client
+        .from('workout_plan_shares')
+        .delete()
+        .eq('id', (existingShare as { id: string }).id)
+        .eq('created_by', userId);
+
+      if (deleteError) return false;
+    }
+
+    const { error } = await client.from('workout_plan_shares').insert({
+      plan_id: planId,
+      shared_with_user_id: sharedWithUserId,
+      created_by: userId,
+      status: 'pending',
+      plan_name_snapshot: planRow.name,
+      plan_description_snapshot: planRow.description || null,
+      shared_by_email: sharedBy?.email || null,
+      shared_by_name: sharedBy?.name || null,
+    });
 
     if (error) return false;
 
@@ -499,6 +584,19 @@ export class WorkoutRepository {
     if (visibilityError) return false;
 
     return true;
+  }
+
+  async respondToPlanShare(shareId: string, accept: boolean) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { data, error } = await client.rpc('respond_to_workout_plan_share', {
+      p_share_id: shareId,
+      p_accept: accept,
+    });
+
+    if (error) return false;
+    return !!data;
   }
 
   async unsharePlan(userId: string, planId: string, sharedWithUserId: string) {
