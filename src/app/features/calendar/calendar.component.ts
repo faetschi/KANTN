@@ -38,14 +38,23 @@ interface CalendarDay {
       </header>
 
       <!-- Stats Grid -->
+      <!-- Stats Grid: Workouts completed / planned + calories -->
       <div class="grid grid-cols-2 gap-4">
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <div class="text-xs font-semibold text-gray-400 uppercase">Workouts</div>
-            <div class="text-2xl font-bold text-blue-600">{{ monthStats().count }}</div>
+        <div (click)="toggleCategoryDetails()" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer">
+            <div class="flex items-center space-x-2 mb-2 text-blue-600">
+              <mat-icon class="text-sm">fitness_center</mat-icon>
+              <span class="text-xs font-semibold uppercase tracking-wider">Workouts</span>
+            </div>
+            <div class="text-sm text-gray-500">{{ monthCompleted() }} / {{ monthPlanned() }} Workouts completed this month</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1">{{ monthPlanned() }} planned</div>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <div class="text-xs font-semibold text-gray-400 uppercase">Calories</div>
-            <div class="text-2xl font-bold text-orange-500">{{ monthStats().calories }}</div>
+            <div class="flex items-center space-x-2 mb-2 text-orange-500">
+              <mat-icon class="text-sm">local_fire_department</mat-icon>
+              <span class="text-xs font-semibold uppercase tracking-wider">Calories</span>
+            </div>
+            <p class="text-2xl font-bold text-gray-900">{{ monthStats().calories }}</p>
+            <p class="text-xs text-gray-400">This month</p>
         </div>
       </div>
 
@@ -101,6 +110,23 @@ interface CalendarDay {
       <div *ngIf="selectedDate() && selectedDayWorkouts().length === 0" class="text-center py-8 text-gray-400 text-sm">
         No workouts recorded for this day.
       </div>
+      
+      <!-- Category Breakdown (toggle) -->
+      <section *ngIf="showCategoryDetails()" class="space-y-3">
+        <h3 class="text-sm font-bold text-gray-900 px-1">Workouts by Category — {{ monthCompleted() }} / {{ monthPlanned() }} completed</h3>
+        <div class="grid grid-cols-1 gap-3">
+          <div *ngFor="let c of categoryBreakdown()" class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-gray-900">{{ c.category || 'Uncategorized' }}</div>
+              <div class="text-xs text-gray-500">{{ c.planned }} planned</div>
+            </div>
+            <div class="text-right">
+              <div class="font-bold text-gray-900">{{ c.completed }} / {{ c.planned }}</div>
+              <div class="text-[10px] text-gray-400 uppercase font-medium">Completed</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   `,
   styles: [`
@@ -114,6 +140,47 @@ export class CalendarComponent implements OnInit {
   currentMonth = new Date();
   selectedDate = signal<Date | null>(new Date(new Date().setHours(0,0,0,0)));
   weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  showCategoryDetails = signal(false);
+
+  monthPlanned = computed(() => {
+    const month = this.currentMonth.getMonth();
+    const year = this.currentMonth.getFullYear();
+    return this.workoutService.sessions().filter(s => {
+      const d = new Date(s.date);
+      return d.getMonth() === month && d.getFullYear() === year;
+    }).length;
+  });
+
+  monthCompleted = computed(() => {
+    const month = this.currentMonth.getMonth();
+    const year = this.currentMonth.getFullYear();
+    return this.workoutService.sessions().filter(s => {
+      const d = new Date(s.date);
+      const completed = !!(s.endTime || s.duration);
+      return d.getMonth() === month && d.getFullYear() === year && completed;
+    }).length;
+  });
+
+  categoryBreakdown = computed(() => {
+    const sessions = this.workoutService.sessions();
+    const month = this.currentMonth.getMonth();
+    const year = this.currentMonth.getFullYear();
+    const plans = this.workoutService.plans();
+
+    const byCategory: Record<string, { category: string; planned: number; completed: number }> = {};
+
+    sessions.forEach(s => {
+      const d = new Date(s.date);
+      if (d.getMonth() !== month || d.getFullYear() !== year) return;
+      const plan = plans.find(p => p.id === s.planId);
+      const category = plan?.category || 'Uncategorized';
+      if (!byCategory[category]) byCategory[category] = { category, planned: 0, completed: 0 };
+      byCategory[category].planned += 1;
+      if (s.endTime || s.duration) byCategory[category].completed += 1;
+    });
+
+    return Object.values(byCategory).sort((a, b) => b.planned - a.planned);
+  });
 
   ngOnInit() {
     this.currentMonth = new Date();
@@ -198,6 +265,10 @@ export class CalendarComponent implements OnInit {
 
   selectDay(day: CalendarDay) {
     this.selectedDate.set(day.date);
+  }
+
+  toggleCategoryDetails() {
+    this.showCategoryDetails.update(v => !v);
   }
 
   getPlanName(planId: string) {
