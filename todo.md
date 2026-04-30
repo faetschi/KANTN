@@ -18,7 +18,7 @@ Audit status last updated: 2026-02-28.
 - [x] Implement exercise sharing backend flow (share custom exercises with other users by email lookup).
 - [x] Implement workout plan sharing UX and backend wiring.
 - [x] Harden persistence flows so successful actions are only treated as completed when Supabase save succeeds (deployment-safe behavior). (Write paths now fail-fast for nested relations and dependent visibility updates.)
-- [ ] Add richer statistics queries/views for weekly/monthly analytics optimization, while keeping existing Profile (default monthly, also be able to switch between weekly/monthly) and Home (calories/minutes) design. Users should be able to choose in Profile if they want weekly or monthly statistics.
+- [x] Add richer statistics queries/views for weekly/monthly analytics optimization, while keeping existing Profile (default monthly, also be able to switch between weekly/monthly) and Home (calories/minutes) design. Users should be able to choose in Profile if they want weekly or monthly statistics.
 - [x] Structure backend in modular targets (repositories, domain, application services).
 - [x] Add user workout history with month filtering and full workout detail page (including set-level reps/weight) plus previous/next session navigation.
 

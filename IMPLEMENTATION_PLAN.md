@@ -14,6 +14,7 @@ Source: Consolidated from open items in todo.md
 - [x] 2026-04-29: Confirmed workout plan category selection and display is implemented in create/edit and plan views.
 - [x] 2026-04-29: Standardized exercise type selection to strength/cardio/mobility for custom and admin exercise flows.
 - [x] 2026-04-29: Implemented admin default workout plan management with create/edit/delete and exercise selection.
+- [x] 2026-04-30: Added weekly/monthly aggregate stats RPC and persisted profile stats period preference.
 
 ### Goal
 Deliver a production-safe baseline first, then remove user blockers, then ship the highest-value new product features.

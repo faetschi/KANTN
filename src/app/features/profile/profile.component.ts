@@ -202,8 +202,8 @@ import { NotificationService } from '../../core/services/notification.service';
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-bold text-gray-900">Overview</h3>
           <div class="flex items-center gap-2">
-            <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
-            <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
+            <button (click)="setPeriod('month')" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+            <button (click)="setPeriod('week')" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
           </div>
         </div>
 
@@ -293,12 +293,32 @@ export class ProfileComponent {
         age: u.age || 0,
       };
     });
+
+    try {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('profile_stats_period') : null;
+      if (stored === 'week' || stored === 'month') {
+        this.showPeriod = stored;
+      }
+    } catch {
+      // ignore storage errors
+    }
   }
 
   showPeriod: 'week' | 'month' = 'month';
 
   currentStats() {
     return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
+  }
+
+  setPeriod(period: 'week' | 'month') {
+    this.showPeriod = period;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('profile_stats_period', period);
+      }
+    } catch {
+      // ignore storage errors
+    }
   }
 
   logout() {

@@ -32,6 +32,7 @@ drop function if exists is_admin();
 drop function if exists touch_updated_at();
 drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
+drop function if exists get_my_stats_periods();
 drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
 drop function if exists seed_beginner_plans_for_user(uuid);
 drop function if exists set_user_role_by_email(text, boolean, boolean);
@@ -328,6 +329,36 @@ as $$
     and ws.created_at < to_ts;
 $$;
 
+create or replace function get_my_stats_periods()
+returns table (
+  period text,
+  workout_count bigint,
+  total_duration_seconds bigint,
+  total_calories numeric
+)
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  with ranges as (
+    select 'week'::text as period, date_trunc('week', now()) as from_ts, now() as to_ts
+    union all
+    select 'month'::text as period, date_trunc('month', now()) as from_ts, now() as to_ts
+  )
+  select
+    r.period,
+    count(ws.id)::bigint as workout_count,
+    coalesce(sum(ws.duration_seconds), 0)::bigint as total_duration_seconds,
+    coalesce(sum(ws.total_calories), 0)::numeric as total_calories
+  from ranges r
+  left join workout_sessions ws
+    on ws.owner_id = auth.uid()
+    and ws.created_at >= r.from_ts
+    and ws.created_at < r.to_ts
+  group by r.period;
+$$;
+
 create or replace function create_workout_session_tx(
   p_owner_id uuid,
   p_plan_id uuid,
@@ -493,6 +524,102 @@ begin
       3.5,
       'default',
       true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111105',
+      null,
+      'Bench Press',
+      'Classic upper-body strength move focusing on chest and triceps.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=bench-press',
+      'Upper Body',
+      'strength',
+      6.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111106',
+      null,
+      'Overhead Press',
+      'Shoulder-dominant press for upper-body stability and strength.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=overhead-press',
+      'Upper Body',
+      'strength',
+      6.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111107',
+      null,
+      'Pull-Up',
+      'Bodyweight pull movement targeting lats and upper back.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=pull-up',
+      'Upper Body',
+      'strength',
+      7.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111108',
+      null,
+      'Reverse Lunge',
+      'Lower-body unilateral movement for legs and glutes.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=reverse-lunge',
+      'Lower Body',
+      'strength',
+      5.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111109',
+      null,
+      'Romanian Deadlift',
+      'Hinge movement focusing on hamstrings and posterior chain.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=romanian-deadlift',
+      'Lower Body',
+      'strength',
+      6.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111110',
+      null,
+      'Calf Raise',
+      'Lower-leg strength exercise targeting calves.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=calf-raise',
+      'Lower Body',
+      'strength',
+      4.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111111',
+      null,
+      'Burpee',
+      'Full-body conditioning move that builds power and stamina.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=burpee',
+      'Full Body',
+      'cardio',
+      8.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111112',
+      null,
+      'Kettlebell Swing',
+      'Explosive full-body hinge emphasizing hips and core.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=kettlebell-swing',
+      'Full Body',
+      'strength',
+      6.5,
+      'default',
+      true
     )
   on conflict (id) do update
   set
@@ -654,6 +781,7 @@ grant select, insert, update, delete on table workout_session_sets to authentica
 
 grant execute on function calc_burned_calories(numeric, numeric, integer) to authenticated;
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
+grant execute on function get_my_stats_periods() to authenticated;
 grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
 grant execute on function respond_to_workout_plan_share(uuid, boolean) to authenticated;
