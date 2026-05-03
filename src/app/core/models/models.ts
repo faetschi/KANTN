@@ -50,6 +50,7 @@ export interface WorkoutPlan {
   name: string;
   description: string;
   category?: 'upper body' | 'lower body' | 'core' | 'cardio' | 'mobility';
+  workoutPlanType?: string;
   exercises: Exercise[];
   schedule?: string[]; // e.g., ['Monday', 'Wednesday', 'Friday']
   isActive: boolean;

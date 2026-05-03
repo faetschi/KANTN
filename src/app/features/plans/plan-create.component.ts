@@ -9,6 +9,7 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise, WorkoutPlan } from '../../core/models/models';
 import { AuthService } from '../../core/services/auth.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plan-create',
@@ -73,7 +74,15 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                 <img [src]="exercise.imageUrl" [alt]="exercise.name" class="w-12 h-12 rounded-lg object-cover mr-4">
                 <div class="flex-1">
                   <h4 class="font-semibold text-gray-900">{{ exercise.name }}</h4>
-                  <p class="text-xs text-gray-500">{{ exercise.muscleGroup }}</p>
+                  <div class="mt-1 flex items-center gap-2">
+                    <p class="text-xs text-gray-500">{{ exercise.muscleGroup }}</p>
+                    <span
+                      class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                      [ngStyle]="typeBadgeStyle(exercise.exerciseType)"
+                    >
+                      {{ typeLabel(exercise.exerciseType) }}
+                    </span>
+                  </div>
                 </div>
                 <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center"
                      [class.border-blue-500]="isSelected(exercise)"
@@ -174,6 +183,14 @@ export class PlanCreateComponent {
       const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
+  }
+
+  typeLabel(type?: string) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type?: string) {
+    return workoutTypeBadgeStyle(type);
   }
 
   async createPlan() {

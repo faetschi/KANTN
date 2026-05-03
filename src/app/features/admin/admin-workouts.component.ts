@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise, WorkoutPlan } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-admin-workouts',
@@ -66,7 +67,12 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                 <div class="font-medium text-gray-900 truncate">{{ exercise.name }}</div>
                 <div class="text-xs text-gray-500 truncate">{{ exercise.muscleGroup || 'General' }}</div>
               </div>
-              <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{{ exercise.exerciseType || 'strength' }}</div>
+              <div
+                class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                [ngStyle]="typeBadgeStyle(exercise.exerciseType)"
+              >
+                {{ typeLabel(exercise.exerciseType) }}
+              </div>
             </button>
           }
         </div>
@@ -104,7 +110,15 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
               <div class="font-medium text-gray-900 truncate">{{ plan.name }}</div>
               <div class="text-xs text-gray-500 truncate">{{ plan.description || '-' }}</div>
             </div>
-            <div class="text-sm text-gray-700">{{ plan.category || '-' }}</div>
+            <div class="space-y-1">
+              <div class="text-sm text-gray-700">{{ plan.category || '-' }}</div>
+              <span
+                class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                [ngStyle]="planTypeBadgeStyle(plan)"
+              >
+                {{ planTypeLabel(plan) }}
+              </span>
+            </div>
             <div class="text-sm text-gray-700">{{ plan.exercises.length }}</div>
             <div class="text-xs text-gray-500">{{ plan.lastPerformed ? (plan.lastPerformed | date:'MMM d') : '-' }}</div>
             <div class="flex justify-end gap-2">
@@ -146,7 +160,7 @@ export class AdminWorkoutsComponent {
     if (!query) return plans;
 
     return plans.filter(plan => {
-      const haystack = [plan.name, plan.description || '', plan.category || ''].join(' ').toLowerCase();
+      const haystack = [plan.name, plan.description || '', plan.category || '', getWorkoutPlanType(plan)].join(' ').toLowerCase();
       return haystack.includes(query);
     });
   }
@@ -164,6 +178,22 @@ export class AdminWorkoutsComponent {
 
   isSelected(exercise: Exercise) {
     return this.selectedExercises().some(item => item.id === exercise.id);
+  }
+
+  typeLabel(type?: string) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type?: string) {
+    return workoutTypeBadgeStyle(type);
+  }
+
+  planTypeLabel(plan: WorkoutPlan) {
+    return getWorkoutTypeVisual(getWorkoutPlanType(plan)).label;
+  }
+
+  planTypeBadgeStyle(plan: WorkoutPlan) {
+    return workoutTypeBadgeStyle(getWorkoutPlanType(plan));
   }
 
   toggleExercise(exercise: Exercise) {

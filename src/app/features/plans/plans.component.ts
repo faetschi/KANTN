@@ -6,6 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { WorkoutPlan } from '../../core/models/models';
+import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plans',
@@ -133,6 +135,12 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                     {{ plan.category }}
                   </span>
                 }
+                <span
+                  class="ml-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide mb-1"
+                  [ngStyle]="typeBadgeStyle(plan)"
+                >
+                  {{ typeLabel(plan) }}
+                </span>
                 <p class="text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
               </div>
               @if (plan.isActive) {
@@ -211,10 +219,18 @@ export class PlansComponent {
     if (!query) return sorted;
 
     return sorted.filter(plan => {
-      const haystack = [plan.name, plan.description || '', plan.category || ''].join(' ').toLowerCase();
+      const haystack = [plan.name, plan.description || '', plan.category || '', getWorkoutPlanType(plan)].join(' ').toLowerCase();
       return haystack.includes(query);
     });
   });
+
+  typeLabel(plan: WorkoutPlan) {
+    return getWorkoutTypeVisual(getWorkoutPlanType(plan)).label;
+  }
+
+  typeBadgeStyle(plan: WorkoutPlan) {
+    return workoutTypeBadgeStyle(getWorkoutPlanType(plan));
+  }
 
   pendingInvites = computed(() => this.planInvites().filter(invite => invite.status === 'pending'));
 

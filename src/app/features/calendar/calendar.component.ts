@@ -4,6 +4,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { WorkoutService } from '../../core/services/workout.service';
 import { WorkoutSession } from '../../core/models/models';
+import {
+  deriveWorkoutPlanType,
+  getWorkoutPlanType,
+  getWorkoutTypeVisual,
+  workoutTypeBadgeStyle,
+  workoutTypeIconStyle,
+  workoutTypeMarkerStyle
+} from '../../core/domain/workout-types';
 
 interface CalendarDay {
   date: Date;
@@ -77,9 +85,12 @@ interface CalendarDay {
             }"
           >
             <span class="text-sm">{{ day.date | date:'d' }}</span>
-            <div *ngIf="day.hasWorkouts" 
-                 class="w-1 h-1 rounded-full mt-0.5"
-                 [ngClass]="selectedDate()?.getTime() === day.date.getTime() ? 'bg-white' : 'bg-blue-500'">
+            <div *ngIf="day.hasWorkouts" class="mt-1 flex max-w-full items-center justify-center gap-0.5 overflow-hidden">
+              <span
+                *ngFor="let type of getCalendarDayWorkoutTypes(day)"
+                class="h-1.5 w-1.5 rounded-full border border-white/70"
+                [ngStyle]="typeMarkerStyle(type)"
+              ></span>
             </div>
           </div>
         </div>
@@ -92,11 +103,17 @@ interface CalendarDay {
              [routerLink]="['/history', session.id]"
              class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" [ngStyle]="sessionIconStyle(session)">
               <mat-icon>fitness_center</mat-icon>
             </div>
             <div>
               <div class="font-semibold text-gray-900">{{ getPlanName(session.planId) }}</div>
+              <span
+                class="mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                [ngStyle]="sessionBadgeStyle(session)"
+              >
+                {{ sessionTypeLabel(session) }}
+              </span>
               <div class="text-xs text-gray-500">{{ session.date | date:'h:mm a' }} • {{ ((session.duration || 0) / 60) | number:'1.0-0' }} min</div>
             </div>
           </div>
@@ -111,14 +128,17 @@ interface CalendarDay {
         No workouts recorded for this day.
       </div>
       
-      <!-- Category Breakdown (toggle) -->
+      <!-- Type Breakdown (toggle) -->
       <section *ngIf="showCategoryDetails()" class="space-y-3">
-        <h3 class="text-sm font-bold text-gray-900 px-1">Workouts by Category — {{ monthCompleted() }} / {{ monthPlanned() }} completed</h3>
+        <h3 class="text-sm font-bold text-gray-900 px-1">Workouts by Type - {{ monthCompleted() }} / {{ monthPlanned() }} completed</h3>
         <div class="grid grid-cols-1 gap-3">
-          <div *ngFor="let c of categoryBreakdown()" class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-            <div>
-              <div class="font-semibold text-gray-900">{{ c.category || 'Uncategorized' }}</div>
-              <div class="text-xs text-gray-500">{{ c.planned }} planned</div>
+          <div *ngFor="let c of typeBreakdown()" class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="h-3 w-3 rounded-full" [ngStyle]="typeMarkerStyle(c.type)"></span>
+              <div>
+                <div class="font-semibold text-gray-900">{{ c.label }}</div>
+                <div class="text-xs text-gray-500">{{ c.planned }} planned</div>
+              </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-gray-900">{{ c.completed }} / {{ c.planned }}</div>
@@ -161,25 +181,25 @@ export class CalendarComponent implements OnInit {
     }).length;
   });
 
-  categoryBreakdown = computed(() => {
+  typeBreakdown = computed(() => {
     const sessions = this.workoutService.sessions();
     const month = this.currentMonth.getMonth();
     const year = this.currentMonth.getFullYear();
-    const plans = this.workoutService.plans();
 
-    const byCategory: Record<string, { category: string; planned: number; completed: number }> = {};
+    const byType: Record<string, { type: string; label: string; planned: number; completed: number }> = {};
 
     sessions.forEach(s => {
       const d = new Date(s.date);
       if (d.getMonth() !== month || d.getFullYear() !== year) return;
-      const plan = plans.find(p => p.id === s.planId);
-      const category = plan?.category || 'Uncategorized';
-      if (!byCategory[category]) byCategory[category] = { category, planned: 0, completed: 0 };
-      byCategory[category].planned += 1;
-      if (s.endTime || s.duration) byCategory[category].completed += 1;
+      const type = this.getSessionWorkoutType(s);
+      if (!byType[type]) {
+        byType[type] = { type, label: getWorkoutTypeVisual(type).label, planned: 0, completed: 0 };
+      }
+      byType[type].planned += 1;
+      if (s.endTime || s.duration) byType[type].completed += 1;
     });
 
-    return Object.values(byCategory).sort((a, b) => b.planned - a.planned);
+    return Object.values(byType).sort((a, b) => b.planned - a.planned);
   });
 
   ngOnInit() {
@@ -273,5 +293,36 @@ export class CalendarComponent implements OnInit {
 
   getPlanName(planId: string) {
     return this.workoutService.getPlanById(planId)?.name || 'Freestyle Workout';
+  }
+
+  getCalendarDayWorkoutTypes(day: CalendarDay) {
+    return day.workouts.slice(0, 3).map(session => this.getSessionWorkoutType(session));
+  }
+
+  getSessionWorkoutType(session: WorkoutSession) {
+    const plan = this.workoutService.getPlanById(session.planId);
+    if (plan) return getWorkoutPlanType(plan);
+
+    const exercises = session.exercises
+      .map(item => this.workoutService.getExerciseById(item.exerciseId))
+      .filter(exercise => !!exercise);
+
+    return deriveWorkoutPlanType(exercises);
+  }
+
+  sessionTypeLabel(session: WorkoutSession) {
+    return getWorkoutTypeVisual(this.getSessionWorkoutType(session)).label;
+  }
+
+  sessionIconStyle(session: WorkoutSession) {
+    return workoutTypeIconStyle(this.getSessionWorkoutType(session));
+  }
+
+  sessionBadgeStyle(session: WorkoutSession) {
+    return workoutTypeBadgeStyle(this.getSessionWorkoutType(session));
+  }
+
+  typeMarkerStyle(type: string) {
+    return workoutTypeMarkerStyle(type);
   }
 }

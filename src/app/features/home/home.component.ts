@@ -5,6 +5,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { StatsService } from '../../core/services/stats.service';
+import { WorkoutPlan, WorkoutSession } from '../../core/models/models';
+import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workoutTypeIconStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-home',
@@ -79,6 +81,12 @@ import { StatsService } from '../../core/services/stats.service';
                         {{ plan.category }}
                       </span>
                     }
+                    <span
+                      class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                      [ngStyle]="typeBadgeStyle(plan)"
+                    >
+                      {{ typeLabel(plan) }}
+                    </span>
                     <p class="text-gray-400 text-sm">{{ plan.exercises.length }} Exercises</p>
                   </div>
                 </div>
@@ -145,7 +153,7 @@ import { StatsService } from '../../core/services/stats.service';
                     <mat-icon>pause</mat-icon>
                   </div>
                 } @else {
-                  <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <div class="w-12 h-12 rounded-xl flex items-center justify-center" [ngStyle]="sessionIconStyle(session)">
                     <mat-icon>check_circle</mat-icon>
                   </div>
                 }
@@ -200,13 +208,13 @@ export class HomeComponent {
     const inP = this.inProgress();
     if (!inP) return sessions.slice(0, 5);
 
-    const pseudoSession: any = {
+    const pseudoSession = {
       id: 'in-progress',
       planId: inP.planId,
       date: inP.startTime ? new Date(inP.startTime) : new Date(),
       duration: inP.elapsedTime || 0,
       caloriesBurned: 0
-    };
+    } as WorkoutSession;
 
     const combined = [pseudoSession, ...sessions];
     combined.sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -222,6 +230,18 @@ export class HomeComponent {
   getPlanName(planId: string) {
     if (!planId) return 'Freestyle';
     return this.workoutService.getPlanById(planId)?.name || 'Unknown Plan';
+  }
+
+  typeLabel(plan: WorkoutPlan) {
+    return getWorkoutTypeVisual(getWorkoutPlanType(plan)).label;
+  }
+
+  typeBadgeStyle(plan: WorkoutPlan) {
+    return workoutTypeBadgeStyle(getWorkoutPlanType(plan));
+  }
+
+  sessionIconStyle(session: WorkoutSession) {
+    return workoutTypeIconStyle(getWorkoutPlanType(this.workoutService.getPlanById(session.planId)));
   }
 
   logout() {

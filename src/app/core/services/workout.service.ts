@@ -4,6 +4,7 @@ import { CreateExerciseInput, Exercise, InProgressWorkout, WorkoutPlan, WorkoutP
 import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SESSIONS } from '../models/mock-data';
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
+import { deriveWorkoutPlanType } from '../domain/workout-types';
 
 @Injectable({
   providedIn: 'root'
@@ -243,6 +244,10 @@ export class WorkoutService {
     if (!mapped) return null;
 
     this.exercisesSignal.update(exercises => exercises.map(ex => ex.id === mapped.id ? mapped : ex));
+    this.plansSignal.update(plans => plans.map(plan => {
+      const exercises = plan.exercises.map(exercise => exercise.id === mapped.id ? mapped : exercise);
+      return { ...plan, exercises, workoutPlanType: deriveWorkoutPlanType(exercises) };
+    }));
     return mapped;
   }
 

@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-admin-exercises',
@@ -92,7 +93,14 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
               <div class="font-medium text-gray-900 truncate">{{ ex.name }}</div>
               <div class="text-xs text-gray-500 truncate">{{ ex.muscleGroup || '-' }}</div>
             </div>
-            <div class="text-sm text-gray-700">{{ ex.exerciseType || 'general' }}</div>
+            <div>
+              <span
+                class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                [ngStyle]="typeBadgeStyle(ex.exerciseType)"
+              >
+                {{ typeLabel(ex.exerciseType) }}
+              </span>
+            </div>
             <div class="text-sm text-gray-700">{{ ex.visibility || 'default' }}</div>
             <div class="text-sm text-gray-700">{{ ex.metValue || 5 }}</div>
             <div class="flex justify-end gap-2">
@@ -136,6 +144,14 @@ export class AdminExercisesComponent {
       const haystack = [ex.name, ex.muscleGroup || '', ex.exerciseType || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
+  }
+
+  typeLabel(type?: string) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type?: string) {
+    return workoutTypeBadgeStyle(type);
   }
 
   private async loadDefaultExercises() {

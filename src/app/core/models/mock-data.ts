@@ -1,3 +1,4 @@
+import { deriveWorkoutPlanType } from '../domain/workout-types';
 import { Exercise, WorkoutPlan, WorkoutSession, User } from './models';
 
 export const MOCK_EXERCISES: Exercise[] = [
@@ -6,42 +7,48 @@ export const MOCK_EXERCISES: Exercise[] = [
     name: 'Bench Press',
     imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8YmVuY2glMjBwcmVzc3xlbnwwfHwwfHx8MA%3D%3D',
     description: 'Lie on a flat bench and press the weight up.',
-    muscleGroup: 'Chest'
+    muscleGroup: 'Chest',
+    exerciseType: 'strength'
   },
   {
     id: '2',
     name: 'Squat',
     imageUrl: 'https://picsum.photos/seed/squat/500/500',
     description: 'Stand with feet shoulder-width apart and lower your hips.',
-    muscleGroup: 'Legs'
+    muscleGroup: 'Legs',
+    exerciseType: 'strength'
   },
   {
     id: '3',
     name: 'Deadlift',
     imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8ZGVhZGxpZnR8ZW58MHx8MHx8fDA%3D',
     description: 'Lift a loaded barbell off the ground to the hips.',
-    muscleGroup: 'Back'
+    muscleGroup: 'Back',
+    exerciseType: 'strength'
   },
   {
     id: '4',
     name: 'Pull Up',
     imageUrl: 'https://picsum.photos/seed/pullup/500/500',
     description: 'Pull yourself up until your chin is above the bar.',
-    muscleGroup: 'Back'
+    muscleGroup: 'Back',
+    exerciseType: 'strength'
   },
   {
     id: '5',
     name: 'Dumbbell Shoulder Press',
     imageUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTB8fGd5bXxlbnwwfHwwfHx8MA%3D%3D',
     description: 'Press dumbbells overhead while seated or standing.',
-    muscleGroup: 'Shoulders'
+    muscleGroup: 'Shoulders',
+    exerciseType: 'strength'
   },
   {
     id: '6',
     name: 'Plank',
     imageUrl: 'https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8cGxhbmt8ZW58MHx8MHx8fDA%3D',
     description: 'Hold a push-up position with your body in a straight line.',
-    muscleGroup: 'Core'
+    muscleGroup: 'Core',
+    exerciseType: 'core'
   }
 ];
 
@@ -51,6 +58,7 @@ export const MOCK_PLANS: WorkoutPlan[] = [
     name: 'Full Body Beginner',
     description: 'A great start for beginners to hit all muscle groups.',
     exercises: [MOCK_EXERCISES[0], MOCK_EXERCISES[1], MOCK_EXERCISES[3], MOCK_EXERCISES[5]],
+    workoutPlanType: deriveWorkoutPlanType([MOCK_EXERCISES[0], MOCK_EXERCISES[1], MOCK_EXERCISES[3], MOCK_EXERCISES[5]]),
     isActive: true,
     lastPerformed: new Date(Date.now() - 86400000 * 2) // 2 days ago
   },
@@ -59,6 +67,7 @@ export const MOCK_PLANS: WorkoutPlan[] = [
     name: 'Upper Body Power',
     description: 'Focus on chest, back, and shoulders.',
     exercises: [MOCK_EXERCISES[0], MOCK_EXERCISES[2], MOCK_EXERCISES[4]],
+    workoutPlanType: deriveWorkoutPlanType([MOCK_EXERCISES[0], MOCK_EXERCISES[2], MOCK_EXERCISES[4]]),
     isActive: false
   }
 ];

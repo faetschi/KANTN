@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-workout',
@@ -58,7 +59,12 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-gray-200 text-left"
                   >
                     <span class="text-sm text-gray-900">{{ exercise.name }}</span>
-                    <span class="text-xs text-gray-500">{{ exercise.muscleGroup }}</span>
+                    <span
+                      class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                      [ngStyle]="typeBadgeStyle(exercise.exerciseType)"
+                    >
+                      {{ typeLabel(exercise.exerciseType) }}
+                    </span>
                   </button>
                 }
               </div>
@@ -449,6 +455,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
+  }
+
+  typeLabel(type?: string) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type?: string) {
+    return workoutTypeBadgeStyle(type);
   }
 
   addFreestyleExercise(exercise: Exercise) {

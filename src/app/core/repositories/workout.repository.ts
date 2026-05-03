@@ -3,6 +3,7 @@ import { SupabaseService } from '../services/supabase.service';
 import { CreateExerciseInput, Exercise, WorkoutPlan, WorkoutSession } from '../models/models';
 import { PersistedSessionPayload } from '../domain/workout-domain';
 import { optimizeImageForUpload } from '../domain/image-upload-domain';
+import { deriveWorkoutPlanType } from '../domain/workout-types';
 
 interface ExerciseRow {
   id: string;
@@ -131,15 +132,18 @@ export class WorkoutRepository {
 
     const plans: WorkoutPlan[] = ((plansRes.data || []) as WorkoutPlanRow[]).map(row => {
       const exerciseRows = planExercisesByPlanId.get(row.id) || [];
+      const planExercises = exerciseRows
+          .sort((a, b) => a.position - b.position)
+          .map(pe => exerciseById.get(pe.exercise_id))
+          .filter((exercise): exercise is Exercise => !!exercise);
+
       return {
         id: row.id,
         name: row.name,
         category: (row.category as WorkoutPlan['category']) || undefined,
         description: row.description || '',
-        exercises: exerciseRows
-          .sort((a, b) => a.position - b.position)
-          .map(pe => exerciseById.get(pe.exercise_id))
-          .filter((exercise): exercise is Exercise => !!exercise),
+        workoutPlanType: deriveWorkoutPlanType(planExercises),
+        exercises: planExercises,
         isActive: !!row.is_active,
         lastPerformed: row.last_performed_at ? new Date(row.last_performed_at) : undefined,
         visibility: row.visibility,
