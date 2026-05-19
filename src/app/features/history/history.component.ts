@@ -116,3 +116,4 @@ export class HistoryComponent {
     return new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(date);
   }
 }
+

@@ -155,7 +155,7 @@ export class CustomExercisesComponent {
     description: '',
     muscleGroup: '',
     imageUrl: '',
-    exerciseType: 'general',
+    exerciseType: 'strength',
     metValue: 5,
   };
   myCustomExercises = signal<Exercise[]>([]);
@@ -204,7 +204,7 @@ export class CustomExercisesComponent {
       description: this.customExercise.description.trim() || undefined,
       muscleGroup: this.customExercise.muscleGroup.trim() || undefined,
       imageUrl: this.customExercise.imageUrl.trim() || undefined,
-      exerciseType: this.customExercise.exerciseType.trim() || 'general',
+      exerciseType: this.customExercise.exerciseType.trim() || 'strength',
       metValue: Number(this.customExercise.metValue) || 5,
       visibility: 'private' as const,
     };
@@ -229,7 +229,7 @@ export class CustomExercisesComponent {
       description: '',
       muscleGroup: '',
       imageUrl: '',
-      exerciseType: 'general',
+      exerciseType: 'strength',
       metValue: 5,
     };
     this.customExerciseMessage = 'Custom exercise created.';

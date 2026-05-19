@@ -11,7 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
   template: `
     <div class="flex items-center justify-center h-screen">
       <div class="text-center">
-        <h2 class="text-2xl font-semibold mb-4">Completing sign in…</h2>
+        <h2 class="text-2xl font-semibold mb-4">{{ isPendingApproval ? 'Account pending approval' : 'Completing sign in…' }}</h2>
         <p *ngIf="error" class="text-red-600">{{ error }}</p>
       </div>
     </div>
@@ -19,6 +19,7 @@ import { AuthService } from '../../core/services/auth.service';
 })
 export class OAuthConsentComponent implements OnInit {
   error?: string;
+  isPendingApproval = false;
   private supabase = inject(SupabaseService);
   private auth = inject(AuthService);
 
@@ -118,6 +119,7 @@ export class OAuthConsentComponent implements OnInit {
         await this.auth.refreshProfile();
         this.router.navigateByUrl('/home');
       } else {
+        this.isPendingApproval = true;
         this.error = 'Your account is pending approval. Please wait for admin approval.';
       }
     } catch (err: any) {

@@ -394,15 +394,29 @@ export class WorkoutRepository {
     return true;
   }
 
-  async sharePlan(userId: string, planId: string, sharedWithUserId: string) {
+  async sharePlan(userId: string, planId: string, sharedWithUserId: string, sharedBy?: { name?: string; email?: string }) {
     const client = this.supabase.getClient();
     if (!client) return false;
+
+    const { data: planRow, error: planError } = await client
+      .from('workout_plans')
+      .select('id, name, description, owner_id')
+      .eq('id', planId)
+      .eq('owner_id', userId)
+      .maybeSingle();
+
+    if (planError || !planRow) return false;
 
     const { error } = await client.from('workout_plan_shares').upsert(
       {
         plan_id: planId,
         shared_with_user_id: sharedWithUserId,
         created_by: userId,
+        status: 'pending',
+        plan_name_snapshot: planRow.name,
+        plan_description_snapshot: planRow.description || null,
+        shared_by_email: sharedBy?.email || null,
+        shared_by_name: sharedBy?.name || null,
       },
       { onConflict: 'plan_id,shared_with_user_id' }
     );
