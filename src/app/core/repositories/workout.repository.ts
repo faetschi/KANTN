@@ -521,61 +521,19 @@ export class WorkoutRepository {
 
     if (planError || !planRow) return false;
 
-    const { data: existingShare, error: existingError } = await client
-      .from('workout_plan_shares')
-      .select('id, status')
-      .eq('plan_id', planId)
-      .eq('shared_with_user_id', sharedWithUserId)
-      .eq('created_by', userId)
-      .maybeSingle();
-
-    if (existingError) return false;
-
-    if (existingShare && (existingShare as { status: string }).status !== 'declined') {
-      const { error: updateError } = await client
-        .from('workout_plan_shares')
-        .update({
-          plan_name_snapshot: planRow.name,
-          plan_description_snapshot: planRow.description || null,
-          shared_by_email: sharedBy?.email || null,
-          shared_by_name: sharedBy?.name || null,
-        })
-        .eq('id', (existingShare as { id: string }).id)
-        .eq('created_by', userId);
-
-      if (updateError) return false;
-
-      const { error: visibilityError } = await client
-        .from('workout_plans')
-        .update({ visibility: 'shared' })
-        .eq('id', planId)
-        .eq('owner_id', userId);
-
-      if (visibilityError) return false;
-
-      return true;
-    }
-
-    if (existingShare) {
-      const { error: deleteError } = await client
-        .from('workout_plan_shares')
-        .delete()
-        .eq('id', (existingShare as { id: string }).id)
-        .eq('created_by', userId);
-
-      if (deleteError) return false;
-    }
-
-    const { error } = await client.from('workout_plan_shares').insert({
-      plan_id: planId,
-      shared_with_user_id: sharedWithUserId,
-      created_by: userId,
-      status: 'pending',
-      plan_name_snapshot: planRow.name,
-      plan_description_snapshot: planRow.description || null,
-      shared_by_email: sharedBy?.email || null,
-      shared_by_name: sharedBy?.name || null,
-    });
+    const { error } = await client.from('workout_plan_shares').upsert(
+      {
+        plan_id: planId,
+        shared_with_user_id: sharedWithUserId,
+        created_by: userId,
+        status: 'pending',
+        plan_name_snapshot: planRow.name,
+        plan_description_snapshot: planRow.description || null,
+        shared_by_email: sharedBy?.email || null,
+        shared_by_name: sharedBy?.name || null,
+      },
+      { onConflict: 'plan_id,shared_with_user_id' }
+    );
 
     if (error) return false;
 
