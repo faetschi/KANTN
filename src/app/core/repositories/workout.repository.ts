@@ -62,6 +62,10 @@ interface WorkoutSessionExerciseRow {
   session_id: string;
   exercise_id: string | null;
   position: number;
+  distance_meters: number | null;
+  avg_pace_per_km_seconds: number | null;
+  max_pace_per_km_seconds: number | null;
+  avg_speed_kmh: number | string | null;
 }
 
 interface WorkoutSessionSetRow {
@@ -178,6 +182,10 @@ export class WorkoutRepository {
         exercises: exerciseRows.map(exRow => ({
           exerciseId: exRow.exercise_id || '',
           notes: undefined,
+          distanceMeters: exRow.distance_meters || 0,
+          avgPacePerKmSeconds: exRow.avg_pace_per_km_seconds || 0,
+          maxPacePerKmSeconds: exRow.max_pace_per_km_seconds || 0,
+          avgSpeedKmh: Number(exRow.avg_speed_kmh || 0),
           sets: (sessionSetsByExerciseId.get(exRow.id) || []).map(setRow => ({
             reps: setRow.reps || 0,
             weight: Number(setRow.weight || 0),
@@ -254,87 +262,67 @@ export class WorkoutRepository {
     return !error && !!data;
   }
 
-  async createPlan(userId: string, plan: WorkoutPlan) {
+  async createPlan(userId: string, plan: WorkoutPlan, cardioTargets?: { targetDistanceMeters?: number | null; targetDurationSeconds?: number | null }) {
     const client = this.supabase.getClient();
     if (!client) return null;
 
-    const { data: planInsert, error: planError } = await client
-      .from('workout_plans')
-      .insert({
-        owner_id: userId,
-        name: plan.name,
-        category: plan.category || null,
-        description: plan.description,
-        visibility: plan.visibility || 'private',
-        is_active: !!plan.isActive,
-      })
-      .select('id')
-      .single();
+    const exercisesPayload = plan.exercises.map((exercise, index) => ({
+      exerciseId: exercise.id,
+      position: index,
+    }));
 
-    if (planError || !planInsert?.id) return null;
+    const payload = {
+      p_owner_id: userId,
+      p_name: plan.name,
+      p_description: plan.description || '',
+      p_category: plan.category || '',
+      p_visibility: plan.visibility || 'private',
+      p_is_active: !!plan.isActive,
+      p_exercises: exercisesPayload,
+      p_target_distance_meters: cardioTargets?.targetDistanceMeters || null,
+      p_target_duration_seconds: cardioTargets?.targetDurationSeconds || null,
+    };
 
-    if (plan.exercises.length) {
-      const rows = plan.exercises.map((exercise, index) => ({
-        plan_id: planInsert.id,
-        exercise_id: exercise.id,
-        position: index,
-      }));
+    const callCreatePlanRpc = async (fnName: string) => client.rpc(fnName, payload);
 
-      const { error: relationError } = await client.from('workout_plan_exercises').insert(rows);
-      if (relationError) {
-        await client.from('workout_plans').delete().eq('id', planInsert.id).eq('owner_id', userId);
-        return null;
+    let { data, error } = await callCreatePlanRpc('create_workout_plan_tx');
+    if (error) {
+      const status = (error as { status?: number }).status;
+      const message = (error as { message?: string }).message || '';
+      if (status === 404 || message.includes('create_workout_plan_tx')) {
+        const fallback = await callCreatePlanRpc('create_workout_plan');
+        data = fallback.data;
+        error = fallback.error;
       }
     }
 
-    if (plan.isActive) {
-      const { error: activationError } = await client
-        .from('workout_plans')
-        .update({ is_active: false })
-        .eq('owner_id', userId)
-        .neq('id', planInsert.id);
-
-      if (activationError) return null;
+    if (error) {
+      console.error('[WorkoutRepository] createPlan rpc failed', error);
+      return null;
     }
 
-    return planInsert.id;
+    return data;
   }
 
   async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category'>) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const { error: planError } = await client
-      .from('workout_plans')
-      .update({
-        name: plan.name,
-        category: plan.category || null,
-        description: plan.description,
-      })
-      .eq('id', planId)
-      .eq('owner_id', userId);
+    const exercisesPayload = plan.exercises.map((exercise, index) => ({
+      exerciseId: exercise.id,
+      position: index,
+    }));
 
-    if (planError) return false;
+    const { data, error } = await client.rpc('update_workout_plan_tx', {
+      p_owner_id: userId,
+      p_plan_id: planId,
+      p_name: plan.name,
+      p_description: plan.description || '',
+      p_category: plan.category || '',
+      p_exercises: exercisesPayload,
+    });
 
-    const { error: deleteError } = await client
-      .from('workout_plan_exercises')
-      .delete()
-      .eq('plan_id', planId);
-
-    if (deleteError) return false;
-
-    if (plan.exercises.length) {
-      const rows = plan.exercises.map((exercise, index) => ({
-        plan_id: planId,
-        exercise_id: exercise.id,
-        position: index,
-      }));
-
-      const { error: insertError } = await client.from('workout_plan_exercises').insert(rows);
-      if (insertError) return false;
-    }
-
-    return true;
+    return !error && !!data;
   }
 
   async createExercise(userId: string, input: CreateExerciseInput) {

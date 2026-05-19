@@ -4,9 +4,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
+import { CardioExerciseData, Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
-import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-workout',
@@ -77,67 +77,122 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
             <div class="aspect-video rounded-2xl overflow-hidden mb-6 shadow-sm bg-gray-100">
               <img [src]="exercise.imageUrl" [alt]="exercise.name" class="w-full h-full object-cover">
             </div>
-            
+
             <div class="flex justify-between items-start mb-2">
               <h1 class="text-2xl font-bold text-gray-900">{{ exercise.name }}</h1>
               <button class="text-blue-600 text-sm font-medium" (click)="showInfo = !showInfo">
                 {{ showInfo ? 'Hide Info' : 'Info' }}
               </button>
             </div>
-            
+
             @if (showInfo) {
               <p class="text-gray-500 text-sm mb-6 bg-gray-50 p-4 rounded-xl">{{ exercise.description }}</p>
             }
 
-            <!-- Sets -->
-            <div class="space-y-3">
-              <div class="grid grid-cols-4 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center mb-2">
-                <span>Set</span>
-                <span>Kg</span>
-                <span>Reps</span>
-                <span>Done</span>
-              </div>
-
-              @for (set of currentSets(); track $index) {
-                <div
-                  class="grid grid-cols-4 gap-4 items-center rounded-xl px-2 py-2 transition-colors border"
-                  [class.bg-green-50]="set.completed"
-                  [class.border-green-200]="set.completed"
-                  [class.bg-white]="!set.completed"
-                  [class.border-transparent]="!set.completed"
-                >
-                  <div class="flex justify-center">
-                    <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500">
-                      {{ $index + 1 }}
-                    </div>
+            @if (isCardioExercise()) {
+              <!-- Cardio UI -->
+              <div class="space-y-4 bg-orange-50 border border-orange-200 rounded-2xl p-6">
+                <div class="text-center">
+                  <div class="text-5xl font-bold text-orange-600 font-mono">
+                    {{ formatTime(elapsedTime()) }}
                   </div>
-                  <input type="number" [(ngModel)]="set.weight" class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500">
-                  <input type="number" [(ngModel)]="set.reps" class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500">
-                  <button (click)="toggleSet($index)" 
-                          [class.bg-green-500]="set.completed" 
-                          [class.text-white]="set.completed"
-                          [class.bg-gray-100]="!set.completed"
-                          [class.text-gray-300]="!set.completed"
-                          class="h-10 w-full rounded-xl flex items-center justify-center transition-colors">
-                    <mat-icon>check</mat-icon>
-                  </button>
+                  <div class="text-xs text-orange-500 uppercase tracking-wide mt-1">Elapsed Time</div>
                 </div>
-                <div class="flex justify-end mt-1">
-                  <button
-                    type="button"
-                    (click)="removeSet($index)"
-                    [disabled]="currentSets().length <= 1"
-                    class="text-xs text-red-500 disabled:text-gray-300"
-                  >
-                    Remove
-                  </button>
-                </div>
-              }
 
-              <button (click)="addSet()" class="w-full py-3 mt-4 text-blue-600 font-semibold text-sm bg-blue-50 rounded-xl border border-blue-100 border-dashed">
-                + Add Set
-              </button>
-            </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="text-center bg-white rounded-xl p-3">
+                    <div class="text-2xl font-bold text-gray-900">
+                      {{ currentCardioData() ? formatDistance(currentCardioData()!.distanceMeters) : '0m' }}
+                    </div>
+                    <div class="text-xs text-gray-500 uppercase">Distance</div>
+                  </div>
+                  <div class="text-center bg-white rounded-xl p-3">
+                    <div class="text-2xl font-bold text-gray-900">
+                      {{ currentCardioData() ? formatPace(currentCardioData()!.avgPaceSecondsPerKm) : '--:--' }}
+                    </div>
+                    <div class="text-xs text-gray-500 uppercase">Avg Pace</div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="text-center bg-white rounded-xl p-3">
+                    <div class="text-2xl font-bold text-gray-900">
+                      {{ currentCardioData() ? formatPace(currentCardioData()!.currentPaceSecondsPerKm) : '--:--' }}
+                    </div>
+                    <div class="text-xs text-gray-500 uppercase">Current Pace</div>
+                  </div>
+                  <div class="text-center bg-white rounded-xl p-3">
+                    <div class="text-2xl font-bold text-gray-900">
+                      {{ currentCardioData() ? (currentCardioData()!.avgSpeedKmh | number:'1.1-1') : '0.0' }}
+                    </div>
+                    <div class="text-xs text-gray-500 uppercase">km/h</div>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex items-center justify-between">
+                  <button (click)="toggleGPS()"
+                          [class.bg-green-500]="currentCardioData()?.gpsEnabled"
+                          [class.bg-gray-200]="!currentCardioData()?.gpsEnabled"
+                          class="px-4 py-2 rounded-xl text-sm font-semibold text-white">
+                    GPS {{ currentCardioData()?.gpsEnabled ? 'ON' : 'OFF' }}
+                  </button>
+                  <button (click)="enterManualDistance()"
+                          class="px-4 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold">
+                    Enter Distance
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <!-- Strength UI (sets/reps/weight) -->
+              <div class="space-y-3">
+                <div class="grid grid-cols-4 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center mb-2">
+                  <span>Set</span>
+                  <span>Kg</span>
+                  <span>Reps</span>
+                  <span>Done</span>
+                </div>
+
+                @for (set of currentSets(); track $index) {
+                  <div
+                    class="grid grid-cols-4 gap-4 items-center rounded-xl px-2 py-2 transition-colors border"
+                    [class.bg-green-50]="set.completed"
+                    [class.border-green-200]="set.completed"
+                    [class.bg-white]="!set.completed"
+                    [class.border-transparent]="!set.completed"
+                  >
+                    <div class="flex justify-center">
+                      <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500">
+                        {{ $index + 1 }}
+                      </div>
+                    </div>
+                    <input type="number" [(ngModel)]="set.weight" class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500">
+                    <input type="number" [(ngModel)]="set.reps" class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500">
+                    <button (click)="toggleSet($index)"
+                            [class.bg-green-500]="set.completed"
+                            [class.text-white]="set.completed"
+                            [class.bg-gray-100]="!set.completed"
+                            [class.text-gray-300]="!set.completed"
+                            class="h-10 w-full rounded-xl flex items-center justify-center transition-colors">
+                      <mat-icon>check</mat-icon>
+                    </button>
+                  </div>
+                  <div class="flex justify-end mt-1">
+                    <button
+                      type="button"
+                      (click)="removeSet($index)"
+                      [disabled]="currentSets().length <= 1"
+                      class="text-xs text-red-500 disabled:text-gray-300"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                }
+
+                <button (click)="addSet()" class="w-full py-3 mt-4 text-blue-600 font-semibold text-sm bg-blue-50 rounded-xl border border-blue-100 border-dashed">
+                  + Add Set
+                </button>
+              </div>
+            }
           </div>
         } @else {
           <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
@@ -178,6 +233,27 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
               <button type="button" (click)="dismissExitOptionsModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Continue</button>
               <button type="button" (click)="exitWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Pause & Exit</button>
               <button type="button" (click)="cancelWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-red-600">Cancel Workout</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      @if (showManualDistanceDialog()) {
+        <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+            <div>
+              <h3 class="text-base font-bold text-gray-900">Enter Distance</h3>
+              <p class="text-sm text-gray-500 mt-1">Enter the distance you have covered in meters.</p>
+            </div>
+            <input
+              type="number"
+              [(ngModel)]="manualDistanceInput"
+              placeholder="e.g., 5000"
+              class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            />
+            <div class="flex items-center justify-end gap-2">
+              <button type="button" (click)="showManualDistanceDialog.set(false)" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Cancel</button>
+              <button type="button" (click)="confirmManualDistance()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-orange-600">Confirm</button>
             </div>
           </div>
         </div>
@@ -291,6 +367,23 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   freestylePlanName = '';
   private persistThrottleTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Cardio state
+  cardioExerciseData = signal<Map<string, CardioExerciseData>>(new Map());
+  gpsWatchId: Map<string, number> = new Map();
+  showManualDistanceDialog = signal(false);
+  manualDistanceInput = '';
+
+  isCardioExercise = computed(() => {
+    const exercise = this.currentExercise();
+    return exercise?.exerciseType === 'cardio';
+  });
+
+  currentCardioData = computed(() => {
+    const exerciseId = this.currentExercise()?.id;
+    if (!exerciseId) return null;
+    return this.cardioExerciseData().get(exerciseId) || null;
+  });
+
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
       const id = params.get('planId');
@@ -315,6 +408,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
           this.freestyleExercises.set(inProgress.freestyleExercises || []);
         }
         this.workoutData.set(restored);
+        // Restore cardio data
+        if (inProgress.cardioExerciseData) {
+          const restoredCardio = new Map<string, CardioExerciseData>();
+          for (const [exId, data] of Object.entries(inProgress.cardioExerciseData)) {
+            restoredCardio.set(exId, data as CardioExerciseData);
+          }
+          this.cardioExerciseData.set(restoredCardio);
+        }
         if (this.timerInterval !== undefined) {
           clearInterval(this.timerInterval);
           this.timerInterval = undefined;
@@ -333,6 +434,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.startTime = new Date();
       this.elapsedTime.set(0);
       this.currentExerciseIndex.set(0);
+      this.cardioExerciseData.set(new Map());
       if (this.timerInterval !== undefined) {
         clearInterval(this.timerInterval);
         this.timerInterval = undefined;
@@ -354,6 +456,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.stopGPSTracking();
     if (this.persistThrottleTimer !== undefined) {
       clearTimeout(this.persistThrottleTimer);
       this.persistThrottleTimer = undefined;
@@ -404,6 +507,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     for (const [k, v] of this.workoutData().entries()) {
       dataObj[k] = v;
     }
+    const cardioObj: Record<string, CardioExerciseData> = {};
+    for (const [k, v] of this.cardioExerciseData().entries()) {
+      cardioObj[k] = v;
+    }
     const payload: InProgressWorkout = {
       planId: this.planId(),
       freestyleMode: this.freestyleMode(),
@@ -412,6 +519,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       currentExerciseIndex: this.currentExerciseIndex(),
       workoutData: dataObj,
       freestyleExercises: this.freestyleExercises() || [],
+      cardioExerciseData: Object.keys(cardioObj).length > 0 ? cardioObj : undefined,
     };
     this.workoutService.setInProgress(payload);
   }
@@ -476,6 +584,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       ]);
       return next;
     });
+    if (exercise.exerciseType === 'cardio') {
+      this.initCardioExercise(exercise.id);
+    }
     this.currentExerciseIndex.set(Math.max(0, this.freestyleExercises().length - 1));
     this.showExercisePicker = false;
   }
@@ -503,6 +614,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   startTimer() {
     this.timerInterval = setInterval(() => {
       this.elapsedTime.update(t => t + 1);
+      if (this.isCardioExercise()) {
+        this.updateCardioTime();
+      }
     }, 1000);
   }
 
@@ -515,6 +629,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   prevExercise() {
     if (this.currentExerciseIndex() > 0) {
       this.currentExerciseIndex.update(i => i - 1);
+      const exercise = this.currentExercise();
+      if (exercise?.exerciseType === 'cardio') {
+        this.initCardioExercise(exercise.id);
+      }
     }
   }
 
@@ -525,6 +643,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.finishWorkout();
     } else {
       this.currentExerciseIndex.update(i => i + 1);
+      const exercise = this.currentExercise();
+      if (exercise?.exerciseType === 'cardio') {
+        this.initCardioExercise(exercise.id);
+      }
     }
   }
 
@@ -583,10 +705,42 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const exercises = Array.from(this.workoutData().entries()).map(([exerciseId, sets]) => ({
-      exerciseId,
-      sets
-    }));
+    // Stop GPS tracking
+    this.stopGPSTracking();
+
+    const exercises = Array.from(this.workoutData().entries()).map(([exerciseId, sets]) => {
+      const exercise = this.workoutService.getExerciseById(exerciseId);
+      const isCardio = exercise?.exerciseType === 'cardio';
+      const cardioData = this.cardioExerciseData().get(exerciseId);
+
+      return {
+        exerciseId,
+        sets: isCardio ? [] : sets,
+        distanceMeters: cardioData?.distanceMeters || 0,
+        avgPacePerKmSeconds: cardioData?.avgPaceSecondsPerKm || 0,
+        maxPacePerKmSeconds: cardioData?.maxPaceSecondsPerKm || 0,
+        avgSpeedKmh: cardioData?.avgSpeedKmh || 0,
+        exerciseDurationSeconds: cardioData?.elapsedSeconds || 0,
+      };
+    });
+
+    // Also include cardio exercises that may not have entries in workoutData
+    const currentPlan = this.plan();
+    const allExercises = this.freestyleMode() ? this.freestyleExercises() : (currentPlan?.exercises || []);
+    for (const ex of allExercises) {
+      if (ex.exerciseType === 'cardio' && !exercises.find(e => e.exerciseId === ex.id)) {
+        const cardioData = this.cardioExerciseData().get(ex.id);
+        exercises.push({
+          exerciseId: ex.id,
+          sets: [],
+          distanceMeters: cardioData?.distanceMeters || 0,
+          avgPacePerKmSeconds: cardioData?.avgPaceSecondsPerKm || 0,
+          maxPacePerKmSeconds: cardioData?.maxPaceSecondsPerKm || 0,
+          avgSpeedKmh: cardioData?.avgSpeedKmh || 0,
+          exerciseDurationSeconds: cardioData?.elapsedSeconds || 0,
+        });
+      }
+    }
 
     const session: WorkoutSession = {
       id: Math.random().toString(36).substr(2, 9),
@@ -638,12 +792,16 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const planType = deriveWorkoutPlanType(this.freestyleExercises());
+    const category = planType === 'cardio' ? 'cardio' : undefined;
+
     const created = await this.workoutService.createPlan({
       id: Math.random().toString(36).substr(2, 9),
       name: planName,
       description: 'Created from freestyle workout',
       exercises: this.freestyleExercises(),
       isActive: false,
+      category,
     });
 
     if (!created) {
@@ -673,5 +831,180 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   selectExercise(index: number) {
     this.currentExerciseIndex.set(index);
     this.showExerciseListModal.set(false);
+  }
+
+  // Cardio methods
+  initCardioExercise(exerciseId: string) {
+    if (this.cardioExerciseData().has(exerciseId)) return;
+    const now = Date.now();
+    this.cardioExerciseData.update(map => {
+      const newData = new Map(map);
+      newData.set(exerciseId, {
+        startTime: now,
+        elapsedSeconds: 0,
+        distanceMeters: 0,
+        currentPaceSecondsPerKm: 0,
+        avgPaceSecondsPerKm: 0,
+        maxPaceSecondsPerKm: 0,
+        avgSpeedKmh: 0,
+        gpsEnabled: false,
+        gpsCoordinates: [],
+      });
+      return newData;
+    });
+  }
+
+  toggleGPS() {
+    const exerciseId = this.currentExercise()?.id;
+    if (!exerciseId) return;
+    const currentData = this.cardioExerciseData().get(exerciseId);
+    if (!currentData) return;
+
+    if (currentData.gpsEnabled) {
+      this.stopGPSTracking(exerciseId);
+      this.cardioExerciseData.update(map => {
+        const newData = new Map(map);
+        newData.set(exerciseId, { ...currentData, gpsEnabled: false });
+        return newData;
+      });
+    } else {
+      this.startGPSTracking(exerciseId);
+    }
+  }
+
+  startGPSTracking(exerciseId: string) {
+    if (!navigator.geolocation) return;
+    this.cardioExerciseData.update(map => {
+      const newData = new Map(map);
+      const data = newData.get(exerciseId);
+      if (data) {
+        newData.set(exerciseId, { ...data, gpsEnabled: true });
+      }
+      return newData;
+    });
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => this.updateGPSPosition(exerciseId, position),
+      () => {
+        this.cardioExerciseData.update(map => {
+          const newData = new Map(map);
+          const data = newData.get(exerciseId);
+          if (data) newData.set(exerciseId, { ...data, gpsEnabled: false });
+          return newData;
+        });
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+    this.gpsWatchId.set(exerciseId, watchId);
+  }
+
+  stopGPSTracking(exerciseId?: string) {
+    if (exerciseId) {
+      const watchId = this.gpsWatchId.get(exerciseId);
+      if (watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+        this.gpsWatchId.delete(exerciseId);
+      }
+    } else {
+      this.gpsWatchId.forEach((watchId) => {
+        navigator.geolocation.clearWatch(watchId);
+      });
+      this.gpsWatchId.clear();
+    }
+  }
+
+  calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  updateGPSPosition(exerciseId: string, position: GeolocationPosition) {
+    const data = this.cardioExerciseData().get(exerciseId);
+    if (!data) return;
+    const { latitude, longitude } = position.coords;
+    const timestamp = position.timestamp;
+    const newData = new Map(this.cardioExerciseData());
+    const updated = { ...data };
+
+    if (updated.gpsCoordinates.length > 0) {
+      const lastCoord = updated.gpsCoordinates[updated.gpsCoordinates.length - 1];
+      const distance = this.calculateDistance(lastCoord.lat, lastCoord.lng, latitude, longitude);
+      if (distance < 100 && distance > 1) {
+        const timeDiff = (timestamp - lastCoord.timestamp) / 1000;
+        if (timeDiff > 0) {
+          updated.currentPaceSecondsPerKm = Math.floor((timeDiff / distance) * 1000);
+        }
+        updated.distanceMeters += distance;
+        if (updated.elapsedSeconds > 0 && updated.distanceMeters > 0) {
+          const distanceKm = updated.distanceMeters / 1000;
+          const hours = updated.elapsedSeconds / 3600;
+          updated.avgSpeedKmh = hours > 0 ? distanceKm / hours : 0;
+          updated.avgPaceSecondsPerKm = Math.floor(updated.elapsedSeconds / distanceKm);
+        }
+        updated.gpsCoordinates = [...updated.gpsCoordinates, { lat: latitude, lng: longitude, timestamp }];
+        if (updated.gpsCoordinates.length > 1000) {
+          updated.gpsCoordinates = updated.gpsCoordinates.slice(-1000);
+        }
+      }
+    } else {
+      updated.gpsCoordinates = [{ lat: latitude, lng: longitude, timestamp }];
+    }
+    newData.set(exerciseId, updated);
+    this.cardioExerciseData.set(newData);
+  }
+
+  enterManualDistance() {
+    this.manualDistanceInput = '';
+    this.showManualDistanceDialog.set(true);
+  }
+
+  confirmManualDistance() {
+    const exerciseId = this.currentExercise()?.id;
+    if (!exerciseId) return;
+    const distance = Math.round(parseFloat(this.manualDistanceInput) * 1000);
+    if (!isNaN(distance) && distance > 0) {
+      const data = this.cardioExerciseData().get(exerciseId);
+      if (data) {
+        const newData = new Map(this.cardioExerciseData());
+        const updated = { ...data, distanceMeters: distance };
+        if (updated.elapsedSeconds > 0) {
+          const distanceKm = distance / 1000;
+          updated.avgPaceSecondsPerKm = Math.floor(updated.elapsedSeconds / distanceKm);
+          updated.avgSpeedKmh = distanceKm / (updated.elapsedSeconds / 3600);
+        }
+        newData.set(exerciseId, updated);
+        this.cardioExerciseData.set(newData);
+      }
+    }
+    this.showManualDistanceDialog.set(false);
+  }
+
+  updateCardioTime() {
+    const exerciseId = this.currentExercise()?.id;
+    if (!exerciseId) return;
+    const data = this.cardioExerciseData().get(exerciseId);
+    if (!data) {
+      this.initCardioExercise(exerciseId);
+      return;
+    }
+    const newData = new Map(this.cardioExerciseData());
+    newData.set(exerciseId, { ...data, elapsedSeconds: this.elapsedTime() });
+    this.cardioExerciseData.set(newData);
+  }
+
+  formatDistance(meters: number): string {
+    if (meters < 1000) return `${meters}m`;
+    return `${(meters / 1000).toFixed(2)}km`;
+  }
+
+  formatPace(secondsPerKm: number): string {
+    if (secondsPerKm === 0 || !isFinite(secondsPerKm)) return '--:--';
+    const mins = Math.floor(secondsPerKm / 60);
+    const secs = Math.floor(secondsPerKm % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}/km`;
   }
 }

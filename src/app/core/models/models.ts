@@ -32,6 +32,12 @@ export interface ExerciseSession {
   exerciseId: string;
   sets: Set[];
   notes?: string;
+  // Cardio-specific fields
+  distanceMeters?: number;
+  avgPacePerKmSeconds?: number;
+  maxPacePerKmSeconds?: number;
+  avgSpeedKmh?: number;
+  exerciseDurationSeconds?: number;
 }
 
 export interface WorkoutSession {
@@ -70,14 +76,27 @@ export interface WorkoutPlanInvite {
   status: 'pending' | 'accepted' | 'declined';
 }
 
+export interface CardioExerciseData {
+  startTime: number;
+  elapsedSeconds: number;
+  distanceMeters: number;
+  currentPaceSecondsPerKm: number;
+  avgPaceSecondsPerKm: number;
+  maxPaceSecondsPerKm: number;
+  avgSpeedKmh: number;
+  gpsEnabled: boolean;
+  gpsCoordinates: Array<{lat: number; lng: number; timestamp: number}>;
+}
+
 export interface InProgressWorkout {
   planId: string | null;
   freestyleMode: boolean;
-  startTime: string; // ISO string
+  startTime: string;
   elapsedTime: number;
   currentExerciseIndex: number;
   workoutData: Record<string, Set[]>;
   freestyleExercises: Exercise[];
+  cardioExerciseData?: Record<string, CardioExerciseData>;
 }
 
 export interface CreateExerciseInput {

@@ -13,6 +13,11 @@ export interface PersistedSessionExercise {
     weight: number;
     completed: boolean;
   }[];
+  // Cardio-specific fields
+  distanceMeters?: number;
+  avgPacePerKmSeconds?: number;
+  maxPacePerKmSeconds?: number;
+  avgSpeedKmh?: number;
 }
 
 export interface PersistedSessionPayload {
@@ -38,15 +43,44 @@ export function buildPersistedSessionPayload(
   userWeightKg: number
 ): PersistedSessionPayload {
   const durationSeconds = Math.max(0, session.duration || 0);
-  const completedExercises = session.exercises.filter(ex => ex.sets.some(s => s.completed));
-  const effectiveExercises = completedExercises.length ? completedExercises : session.exercises;
 
-  const baseDuration = effectiveExercises.length ? Math.floor(durationSeconds / effectiveExercises.length) : 0;
-  const remainderDuration = effectiveExercises.length ? durationSeconds - (baseDuration * effectiveExercises.length) : 0;
+  // FIX: Include cardio exercises even without completed sets
+  const effectiveExercises = session.exercises.filter(ex => {
+    const exercise = resolveExerciseById(ex.exerciseId);
+    const isCardio = exercise?.exerciseType === 'cardio';
+    const hasCompletedSets = ex.sets.some(s => s.completed);
+    return isCardio || hasCompletedSets || ex.sets.length > 0;
+  });
 
-  const exercisePayload = effectiveExercises.map((exerciseSession, index) => {
+  // Separate cardio and strength exercises for duration calculation
+  const cardioExercises = effectiveExercises.filter(ex => {
+    const exercise = resolveExerciseById(ex.exerciseId);
+    return exercise?.exerciseType === 'cardio';
+  });
+  const strengthExercises = effectiveExercises.filter(ex => {
+    const exercise = resolveExerciseById(ex.exerciseId);
+    return exercise?.exerciseType !== 'cardio';
+  });
+
+  // Calculate total cardio duration from per-exercise durations
+  const totalCardioDuration = cardioExercises.reduce((sum, ex) => sum + (ex.exerciseDurationSeconds || 0), 0);
+  // Remaining time for strength exercises (even split)
+  const strengthDuration = durationSeconds - totalCardioDuration;
+  const baseStrengthDuration = strengthExercises.length > 0 ? Math.floor(Math.max(0, strengthDuration) / strengthExercises.length) : 0;
+  const remainderStrengthDuration = strengthExercises.length > 0 ? Math.max(0, strengthDuration) - (baseStrengthDuration * strengthExercises.length) : 0;
+
+  let strengthIndex = 0;
+  const exercisePayload = effectiveExercises.map((exerciseSession) => {
     const exercise = resolveExerciseById(exerciseSession.exerciseId);
-    const exerciseDuration = baseDuration + (index === effectiveExercises.length - 1 ? remainderDuration : 0);
+    const isCardio = exercise?.exerciseType === 'cardio';
+
+    // Use per-exercise duration for cardio, even split for strength
+    const exerciseDuration = isCardio
+      ? (exerciseSession.exerciseDurationSeconds || 0)
+      : baseStrengthDuration + (strengthIndex === strengthExercises.length - 1 ? remainderStrengthDuration : 0);
+
+    if (!isCardio) strengthIndex++;
+
     const metValue = Number(exercise?.metValue ?? 5);
 
     return {
@@ -54,10 +88,16 @@ export function buildPersistedSessionPayload(
       exerciseNameSnapshot: exercise?.name || 'Custom Exercise',
       exerciseTypeSnapshot: exercise?.exerciseType || 'general',
       metValueSnapshot: metValue,
-      position: index,
+      position: effectiveExercises.indexOf(exerciseSession),
       durationSeconds: exerciseDuration,
       caloriesBurned: calcCalories(metValue, exerciseDuration, userWeightKg),
-      sets: exerciseSession.sets.map(set => ({
+      // Cardio fields
+      distanceMeters: exerciseSession.distanceMeters || 0,
+      avgPacePerKmSeconds: exerciseSession.avgPacePerKmSeconds || 0,
+      maxPacePerKmSeconds: exerciseSession.maxPacePerKmSeconds || 0,
+      avgSpeedKmh: exerciseSession.avgSpeedKmh || 0,
+      // Strength fields (empty for cardio)
+      sets: isCardio ? [] : exerciseSession.sets.map(set => ({
         reps: set.reps,
         weight: set.weight,
         completed: !!set.completed,

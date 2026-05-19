@@ -92,13 +92,6 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workou
               </div>
 
               <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div class="inline-flex w-fit items-center rounded-full bg-white/10 px-3 py-1.5 text-sm text-gray-200 backdrop-blur-sm whitespace-nowrap">
-                  @if (plan.lastPerformed) {
-                    Last: {{ plan.lastPerformed | date:'MMM d' }}
-                  } @else {
-                    Not started yet
-                  }
-                </div>
                 <div class="w-full sm:w-auto">
                   <button [routerLink]="['/workout', plan.id]" class="w-full bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform flex items-center justify-center whitespace-nowrap">
                     {{ workoutService.hasInProgressForPlan(plan.id) ? 'Continue' : 'Start Workout' }}

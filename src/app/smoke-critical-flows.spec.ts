@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { convertToParamMap, ActivatedRoute, Router } from '@angular/router';
@@ -14,10 +15,10 @@ import { Exercise } from './core/models/models';
 
 describe('Critical flow smoke tests', () => {
   it('saves profile and refreshes auth profile state', async () => {
-    const refreshProfile = jasmine.createSpy('refreshProfile').and.resolveTo();
-    const eqSpy = jasmine.createSpy('eq').and.resolveTo({ error: null });
-    const updateSpy = jasmine.createSpy('update').and.returnValue({ eq: eqSpy });
-    const fromSpy = jasmine.createSpy('from').and.returnValue({ update: updateSpy });
+    const refreshProfile = vi.fn().mockResolvedValue(true);
+    const eqSpy = vi.fn().mockResolvedValue(true);
+    const updateSpy = vi.fn().mockReturnValue(null);
+    const fromSpy = vi.fn().mockReturnValue(null);
 
     await TestBed.configureTestingModule({
       imports: [ProfileComponent],
@@ -34,12 +35,12 @@ describe('Critical flow smoke tests', () => {
               age: 30,
             }),
             refreshProfile,
-            logout: jasmine.createSpy('logout'),
+            logout: vi.fn(),
           },
         },
         { provide: StatsService, useValue: { monthlyStats: () => ({ count: 0, calories: 0, duration: 0 }) } },
         { provide: SupabaseService, useValue: { getClient: () => ({ from: fromSpy }) } },
-        { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
       ],
     }).compileComponents();
 
@@ -63,9 +64,9 @@ describe('Critical flow smoke tests', () => {
   });
 
   it('creates a plan via workout service', async () => {
-    const createPlan = jasmine.createSpy('createPlan').and.resolveTo('plan-1');
-    const navigate = jasmine.createSpy('navigate');
-    const open = jasmine.createSpy('open');
+    const createPlan = vi.fn().mockResolvedValue(true);
+    const navigate = vi.fn();
+    const open = vi.fn();
 
     await TestBed.configureTestingModule({
       imports: [PlanCreateComponent],
@@ -74,7 +75,7 @@ describe('Critical flow smoke tests', () => {
           provide: WorkoutService,
           useValue: {
             exercises: () => [],
-            getPlanById: jasmine.createSpy('getPlanById').and.returnValue(null),
+            getPlanById: vi.fn().mockReturnValue(null),
             createPlan,
           },
         },
@@ -107,8 +108,8 @@ describe('Critical flow smoke tests', () => {
   });
 
   it('finishes workout and persists session', async () => {
-    const addSession = jasmine.createSpy('addSession').and.resolveTo(true);
-    const navigate = jasmine.createSpy('navigate');
+    const addSession = vi.fn().mockResolvedValue(true);
+    const navigate = vi.fn();
     const plan = {
       id: 'plan-1',
       name: 'Plan',
@@ -131,8 +132,8 @@ describe('Critical flow smoke tests', () => {
         {
           provide: WorkoutService,
           useValue: {
-            getPlanById: jasmine.createSpy('getPlanById').and.returnValue(plan),
-            getLastSessionForPlan: jasmine.createSpy('getLastSessionForPlan').and.returnValue(undefined),
+            getPlanById: vi.fn().mockReturnValue(null),
+            getLastSessionForPlan: vi.fn().mockReturnValue(null),
             addSession,
           },
         },
@@ -159,8 +160,8 @@ describe('Critical flow smoke tests', () => {
   });
 
   it('shares a plan with a resolved user id', async () => {
-    const sharePlan = jasmine.createSpy('sharePlan').and.resolveTo(true);
-    const resolveUserIdByEmail = jasmine.createSpy('resolveUserIdByEmail').and.resolveTo('user-2');
+    const sharePlan = vi.fn().mockResolvedValue(true);
+    const resolveUserIdByEmail = vi.fn().mockResolvedValue(true);
 
     await TestBed.configureTestingModule({
       imports: [PlansComponent],
@@ -171,7 +172,7 @@ describe('Critical flow smoke tests', () => {
             plans: () => [{ id: 'plan-1', name: 'Plan', description: '', exercises: [], isActive: false, ownerId: 'user-1' }],
             resolveUserIdByEmail,
             sharePlan,
-            setActivePlan: jasmine.createSpy('setActivePlan').and.resolveTo(true),
+            setActivePlan: vi.fn().mockResolvedValue(true),
           },
         },
         { provide: AuthService, useValue: { currentUser: () => ({ id: 'user-1' }) } },

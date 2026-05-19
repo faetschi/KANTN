@@ -47,6 +47,26 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
           <textarea [(ngModel)]="description" rows="3" placeholder="Brief description..." class="w-full bg-gray-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500"></textarea>
         </div>
 
+        @if (category === 'cardio') {
+          <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3">
+            <h3 class="text-sm font-semibold text-orange-900">Cardio Target (Optional)</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-orange-700 mb-1">Target Distance (km)</label>
+                <input type="number" [(ngModel)]="cardioTargetDistance"
+                       placeholder="e.g., 5" step="0.1" min="0"
+                       class="w-full bg-white border border-orange-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500">
+              </div>
+              <div>
+                <label class="block text-xs text-orange-700 mb-1">Target Duration (min)</label>
+                <input type="number" [(ngModel)]="cardioTargetDuration"
+                       placeholder="e.g., 30" min="0"
+                       class="w-full bg-white border border-orange-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500">
+              </div>
+            </div>
+          </div>
+        }
+
         <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between">
           <div>
             <h3 class="text-sm font-semibold text-gray-900">Need Custom Exercises?</h3>
@@ -132,6 +152,8 @@ export class PlanCreateComponent {
   exerciseSearchQuery = '';
   selectedExercises = signal<Exercise[]>([]);
   availableExercises = this.workoutService.exercises;
+  cardioTargetDistance: number | null = null;
+  cardioTargetDuration: number | null = null;
 
   constructor() {
     this.initializeEditMode();
@@ -228,7 +250,12 @@ export class PlanCreateComponent {
       isActive: false
     };
 
-    const persistedPlanId = await this.workoutService.createPlan(newPlan);
+    const cardioTargets = this.category === 'cardio' ? {
+      targetDistanceMeters: this.cardioTargetDistance ? this.cardioTargetDistance * 1000 : null,
+      targetDurationSeconds: this.cardioTargetDuration ? this.cardioTargetDuration * 60 : null,
+    } : undefined;
+
+    const persistedPlanId = await this.workoutService.createPlan(newPlan, cardioTargets);
     if (!persistedPlanId) {
       this.planSaveMessage = 'Failed to save plan. Please try again.';
       return;
@@ -236,6 +263,8 @@ export class PlanCreateComponent {
 
     this.planSaveMessage = '';
     this.snackBar.open('Plan created successfully.', 'Close', { duration: 3000 });
+    this.cardioTargetDistance = null;
+    this.cardioTargetDuration = null;
     this.router.navigate(['/plans']);
   }
 }

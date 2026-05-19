@@ -13,7 +13,6 @@ drop table if exists workout_plan_shares cascade;
 drop table if exists workout_plans cascade;
 drop table if exists exercise_shares cascade;
 drop table if exists exercises cascade;
-drop table if exists profiles cascade;
 
 -- Drop storage policies before dropping helper functions they reference.
 drop policy if exists "exercise_images_select" on storage.objects;
@@ -34,6 +33,9 @@ drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
 drop function if exists get_my_stats_periods();
 drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
+drop function if exists create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb);
+drop function if exists create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer);
+drop function if exists update_workout_plan_tx(uuid, uuid, text, text, text, jsonb);
 drop function if exists seed_beginner_plans_for_user(uuid);
 drop function if exists set_user_role_by_email(text, boolean, boolean);
 drop function if exists respond_to_workout_plan_share(uuid, boolean);
@@ -157,6 +159,9 @@ create table if not exists workout_plan_exercises (
   position int not null,
   target_sets int,
   target_reps int,
+  -- Cardio-specific targets
+  target_distance_meters int,
+  target_duration_seconds int,
   notes text,
   created_at timestamptz not null default now(),
   unique (plan_id, position)
@@ -185,6 +190,11 @@ create table if not exists workout_session_exercises (
   position int not null default 0,
   duration_seconds int not null default 0,
   calories_burned numeric(10, 2) not null default 0,
+  -- Cardio-specific metrics
+  distance_meters int not null default 0,
+  avg_pace_per_km_seconds int not null default 0,
+  max_pace_per_km_seconds int not null default 0,
+  avg_speed_kmh numeric(5, 2) not null default 0,
   created_at timestamptz not null default now(),
   unique (session_id, position)
 );
@@ -217,6 +227,8 @@ begin
   return new;
 end;
 $$;
+
+drop trigger if exists trg_profiles_updated_at on profiles;
 
 create trigger trg_profiles_updated_at
 before update on profiles
@@ -413,7 +425,11 @@ begin
       met_value_snapshot,
       position,
       duration_seconds,
-      calories_burned
+      calories_burned,
+      distance_meters,
+      avg_pace_per_km_seconds,
+      max_pace_per_km_seconds,
+      avg_speed_kmh
     )
     values (
       v_session_id,
@@ -423,7 +439,11 @@ begin
       coalesce((ex_item ->> 'metValueSnapshot')::numeric, 5),
       coalesce((ex_item ->> 'position')::int, 0),
       coalesce((ex_item ->> 'durationSeconds')::int, 0),
-      coalesce((ex_item ->> 'caloriesBurned')::numeric, 0)
+      coalesce((ex_item ->> 'caloriesBurned')::numeric, 0),
+      coalesce((ex_item ->> 'distanceMeters')::int, 0),
+      coalesce((ex_item ->> 'avgPacePerKmSeconds')::int, 0),
+      coalesce((ex_item ->> 'maxPacePerKmSeconds')::int, 0),
+      coalesce((ex_item ->> 'avgSpeedKmh')::numeric, 0)
     )
     returning id into v_session_exercise_id;
 
@@ -456,6 +476,144 @@ begin
   end if;
 
   return v_session_id;
+exception
+  when others then
+    raise exception 'Failed to create workout session: %', SQLERRM;
+end;
+$$;
+
+create or replace function create_workout_plan_tx(
+  p_owner_id uuid,
+  p_name text,
+  p_description text,
+  p_category text,
+  p_visibility text,
+  p_is_active boolean,
+  p_exercises jsonb,
+  p_target_distance_meters numeric default null,
+  p_target_duration_seconds integer default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_plan_id uuid;
+  v_exercise_item jsonb;
+  v_position int;
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to create workout plan for this user';
+  end if;
+
+  if p_is_active then
+    update workout_plans
+    set is_active = false
+    where owner_id = p_owner_id
+      and is_active = true;
+  end if;
+
+  insert into workout_plans (
+    owner_id,
+    name,
+    description,
+    category,
+    visibility,
+    is_active
+  )
+  values (
+    p_owner_id,
+    p_name,
+    p_description,
+    nullif(p_category, ''),
+    coalesce(p_visibility, 'private'),
+    p_is_active
+  )
+  returning id into v_plan_id;
+
+  v_position := 0;
+  for v_exercise_item in select value from jsonb_array_elements(coalesce(p_exercises, '[]'::jsonb))
+  loop
+    insert into workout_plan_exercises (
+      plan_id,
+      exercise_id,
+      position,
+      target_distance_meters,
+      target_duration_seconds
+    )
+    values (
+      v_plan_id,
+      (v_exercise_item ->> 'exerciseId')::uuid,
+      v_position,
+      p_target_distance_meters,
+      p_target_duration_seconds
+    );
+    v_position := v_position + 1;
+  end loop;
+
+  return v_plan_id;
+exception
+  when others then
+    raise exception 'Failed to create workout plan: %', SQLERRM;
+end;
+$$;
+
+create or replace function update_workout_plan_tx(
+  p_owner_id uuid,
+  p_plan_id uuid,
+  p_name text,
+  p_description text,
+  p_category text,
+  p_exercises jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_exercise_item jsonb;
+  v_position int;
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to update workout plan for this user';
+  end if;
+
+  update workout_plans
+  set
+    name = p_name,
+    description = p_description,
+    category = nullif(p_category, ''),
+    updated_at = now()
+  where id = p_plan_id
+    and owner_id = p_owner_id;
+
+  delete from workout_plan_exercises
+  where plan_id = p_plan_id;
+
+  v_position := 0;
+  for v_exercise_item in select value from jsonb_array_elements(coalesce(p_exercises, '[]'::jsonb))
+  loop
+    insert into workout_plan_exercises (
+      plan_id,
+      exercise_id,
+      position
+    )
+    values (
+      p_plan_id,
+      (v_exercise_item ->> 'exerciseId')::uuid,
+      v_position
+    );
+    v_position := v_position + 1;
+  end loop;
+
+  return true;
+exception
+  when others then
+    raise exception 'Failed to update workout plan: %', SQLERRM;
 end;
 $$;
 
@@ -470,6 +628,7 @@ declare
   v_created boolean := false;
   v_plan_a_id uuid;
   v_plan_b_id uuid;
+  v_plan_c_id uuid;
 begin
   if auth.uid() is distinct from p_owner_id and not is_admin() then
     raise exception 'Not allowed to seed plans for this user';
@@ -620,6 +779,30 @@ begin
       6.5,
       'default',
       true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111113',
+      null,
+      'Outdoor Run',
+      'Running or jogging outdoors for cardiovascular fitness.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=outdoor-run',
+      'Full Body',
+      'cardio',
+      9.8,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111114',
+      null,
+      'Cycling',
+      'Outdoor or indoor cycling for endurance and cardio.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=cycling',
+      'Full Body',
+      'cardio',
+      7.5,
+      'default',
+      true
     )
   on conflict (id) do update
   set
@@ -679,6 +862,31 @@ begin
       (v_plan_b_id, '11111111-1111-1111-1111-111111111103', 0, 3, 10),
       (v_plan_b_id, '11111111-1111-1111-1111-111111111101', 1, 3, 12),
       (v_plan_b_id, '11111111-1111-1111-1111-111111111104', 2, 3, 30);
+
+    v_created := true;
+  end if;
+
+  if not exists (
+    select 1
+    from workout_plans p
+    where p.owner_id = p_owner_id
+      and p.name = 'Beginner Cardio'
+  ) then
+    insert into workout_plans (owner_id, name, description, category, visibility, is_active)
+    values (
+      p_owner_id,
+      'Beginner Cardio',
+      'Intro cardio workout focused on running and cycling for endurance.',
+      'cardio',
+      'private',
+      false
+    )
+    returning id into v_plan_c_id;
+
+    insert into workout_plan_exercises (plan_id, exercise_id, position, target_duration_seconds)
+    values
+      (v_plan_c_id, '11111111-1111-1111-1111-111111111113', 0, 900),
+      (v_plan_c_id, '11111111-1111-1111-1111-111111111114', 1, 900);
 
     v_created := true;
   end if;
@@ -783,6 +991,8 @@ grant execute on function calc_burned_calories(numeric, numeric, integer) to aut
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
 grant execute on function get_my_stats_periods() to authenticated;
 grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
+grant execute on function create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer) to authenticated;
+grant execute on function update_workout_plan_tx(uuid, uuid, text, text, text, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
 grant execute on function respond_to_workout_plan_share(uuid, boolean) to authenticated;
 

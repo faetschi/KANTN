@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { WorkoutPlan } from '../../core/models/models';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
@@ -110,10 +111,6 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
         </section>
       }
 
-      @if (activationMessage) {
-        <span class="text-xs text-red-500">{{ activationMessage }}</span>
-      }
-
       <app-search-bar
         class="block mb-5"
         [value]="planSearchQuery()"
@@ -130,18 +127,27 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
             <div class="flex justify-between items-start mb-3">
               <div>
                 <h3 class="text-lg font-bold text-gray-900">{{ plan.name }}</h3>
-                @if (plan.category) {
-                  <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600 mb-1">
-                    {{ plan.category }}
+                <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                  @if (plan.category) {
+                    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">
+                      {{ plan.category }}
+                    </span>
+                  }
+                  <span
+                    class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    [ngStyle]="typeBadgeStyle(plan)"
+                  >
+                    {{ typeLabel(plan) }}
                   </span>
-                }
-                <span
-                  class="ml-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide mb-1"
-                  [ngStyle]="typeBadgeStyle(plan)"
-                >
-                  {{ typeLabel(plan) }}
-                </span>
-                <p class="text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
+                  <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    @if (plan.lastPerformed) {
+                      Last: {{ plan.lastPerformed | date:'MMM d' }}
+                    } @else {
+                      Not started yet
+                    }
+                  </span>
+                </div>
+                <p class="mt-2 text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
               </div>
               @if (plan.isActive) {
                 <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Active</span>
@@ -186,6 +192,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
 export class PlansComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  notifications = inject(NotificationService);
   
   plans = this.workoutService.plans;
   planInvites = this.workoutService.planInvites;
@@ -197,7 +204,6 @@ export class PlansComponent {
   unsharingPlan = false;
   shareMessage = '';
   inviteMessage = '';
-  activationMessage = '';
   activatingPlanId = '';
   respondingInviteId = '';
 
@@ -235,7 +241,6 @@ export class PlansComponent {
   pendingInvites = computed(() => this.planInvites().filter(invite => invite.status === 'pending'));
 
   async activatePlan(id: string) {
-    this.activationMessage = '';
     this.activatingPlanId = id;
 
     const currentUserId = this.authService.currentUser()?.id;
@@ -261,8 +266,11 @@ export class PlansComponent {
       // Revert optimistic change via service
       console.debug('[PlansComponent] activatePlan revert to previousActiveId=', previousActiveId);
       this.workoutService.setActiveLocally(previousActiveId || null);
-      this.activationMessage = 'Failed to activate plan.';
+      this.notifications.error('Failed to activate plan.');
+      return;
     }
+
+    this.notifications.success('Plan activated.', 1000);
   }
 
   async sharePlan() {
@@ -352,7 +360,7 @@ export class PlansComponent {
     if (!confirm('Delete this plan? This cannot be undone.')) return;
     const ok = await this.workoutService.deletePlan(id);
     if (!ok) {
-      this.activationMessage = 'Failed to delete plan.';
+      this.notifications.error('Failed to delete plan.');
     }
   }
 }

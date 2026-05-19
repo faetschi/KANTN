@@ -206,11 +206,11 @@ export class WorkoutService {
     return true;
   }
 
-  async createPlan(plan: WorkoutPlan) {
+  async createPlan(plan: WorkoutPlan, cardioTargets?: { targetDistanceMeters?: number | null; targetDurationSeconds?: number | null }) {
     const userId = this.getCurrentUserId();
     if (!userId) return null;
 
-    const planId = await this.repository.createPlan(userId, plan);
+    const planId = await this.repository.createPlan(userId, plan, cardioTargets);
     if (!planId) return null;
 
     await this.refresh();

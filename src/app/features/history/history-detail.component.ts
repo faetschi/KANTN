@@ -30,7 +30,7 @@ import { WorkoutSession } from '../../core/models/models';
           <div class="grid grid-cols-2 gap-3 pt-2">
             <div class="bg-gray-50 rounded-xl p-3">
               <p class="text-[10px] uppercase tracking-wider text-gray-500">Duration</p>
-              <p class="text-lg font-semibold text-gray-900">{{ ((workoutSession.duration || 0) / 60) | number:'1.0-0' }} min</p>
+              <p class="text-lg font-semibold text-gray-900">{{ formatTime(workoutSession.duration || 0) }}</p>
             </div>
             <div class="bg-gray-50 rounded-xl p-3">
               <p class="text-[10px] uppercase tracking-wider text-gray-500">Calories</p>
@@ -63,23 +63,50 @@ import { WorkoutSession } from '../../core/models/models';
             <article class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
               <h3 class="font-semibold text-gray-900 mb-3">{{ getExerciseName(workoutSession, exerciseSession.exerciseId, $index) }}</h3>
 
-              <div class="space-y-2">
-                @for (set of exerciseSession.sets; track $index) {
-                  <div class="grid grid-cols-[auto_1fr_auto] gap-3 items-center rounded-xl border border-gray-100 px-3 py-2">
-                    <span class="text-xs text-gray-500">Set {{ $index + 1 }}</span>
-                    <span class="text-sm text-gray-700">{{ set.weight }} kg × {{ set.reps }} reps</span>
-                    <span
-                      class="px-2 py-1 rounded-full text-[10px] font-semibold"
-                      [class.bg-green-100]="set.completed"
-                      [class.text-green-700]="set.completed"
-                      [class.bg-gray-100]="!set.completed"
-                      [class.text-gray-500]="!set.completed"
-                    >
-                      {{ set.completed ? 'Done' : 'Not done' }}
-                    </span>
+              @if (isCardioExercise(exerciseSession.exerciseId)) {
+                <div class="space-y-2 bg-orange-50 rounded-xl p-3">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <p class="text-[10px] uppercase tracking-wider text-gray-500">Distance</p>
+                      <p class="text-lg font-semibold text-gray-900">{{ formatDistance(exerciseSession.distanceMeters || 0) }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] uppercase tracking-wider text-gray-500">Duration</p>
+                      <p class="text-lg font-semibold text-gray-900">{{ formatTime(exerciseSession.exerciseDurationSeconds || 0) }}</p>
+                    </div>
                   </div>
-                }
-              </div>
+                  @if ((exerciseSession.avgPacePerKmSeconds || 0) > 0) {
+                    <div>
+                      <p class="text-[10px] uppercase tracking-wider text-gray-500">Avg Pace</p>
+                      <p class="text-lg font-semibold text-gray-900">{{ formatPace(exerciseSession.avgPacePerKmSeconds || 0) }}</p>
+                    </div>
+                  }
+                  @if ((exerciseSession.avgSpeedKmh || 0) > 0) {
+                    <div>
+                      <p class="text-[10px] uppercase tracking-wider text-gray-500">Avg Speed</p>
+                      <p class="text-lg font-semibold text-gray-900">{{ exerciseSession.avgSpeedKmh | number:'1.1-1' }} km/h</p>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="space-y-2">
+                  @for (set of exerciseSession.sets; track $index) {
+                    <div class="grid grid-cols-[auto_1fr_auto] gap-3 items-center rounded-xl border border-gray-100 px-3 py-2">
+                      <span class="text-xs text-gray-500">Set {{ $index + 1 }}</span>
+                      <span class="text-sm text-gray-700">{{ set.weight }} kg × {{ set.reps }} reps</span>
+                      <span
+                        class="px-2 py-1 rounded-full text-[10px] font-semibold"
+                        [class.bg-green-100]="set.completed"
+                        [class.text-green-700]="set.completed"
+                        [class.bg-gray-100]="!set.completed"
+                        [class.text-gray-500]="!set.completed"
+                      >
+                        {{ set.completed ? 'Done' : 'Not done' }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
             </article>
           }
 
@@ -137,6 +164,11 @@ export class HistoryDetailComponent {
     return next?.id || null;
   });
 
+  isCardioExercise(exerciseId: string): boolean {
+    const exercise = this.workoutService.getExerciseById(exerciseId);
+    return exercise?.exerciseType === 'cardio';
+  }
+
   getPlanName(planId: string) {
     return this.workoutService.getPlanById(planId)?.name || 'Workout Session';
   }
@@ -152,6 +184,24 @@ export class HistoryDetailComponent {
     if (fromPlan) return fromPlan;
 
     return `Exercise ${index + 1}`;
+  }
+
+  formatDistance(meters: number): string {
+    if (meters < 1000) return `${meters}m`;
+    return `${(meters / 1000).toFixed(2)} km`;
+  }
+
+  formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  formatPace(secondsPerKm: number): string {
+    if (secondsPerKm === 0) return '--:--';
+    const mins = Math.floor(secondsPerKm / 60);
+    const secs = secondsPerKm % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}/km`;
   }
 
   openPreviousSession() {
