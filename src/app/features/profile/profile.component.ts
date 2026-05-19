@@ -2,6 +2,7 @@ import { Component, inject, effect, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { StatsService } from '../../core/services/stats.service';
 import { SupabaseService } from '../../core/services/supabase.service';
@@ -12,7 +13,7 @@ import { NotificationService } from '../../core/services/notification.service';
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule],
+  imports: [CommonModule, MatIconModule, FormsModule, RouterLink],
   template: `
     <div class="p-6 space-y-8">
       <header class="flex justify-between items-center">
@@ -227,6 +228,15 @@ import { NotificationService } from '../../core/services/notification.service';
 
       <!-- Settings List -->
       <section class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+        <a *ngIf="user()?.is_admin" [routerLink]="['/admin']" class="p-4 flex items-center justify-between border-b border-gray-50 active:bg-gray-50 transition-colors cursor-pointer no-underline">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+              <mat-icon class="text-sm">admin_panel_settings</mat-icon>
+            </div>
+            <span class="font-medium text-gray-900">Admin Panel</span>
+          </div>
+          <mat-icon class="text-gray-300">chevron_right</mat-icon>
+        </a>
         <div class="p-4 flex items-center justify-between border-b border-gray-50 active:bg-gray-50 transition-colors">
           <div class="flex items-center space-x-3">
             <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">

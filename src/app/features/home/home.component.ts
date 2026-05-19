@@ -22,24 +22,20 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workou
         </div>
         <div class="flex items-center gap-3">
           <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
-          <div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm">
+          <a [routerLink]="['/profile']" class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer block">
             <img [src]="user()?.avatarUrl" alt="Profile" class="w-full h-full object-cover">
-          </div>
+          </a>
         </div>
       </header>
 
       <!-- Weekly/Monthly Stats Toggle -->
       <section class="grid grid-cols-2 gap-4">
         <div class="flex items-center justify-between col-span-2">
-          <div class="flex items-center gap-2">
-            <div class="text-sm text-gray-600">Show:</div>
-            <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
-            <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
-          </div>
-          <a routerLink="/calendar" class="text-blue-600 text-xs font-semibold flex items-center gap-1">
-            <mat-icon class="text-xs">calendar_month</mat-icon>
-            Calendar
-          </a>
+        <div class="flex items-center gap-2">
+          <div class="text-sm text-gray-600">Show:</div>
+          <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
+          <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
+        </div>
         </div>
 
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -143,7 +139,10 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workou
 
       <!-- Recent Activity -->
       <section>
-        <h2 class="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
+        <div class="flex justify-between items-end mb-4">
+          <h2 class="text-lg font-bold text-gray-900">Recent Activity</h2>
+          <a routerLink="/history" class="text-blue-600 text-sm font-medium">View All</a>
+        </div>
         <div class="space-y-4">
           @for (session of recentSessions(); track session.id) {
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
