@@ -162,3 +162,7 @@ env.local.js
 .turbo/
 .cache/
 .parcel-cache/
+
+# Agentic SWE
+.opencode
+.ocx
