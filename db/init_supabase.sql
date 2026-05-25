@@ -2,17 +2,8 @@
 
 create extension if not exists pgcrypto;
 
--- Dev reset (optional): drop app tables so re-running this file is idempotent.
--- Note: this does NOT delete auth.users. Uncomment the line below if you want to wipe users in dev.
--- delete from auth.users;
-drop table if exists workout_session_sets cascade;
-drop table if exists workout_session_exercises cascade;
-drop table if exists workout_sessions cascade;
-drop table if exists workout_plan_exercises cascade;
-drop table if exists workout_plan_shares cascade;
-drop table if exists workout_plans cascade;
-drop table if exists exercise_shares cascade;
-drop table if exists exercises cascade;
+-- All tables use CREATE TABLE IF NOT EXISTS (safe to re-run).
+-- auth.users is not modified by this script.
 
 -- Drop storage policies before dropping helper functions they reference.
 drop policy if exists "exercise_images_select" on storage.objects;
@@ -27,8 +18,6 @@ drop policy if exists "avatars_insert" on storage.objects;
 drop policy if exists "avatars_update" on storage.objects;
 drop policy if exists "avatars_delete" on storage.objects;
 
-drop function if exists is_admin();
-drop function if exists touch_updated_at();
 drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
 drop function if exists get_my_stats_periods();
@@ -58,6 +47,21 @@ create table if not exists profiles (
   is_admin boolean not null default false
 );
 
+-- Forward-safe migrations for profiles
+alter table profiles
+  add column if not exists email text,
+  add column if not exists display_name text,
+  add column if not exists avatar_url text,
+  add column if not exists fun_fact text,
+  add column if not exists height int,
+  add column if not exists weight int,
+  add column if not exists age int,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists approved boolean not null default false,
+  add column if not exists is_admin boolean not null default false,
+  add column if not exists last_seen timestamptz;
+
 -- Exercise master data:
 -- - default: admin-managed and visible to all users
 -- - private/shared: user-created exercises
@@ -76,6 +80,71 @@ create table if not exists exercises (
   updated_at timestamptz not null default now()
 );
 
+-- Forward-safe migrations for exercises
+alter table exercises
+  add column if not exists created_by uuid,
+  add column if not exists name text,
+  add column if not exists description text,
+  add column if not exists image_url text,
+  add column if not exists muscle_group text,
+  add column if not exists exercise_type text not null default 'general',
+  add column if not exists met_value numeric(5, 2) not null default 5.00,
+  add column if not exists visibility text not null default 'default',
+  add column if not exists is_active boolean not null default true,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+-- Default exercises (idempotent upsert)
+insert into exercises (id, created_by, name, description, image_url, muscle_group, exercise_type, met_value, visibility, is_active)
+values
+  (
+    '11111111-1111-1111-1111-111111111111',
+    null,
+    'Burpee',
+    'Full-body conditioning move that builds power and stamina.',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=burpee',
+    'Full Body',
+    'full body',
+    8.0,
+    'default',
+    true
+  ),
+  (
+    '11111111-1111-1111-1111-111111111113',
+    null,
+    'Outdoor Run',
+    'Running or jogging outdoors for cardiovascular fitness.',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=outdoor-run',
+    'Full Body',
+    'cardio',
+    9.8,
+    'default',
+    true
+  ),
+  (
+    '11111111-1111-1111-1111-111111111114',
+    null,
+    'Cycling',
+    'Outdoor or indoor cycling for endurance and cardio.',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=cycling',
+    'Full Body',
+    'cardio',
+    7.5,
+    'default',
+    true
+  )
+on conflict (id) do update
+set
+  name = excluded.name,
+  description = excluded.description,
+  image_url = excluded.image_url,
+  muscle_group = excluded.muscle_group,
+  exercise_type = excluded.exercise_type,
+  met_value = excluded.met_value,
+  visibility = 'default',
+  is_active = true,
+  updated_at = now();
+
 create table if not exists exercise_shares (
   id uuid primary key default gen_random_uuid(),
   exercise_id uuid not null references exercises(id) on delete cascade,
@@ -85,12 +154,19 @@ create table if not exists exercise_shares (
   unique (exercise_id, shared_with_user_id)
 );
 
+-- Forward-safe migrations for exercise_shares
+alter table exercise_shares
+  add column if not exists exercise_id uuid,
+  add column if not exists shared_with_user_id uuid,
+  add column if not exists created_by uuid,
+  add column if not exists created_at timestamptz not null default now();
+
 -- Workout plan definitions (per user, optional sharing)
 create table if not exists workout_plans (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references profiles(id) on delete cascade,
   name text not null,
-  category text check (category in ('upper body', 'lower body', 'core', 'cardio', 'mobility')),
+  category text check (category in ('upper body', 'lower body', 'core', 'cardio', 'mobility', 'full body')),
   description text,
   visibility text not null default 'private' check (visibility in ('private', 'shared', 'public')),
   is_active boolean not null default false,
@@ -98,6 +174,25 @@ create table if not exists workout_plans (
   updated_at timestamptz not null default now(),
   last_performed_at timestamptz
 );
+
+-- Forward-safe migrations for workout_plans
+alter table workout_plans
+  add column if not exists owner_id uuid,
+  add column if not exists name text,
+  add column if not exists category text,
+  add column if not exists description text,
+  add column if not exists visibility text not null default 'private',
+  add column if not exists is_active boolean not null default false,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists last_performed_at timestamptz;
+
+alter table workout_plans
+  drop constraint if exists workout_plans_category_check;
+
+alter table workout_plans
+  add constraint workout_plans_category_check
+  check (category in ('upper body', 'lower body', 'core', 'cardio', 'mobility', 'full body'));
 
 create table if not exists workout_plan_shares (
   id uuid primary key default gen_random_uuid(),
@@ -115,21 +210,19 @@ create table if not exists workout_plan_shares (
   unique (plan_id, shared_with_user_id)
 );
 
--- Forward-safe migrations for existing databases.
+-- Forward-safe migrations for workout_plan_shares
 alter table workout_plan_shares
-  add column if not exists status text not null default 'pending';
-alter table workout_plan_shares
-  add column if not exists accepted_at timestamptz;
-alter table workout_plan_shares
-  add column if not exists declined_at timestamptz;
-alter table workout_plan_shares
-  add column if not exists plan_name_snapshot text;
-alter table workout_plan_shares
-  add column if not exists plan_description_snapshot text;
-alter table workout_plan_shares
-  add column if not exists shared_by_email text;
-alter table workout_plan_shares
-  add column if not exists shared_by_name text;
+  add column if not exists plan_id uuid,
+  add column if not exists shared_with_user_id uuid,
+  add column if not exists created_by uuid,
+  add column if not exists status text not null default 'pending',
+  add column if not exists accepted_at timestamptz,
+  add column if not exists declined_at timestamptz,
+  add column if not exists plan_name_snapshot text,
+  add column if not exists plan_description_snapshot text,
+  add column if not exists shared_by_email text,
+  add column if not exists shared_by_name text,
+  add column if not exists created_at timestamptz not null default now();
 
 do $$
 begin
@@ -167,6 +260,18 @@ create table if not exists workout_plan_exercises (
   unique (plan_id, position)
 );
 
+-- Forward-safe migrations for workout_plan_exercises
+alter table workout_plan_exercises
+  add column if not exists plan_id uuid,
+  add column if not exists exercise_id uuid,
+  add column if not exists position int,
+  add column if not exists target_sets int,
+  add column if not exists target_reps int,
+  add column if not exists target_distance_meters int,
+  add column if not exists target_duration_seconds int,
+  add column if not exists notes text,
+  add column if not exists created_at timestamptz not null default now();
+
 -- Completed workout data and detailed exercise/set results
 create table if not exists workout_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -179,6 +284,17 @@ create table if not exists workout_sessions (
   notes text,
   created_at timestamptz not null default now()
 );
+
+-- Forward-safe migrations for workout_sessions
+alter table workout_sessions
+  add column if not exists owner_id uuid,
+  add column if not exists plan_id uuid,
+  add column if not exists started_at timestamptz,
+  add column if not exists finished_at timestamptz,
+  add column if not exists duration_seconds int not null default 0,
+  add column if not exists total_calories numeric(10, 2) not null default 0,
+  add column if not exists notes text,
+  add column if not exists created_at timestamptz not null default now();
 
 create table if not exists workout_session_exercises (
   id uuid primary key default gen_random_uuid(),
@@ -199,6 +315,22 @@ create table if not exists workout_session_exercises (
   unique (session_id, position)
 );
 
+-- Forward-safe migrations for workout_session_exercises
+alter table workout_session_exercises
+  add column if not exists session_id uuid,
+  add column if not exists exercise_id uuid,
+  add column if not exists exercise_name_snapshot text,
+  add column if not exists exercise_type_snapshot text,
+  add column if not exists met_value_snapshot numeric(5, 2) not null default 5.00,
+  add column if not exists position int not null default 0,
+  add column if not exists duration_seconds int not null default 0,
+  add column if not exists calories_burned numeric(10, 2) not null default 0,
+  add column if not exists distance_meters int not null default 0,
+  add column if not exists avg_pace_per_km_seconds int not null default 0,
+  add column if not exists max_pace_per_km_seconds int not null default 0,
+  add column if not exists avg_speed_kmh numeric(5, 2) not null default 0,
+  add column if not exists created_at timestamptz not null default now();
+
 create table if not exists workout_session_sets (
   id uuid primary key default gen_random_uuid(),
   session_exercise_id uuid not null references workout_session_exercises(id) on delete cascade,
@@ -209,6 +341,15 @@ create table if not exists workout_session_sets (
   created_at timestamptz not null default now(),
   unique (session_exercise_id, set_order)
 );
+
+-- Forward-safe migrations for workout_session_sets
+alter table workout_session_sets
+  add column if not exists session_exercise_id uuid,
+  add column if not exists set_order int,
+  add column if not exists reps int,
+  add column if not exists weight numeric(8, 2),
+  add column if not exists completed boolean not null default false,
+  add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_profiles_approved on profiles (approved);
 create index if not exists idx_profiles_admin on profiles (is_admin);
@@ -229,6 +370,8 @@ end;
 $$;
 
 drop trigger if exists trg_profiles_updated_at on profiles;
+drop trigger if exists trg_exercises_updated_at on exercises;
+drop trigger if exists trg_workout_plans_updated_at on workout_plans;
 
 create trigger trg_profiles_updated_at
 before update on profiles
@@ -763,7 +906,7 @@ begin
       'Full-body conditioning move that builds power and stamina.',
       'https://api.dicebear.com/7.x/shapes/svg?seed=burpee',
       'Full Body',
-      'cardio',
+      'full body',
       8.0,
       'default',
       true
@@ -822,11 +965,12 @@ begin
     where p.owner_id = p_owner_id
       and p.name = 'Beginner Full Body A'
   ) then
-    insert into workout_plans (owner_id, name, description, visibility, is_active)
+    insert into workout_plans (owner_id, name, description, category, visibility, is_active)
     values (
       p_owner_id,
       'Beginner Full Body A',
       'Intro full-body workout focused on squat, push, and core fundamentals.',
+      'full body',
       'private',
       false
     )
@@ -847,11 +991,12 @@ begin
     where p.owner_id = p_owner_id
       and p.name = 'Beginner Full Body B'
   ) then
-    insert into workout_plans (owner_id, name, description, visibility, is_active)
+    insert into workout_plans (owner_id, name, description, category, visibility, is_active)
     values (
       p_owner_id,
       'Beginner Full Body B',
       'Beginner progression day with balanced lower body, pull, and core work.',
+      'full body',
       'private',
       false
     )

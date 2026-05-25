@@ -15,7 +15,11 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
     <div class="p-6 space-y-6">
       <header class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-gray-900">Default Workout Plans</h1>
-        <a routerLink="/admin" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm">Back</a>
+        <div class="flex items-center gap-2">
+          <span *ngIf="planMessage" class="text-sm text-gray-500">{{ planMessage }}</span>
+          <button (click)="backupData()" class="px-3 py-2 rounded-xl bg-yellow-100 text-yellow-800 text-sm">Backup</button>
+          <a routerLink="/admin" class="px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-sm">Back</a>
+        </div>
       </header>
 
       <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
@@ -242,6 +246,33 @@ export class AdminWorkoutsComponent {
     };
     this.selectedExercises.set([]);
     this.planMessage = '';
+  }
+
+  async backupData() {
+    this.planMessage = 'Preparing backup...';
+    try {
+      await this.workoutService.refresh();
+      const payload = {
+        exercises: this.workoutService.exercises(),
+        plans: this.workoutService.plans(),
+        sessions: this.workoutService.sessions ? this.workoutService.sessions() : []
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/:/g, '-');
+      a.href = url;
+      a.download = `kantn-backup-${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      this.planMessage = 'Backup prepared. Download started.';
+    } catch (err) {
+      console.error(err);
+      this.planMessage = 'Failed to prepare backup.';
+    }
   }
 
   private async loadDefaultPlans() {

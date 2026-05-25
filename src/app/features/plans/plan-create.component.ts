@@ -39,6 +39,7 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
             <option value="core">Core</option>
             <option value="cardio">Cardio</option>
             <option value="mobility">Mobility</option>
+            <option value="full body">Full Body</option>
           </select>
         </div>
 

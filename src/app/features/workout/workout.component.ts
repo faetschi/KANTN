@@ -7,6 +7,7 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { CardioExerciseData, Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } from '../../core/domain/workout-types';
+import { computeCardioMetrics } from '../../core/domain/cardio-utils';
 
 @Component({
   selector: 'app-workout',
@@ -21,11 +22,26 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } fr
         </button>
         <div class="text-center">
           <h2 class="font-bold text-gray-900">{{ workoutTitle() }}</h2>
-          <p class="text-xs text-blue-600 font-mono">{{ formatTime(elapsedTime()) }}</p>
+          @if (paused()) {
+            <p class="text-xs text-yellow-600 font-mono">PAUSED — {{ formatTime(elapsedTime()) }}</p>
+          } @else {
+            <p class="text-xs text-blue-600 font-mono">{{ formatTime(elapsedTime()) }}</p>
+          }
         </div>
-        <button (click)="finishWorkout()" class="text-blue-600 font-bold text-sm">
-          Finish
-        </button>
+        <div class="flex items-center gap-2">
+          <button (click)="togglePause()"
+                  class="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                  [class.bg-yellow-50]="paused()"
+                  [class.text-yellow-600]="paused()"
+                  [class.text-gray-400]="!paused()"
+                  [class.hover:bg-gray-100]="!paused()"
+                  [title]="paused() ? 'Resume' : 'Pause'">
+            <mat-icon>{{ paused() ? 'play_arrow' : 'pause' }}</mat-icon>
+          </button>
+          <button (click)="finishWorkout()" class="text-blue-600 font-bold text-sm">
+            Finish
+          </button>
+        </div>
       </header>
 
       <!-- Content -->
@@ -224,14 +240,16 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } fr
       @if (showExitOptionsModal()) {
         <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
-            <div>
+            <div class="flex items-center justify-between">
               <h3 class="text-base font-bold text-gray-900">Exit workout</h3>
-              <p class="text-sm text-gray-500 mt-1">Do you want to pause and exit (resume later), cancel the workout, or continue?</p>
+              <button type="button" (click)="dismissExitOptionsModal()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
             </div>
+            <p class="text-sm text-gray-500 mt-1">Do you want to pause and exit (resume later) or cancel the workout?</p>
 
             <div class="flex items-center justify-end gap-2">
-              <button type="button" (click)="dismissExitOptionsModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Continue</button>
-              <button type="button" (click)="exitWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Pause & Exit</button>
+              <button type="button" (click)="exitWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Pause</button>
               <button type="button" (click)="cancelWorkout()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-red-600">Cancel Workout</button>
             </div>
           </div>
@@ -355,6 +373,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   
   startTime = new Date();
   elapsedTime = signal(0);
+  paused = signal(false);
   timerInterval: ReturnType<typeof setInterval> | undefined;
   saveErrorMessage = '';
   
@@ -492,9 +511,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
            data.set(ex.id, previousExerciseData.sets.map(s => ({ ...s, completed: false })));
         } else {
            data.set(ex.id, [
-            { reps: 10, weight: 0, completed: false },
-            { reps: 10, weight: 0, completed: false },
-            { reps: 10, weight: 0, completed: false }
+            { reps: 0, weight: 0, completed: false },
+            { reps: 0, weight: 0, completed: false },
+            { reps: 0, weight: 0, completed: false }
           ]);
         }
       });
@@ -545,7 +564,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     const exId = this.currentExercise()?.id;
     if (exId) {
       const sets = this.workoutData().get(exId) || [];
-      const lastSet = sets[sets.length - 1] || { reps: 10, weight: 0, completed: false };
+      const lastSet = sets[sets.length - 1] || { reps: 0, weight: 0, completed: false };
       
       sets.push({ ...lastSet, completed: false });
       this.workoutData.update(m => new Map(m.set(exId, sets)));
@@ -578,9 +597,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.workoutData.update(current => {
       const next = new Map(current);
       next.set(exercise.id, [
-        { reps: 10, weight: 0, completed: false },
-        { reps: 10, weight: 0, completed: false },
-        { reps: 10, weight: 0, completed: false },
+        { reps: 0, weight: 0, completed: false },
+        { reps: 0, weight: 0, completed: false },
+        { reps: 0, weight: 0, completed: false },
       ]);
       return next;
     });
@@ -613,6 +632,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   startTimer() {
     this.timerInterval = setInterval(() => {
+      if (this.paused()) return;
       this.elapsedTime.update(t => t + 1);
       if (this.isCardioExercise()) {
         this.updateCardioTime();
@@ -652,6 +672,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   isLastExercise() {
     return this.currentExerciseIndex() === (this.totalExercisesCount() || 0) - 1;
+  }
+
+  togglePause() {
+    this.paused.update(p => !p);
   }
 
   cancelWorkout() {
@@ -713,14 +737,29 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       const isCardio = exercise?.exerciseType === 'cardio';
       const cardioData = this.cardioExerciseData().get(exerciseId);
 
+      if (isCardio) {
+        const metrics = computeCardioMetrics(
+          cardioData?.distanceMeters || 0,
+          cardioData?.elapsedSeconds || 0,
+          cardioData?.avgPaceSecondsPerKm,
+          cardioData?.maxPaceSecondsPerKm,
+          cardioData?.avgSpeedKmh,
+        );
+        return {
+          exerciseId,
+          sets: [] as WorkoutSet[],
+          ...metrics,
+        };
+      }
+
       return {
         exerciseId,
-        sets: isCardio ? [] : sets,
-        distanceMeters: cardioData?.distanceMeters || 0,
-        avgPacePerKmSeconds: cardioData?.avgPaceSecondsPerKm || 0,
-        maxPacePerKmSeconds: cardioData?.maxPaceSecondsPerKm || 0,
-        avgSpeedKmh: cardioData?.avgSpeedKmh || 0,
-        exerciseDurationSeconds: cardioData?.elapsedSeconds || 0,
+        sets,
+        distanceMeters: 0,
+        avgPacePerKmSeconds: 0,
+        maxPacePerKmSeconds: 0,
+        avgSpeedKmh: 0,
+        exerciseDurationSeconds: 0,
       };
     });
 
@@ -730,14 +769,17 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     for (const ex of allExercises) {
       if (ex.exerciseType === 'cardio' && !exercises.find(e => e.exerciseId === ex.id)) {
         const cardioData = this.cardioExerciseData().get(ex.id);
+        const metrics = computeCardioMetrics(
+          cardioData?.distanceMeters || 0,
+          cardioData?.elapsedSeconds || 0,
+          cardioData?.avgPaceSecondsPerKm,
+          cardioData?.maxPaceSecondsPerKm,
+          cardioData?.avgSpeedKmh,
+        );
         exercises.push({
           exerciseId: ex.id,
           sets: [],
-          distanceMeters: cardioData?.distanceMeters || 0,
-          avgPacePerKmSeconds: cardioData?.avgPaceSecondsPerKm || 0,
-          maxPacePerKmSeconds: cardioData?.maxPaceSecondsPerKm || 0,
-          avgSpeedKmh: cardioData?.avgSpeedKmh || 0,
-          exerciseDurationSeconds: cardioData?.elapsedSeconds || 0,
+          ...metrics,
         });
       }
     }
@@ -965,7 +1007,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   confirmManualDistance() {
     const exerciseId = this.currentExercise()?.id;
     if (!exerciseId) return;
-    const distance = Math.round(parseFloat(this.manualDistanceInput) * 1000);
+    const distance = Math.round(parseFloat(this.manualDistanceInput));
     if (!isNaN(distance) && distance > 0) {
       const data = this.cardioExerciseData().get(exerciseId);
       if (data) {
@@ -992,7 +1034,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       return;
     }
     const newData = new Map(this.cardioExerciseData());
-    newData.set(exerciseId, { ...data, elapsedSeconds: this.elapsedTime() });
+    newData.set(exerciseId, { ...data, elapsedSeconds: data.elapsedSeconds + 1 });
     this.cardioExerciseData.set(newData);
   }
 

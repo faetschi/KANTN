@@ -36,6 +36,43 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(2)}km`;
 }
 
+export interface CardioMetrics {
+  distanceMeters: number;
+  avgPacePerKmSeconds: number;
+  maxPacePerKmSeconds: number;
+  avgSpeedKmh: number;
+  exerciseDurationSeconds: number;
+}
+
+export function computeCardioMetrics(
+  distanceMeters: number,
+  elapsedSeconds: number,
+  avgPaceSecondsPerKm: number | undefined,
+  maxPaceSecondsPerKm: number | undefined,
+  avgSpeedKmh: number | undefined,
+): CardioMetrics {
+  const safeDistance = Math.max(0, distanceMeters);
+  const safeDuration = Math.max(0, elapsedSeconds);
+
+  let pace = avgPaceSecondsPerKm || 0;
+  let speed = avgSpeedKmh || 0;
+
+  if (pace === 0 && safeDistance > 0 && safeDuration > 0) {
+    pace = calculatePace(safeDuration, safeDistance);
+  }
+  if (speed === 0 && safeDistance > 0 && safeDuration > 0) {
+    speed = calculateSpeed(safeDuration, safeDistance);
+  }
+
+  return {
+    distanceMeters: safeDistance,
+    avgPacePerKmSeconds: pace,
+    maxPacePerKmSeconds: maxPaceSecondsPerKm || 0,
+    avgSpeedKmh: speed,
+    exerciseDurationSeconds: safeDuration,
+  };
+}
+
 export function buildCardioSessionPayload(
   session: WorkoutSession,
   resolveExerciseById: (exerciseId: string) => Exercise | undefined,

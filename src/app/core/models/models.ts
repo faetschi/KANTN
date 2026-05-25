@@ -7,6 +7,7 @@ export interface User {
   age: number;
   avatarUrl?: string;
   funFact?: string;
+  lastSeen?: string;
 }
 
 export interface Exercise {
@@ -31,6 +32,7 @@ export interface Set {
 export interface ExerciseSession {
   exerciseId: string;
   sets: Set[];
+  exerciseTypeSnapshot?: string;
   notes?: string;
   // Cardio-specific fields
   distanceMeters?: number;
@@ -55,7 +57,7 @@ export interface WorkoutPlan {
   id: string;
   name: string;
   description: string;
-  category?: 'upper body' | 'lower body' | 'core' | 'cardio' | 'mobility';
+  category?: 'upper body' | 'lower body' | 'core' | 'cardio' | 'mobility' | 'full body';
   workoutPlanType?: string;
   exercises: Exercise[];
   schedule?: string[]; // e.g., ['Monday', 'Wednesday', 'Friday']

@@ -1,6 +1,6 @@
 import { Exercise, WorkoutPlan } from '../models/models';
 
-export type WorkoutExerciseType = 'strength' | 'cardio' | 'mobility' | 'core' | 'mixed' | 'general';
+export type WorkoutExerciseType = 'strength' | 'cardio' | 'mobility' | 'core' | 'full body' | 'mixed' | 'general' | 'hiit';
 
 export interface WorkoutTypeVisual {
   label: string;
@@ -39,6 +39,13 @@ const TYPE_VISUALS: Record<WorkoutExerciseType, WorkoutTypeVisual> = {
     textColor: '#5b21b6',
     borderColor: '#ddd6fe',
   },
+  'full body': {
+    label: 'Full Body',
+    color: '#0d9488',
+    bgColor: '#ccfbf1',
+    textColor: '#115e59',
+    borderColor: '#99f6e4',
+  },
   mixed: {
     label: 'Mixed',
     color: '#4f46e5',
@@ -53,11 +60,18 @@ const TYPE_VISUALS: Record<WorkoutExerciseType, WorkoutTypeVisual> = {
     textColor: '#374151',
     borderColor: '#e5e7eb',
   },
+  hiit: {
+    label: 'HIIT',
+    color: '#f59e0b',
+    bgColor: '#fef3c7',
+    textColor: '#92400e',
+    borderColor: '#fde68a',
+  },
 };
 
 export function normalizeWorkoutType(type: string | null | undefined): WorkoutExerciseType {
   const normalized = (type || '').trim().toLowerCase();
-  if (normalized === 'strength' || normalized === 'cardio' || normalized === 'mobility' || normalized === 'core') {
+  if (normalized === 'strength' || normalized === 'cardio' || normalized === 'mobility' || normalized === 'core' || normalized === 'full body' || normalized === 'hiit') {
     return normalized;
   }
   if (normalized === 'mixed') return 'mixed';
@@ -107,4 +121,29 @@ export function deriveWorkoutPlanType(exercises: Exercise[]): WorkoutExerciseTyp
 export function getWorkoutPlanType(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType'> | null | undefined): WorkoutExerciseType {
   if (!plan) return 'general';
   return normalizeWorkoutType(plan.workoutPlanType || deriveWorkoutPlanType(plan.exercises));
+}
+
+export function getWorkoutTypeEmoji(type: string | null | undefined): string | null {
+  const normalized = (type || '').trim().toLowerCase();
+  if (normalized === 'cardio') return '🚴';
+  if (normalized === 'strength') return '🏋️';
+  if (normalized === 'mobility') return '🧘';
+  if (normalized === 'hiit') return '⚡';
+  return null;
+}
+
+export function getWorkoutPlanEmoji(exercises: Exercise[]): string | null {
+  if (!exercises.length) return null;
+  return getWorkoutTypeEmoji(deriveWorkoutPlanType(exercises));
+}
+
+export function getWorkoutPlanAction(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType'> | null | undefined): {
+  actionType: WorkoutExerciseType;
+  emoji: string | null;
+} {
+  const actionType = getWorkoutPlanType(plan);
+  return {
+    actionType,
+    emoji: getWorkoutTypeEmoji(actionType),
+  };
 }

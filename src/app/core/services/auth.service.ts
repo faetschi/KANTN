@@ -137,7 +137,7 @@ export class AuthService {
 
     const { data: profile, error: profileError } = await client
       .from('profiles')
-      .select('id, email, display_name, avatar_url, fun_fact, height, weight, age, is_admin')
+      .select('id, email, display_name, avatar_url, fun_fact, height, weight, age, is_admin, last_seen')
       .eq('id', user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -152,6 +152,7 @@ export class AuthService {
       avatarUrl: profile?.avatar_url || generateInitialsAvatar(profile?.display_name || user.user_metadata?.['name'] || user.email || 'User'),
       funFact: profile?.fun_fact || undefined,
       is_admin: !!profile?.is_admin,
+      lastSeen: profile?.last_seen || undefined,
     };
 
     this.currentUserSignal.set(mapped);
@@ -211,6 +212,12 @@ export class AuthService {
     }
   }
 
+  updateLastSeen(iso: string) {
+    const current = this.currentUserSignal();
+    if (!current) return;
+    this.currentUserSignal.set({ ...current, lastSeen: iso });
+  }
+
   async devLogin(opts?: { isAdmin?: boolean }) {
     const cryptoApi: CryptoWithUUID | undefined = typeof crypto !== 'undefined' ? (crypto as CryptoWithUUID) : undefined;
     const id = cryptoApi?.randomUUID ? cryptoApi.randomUUID() : `dev-${Date.now()}`;
@@ -223,6 +230,7 @@ export class AuthService {
       age: 30,
       avatarUrl: generateInitialsAvatar('Dev User'),
       is_admin: !!opts?.isAdmin,
+      lastSeen: new Date().toISOString(),
     };
     this.currentUserSignal.set(fake);
 

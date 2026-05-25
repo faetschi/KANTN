@@ -63,7 +63,7 @@ import { WorkoutSession } from '../../core/models/models';
             <article class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
               <h3 class="font-semibold text-gray-900 mb-3">{{ getExerciseName(workoutSession, exerciseSession.exerciseId, $index) }}</h3>
 
-              @if (isCardioExercise(exerciseSession.exerciseId)) {
+              @if (isCardioExercise(exerciseSession.exerciseId, exerciseSession)) {
                 <div class="space-y-2 bg-orange-50 rounded-xl p-3">
                   <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -164,9 +164,9 @@ export class HistoryDetailComponent {
     return next?.id || null;
   });
 
-  isCardioExercise(exerciseId: string): boolean {
+  isCardioExercise(exerciseId: string, sessionEx?: { exerciseTypeSnapshot?: string }): boolean {
     const exercise = this.workoutService.getExerciseById(exerciseId);
-    return exercise?.exerciseType === 'cardio';
+    return exercise?.exerciseType === 'cardio' || sessionEx?.exerciseTypeSnapshot === 'cardio';
   }
 
   getPlanName(planId: string) {

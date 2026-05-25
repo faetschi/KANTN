@@ -49,7 +49,7 @@ export function buildPersistedSessionPayload(
     const exercise = resolveExerciseById(ex.exerciseId);
     const isCardio = exercise?.exerciseType === 'cardio';
     const hasCompletedSets = ex.sets.some(s => s.completed);
-    return isCardio || hasCompletedSets || ex.sets.length > 0;
+    return isCardio || hasCompletedSets;
   });
 
   // Separate cardio and strength exercises for duration calculation

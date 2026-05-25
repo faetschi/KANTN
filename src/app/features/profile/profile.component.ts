@@ -6,33 +6,42 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { StatsService } from '../../core/services/stats.service';
 import { SupabaseService } from '../../core/services/supabase.service';
+import { PresenceService } from '../../core/services/presence.service';
 import { optimizeImageForUpload } from '../../core/domain/image-upload-domain';
 import { Router } from '@angular/router';
 import { NotificationService } from '../../core/services/notification.service';
-import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
+import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-badge.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule, RouterLink],
+  imports: [CommonModule, MatIconModule, FormsModule, RouterLink, UserAvatarBadgeComponent],
   template: `
-    <div class="p-6 space-y-8">
+    <div class="p-4 sm:p-6 space-y-6 sm:space-y-8">
       <header class="flex justify-between items-center">
         <h1 class="text-2xl font-bold text-gray-900">Profile</h1>
         <button (click)="logout()" class="text-red-500 font-medium text-sm">Log Out</button>
       </header>
 
       <!-- Profile Card -->
-      <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
-        <button type="button" (click)="openAvatarModal()" class="w-24 h-24 rounded-full bg-gray-200 overflow-hidden mb-4 ring-4 ring-gray-50">
-          <img [src]="user()?.avatarUrl || form.avatarUrl || generateInitialsAvatar(user()?.name || 'User')" (error)="onAvatarError($event)" class="w-full h-full object-cover">
-        </button>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
+        <app-user-avatar-badge
+          class="mb-3"
+          [avatarUrl]="user()?.avatarUrl || form.avatarUrl"
+          [displayName]="user()?.name || 'User'"
+          [isOnline]="presenceService.isOnline()"
+          [lastSeen]="user()?.lastSeen"
+          [showLastSeen]="true"
+          size="lg"
+          [enableClick]="true"
+          (avatarClick)="openAvatarModal()"
+        ></app-user-avatar-badge>
         <div class="relative w-full flex items-center justify-center">
           <input
             #nameInput
             [(ngModel)]="form.name"
             (keydown.enter)="applyInlineEdit()"
-            (blur)="applyInlineEdit()"
+            (blur)="onFieldBlur()"
             (click)="beginInlineEdit('name', nameInput)"
             name="inlineName"
             [readonly]="activeField !== 'name'"
@@ -40,52 +49,58 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
             [class.bg-gray-50]="activeField === 'name'"
             [class.cursor-pointer]="activeField !== 'name'"
             [class.cursor-text]="activeField === 'name'"
-            class="text-xl font-bold text-gray-900 border-0 rounded-xl px-2 py-1 text-center w-52 focus:outline-none focus:ring-0"
+            class="text-lg font-bold text-gray-900 border-0 rounded-xl px-2 py-1 text-center max-w-44 focus:outline-none focus:ring-0"
           />
           <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <button *ngIf="activeField === 'name'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
               <mat-icon class="text-base">check</mat-icon>
             </button>
-            <button *ngIf="activeField === 'name'" type="button" (click)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
+            <button *ngIf="activeField === 'name'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
               <mat-icon class="text-base">close</mat-icon>
             </button>
           </div>
         </div>
         <p class="text-gray-500 text-sm">{{ user()?.email }}</p>
-        <div class="relative w-full flex items-center justify-center mt-2 mb-6 min-h-6">
-          <input
-            #funFactInput
-            [(ngModel)]="form.funFact"
-            (keydown.enter)="applyInlineEdit()"
-            (blur)="applyInlineEdit()"
-            (click)="beginInlineEdit('funFact', funFactInput)"
-            name="inlineFunFact"
-            [readonly]="activeField !== 'funFact'"
-            [class.bg-transparent]="activeField !== 'funFact'"
-            [class.bg-gray-50]="activeField === 'funFact'"
-            [class.cursor-pointer]="activeField !== 'funFact'"
-            [class.cursor-text]="activeField === 'funFact'"
-            class="text-sm text-gray-400 border-0 rounded-xl px-2 py-1 w-60 text-center focus:outline-none focus:ring-0"
-            placeholder="No fun fact yet"
-          />
+        <div class="relative w-full flex items-center justify-center mt-3 mb-3">
+          <div class="flex items-center justify-center gap-0">
+            <mat-icon *ngIf="activeField !== 'funFact' && form.funFact" class="text-sm text-yellow-400 w-auto h-auto">auto_awesome</mat-icon>
+            <input
+              #funFactInput
+              [(ngModel)]="form.funFact"
+              (keydown.enter)="applyInlineEdit()"
+              (blur)="onFieldBlur()"
+              (click)="beginInlineEdit('funFact', funFactInput)"
+              name="inlineFunFact"
+              [readonly]="activeField !== 'funFact'"
+              [class.text-sm]="activeField !== 'funFact'"
+              [class.font-semibold]="activeField !== 'funFact'"
+              [class.text-gray-900]="activeField !== 'funFact'"
+              [class.bg-transparent]="activeField !== 'funFact'"
+              [class.bg-gray-50]="activeField === 'funFact'"
+              [class.cursor-pointer]="activeField !== 'funFact'"
+              [class.cursor-text]="activeField === 'funFact'"
+              class="border-0 rounded-xl px-0.5 py-1 text-center focus:outline-none focus:ring-0 transition-all"
+              placeholder="No fun fact yet"
+            />
+          </div>
           <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <button *ngIf="activeField === 'funFact'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
               <mat-icon class="text-sm">check</mat-icon>
             </button>
-            <button *ngIf="activeField === 'funFact'" type="button" (click)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
+            <button *ngIf="activeField === 'funFact'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
               <mat-icon class="text-sm">close</mat-icon>
             </button>
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-8 w-full border-t border-gray-100 pt-6">
+        <div class="grid grid-cols-3 gap-4 w-full border-t border-gray-100 pt-4">
           <div>
             <div class="flex items-center justify-center gap-1">
               <input
                 #weightInput
                 [(ngModel)]="form.weight"
                 (keydown.enter)="applyInlineEdit()"
-                (blur)="applyInlineEdit()"
+                (blur)="onFieldBlur()"
                 (click)="beginInlineEdit('weight', weightInput)"
                 name="inlineWeight"
                 type="number"
@@ -96,17 +111,17 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
                 [class.bg-gray-50]="activeField === 'weight'"
                 [class.cursor-pointer]="activeField !== 'weight'"
                 [class.cursor-text]="activeField === 'weight'"
-                class="w-16 border-0 rounded-xl px-1 py-1 text-lg font-bold text-gray-900 text-right focus:outline-none focus:ring-0"
+                class="w-14 border-0 rounded-xl px-1 py-0.5 text-base font-bold text-gray-900 text-center focus:outline-none focus:ring-0"
               />
               <span class="text-xs font-normal text-gray-400">kg</span>
               <button *ngIf="activeField === 'weight'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
                 <mat-icon class="text-sm">check</mat-icon>
               </button>
-              <button *ngIf="activeField === 'weight'" type="button" (click)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
+              <button *ngIf="activeField === 'weight'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
                 <mat-icon class="text-sm">close</mat-icon>
               </button>
             </div>
-            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1">Weight</p>
+            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1 text-center">Weight</p>
           </div>
           <div>
             <div class="flex items-center justify-center gap-1">
@@ -114,7 +129,7 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
                 #heightInput
                 [(ngModel)]="form.height"
                 (keydown.enter)="applyInlineEdit()"
-                (blur)="applyInlineEdit()"
+                (blur)="onFieldBlur()"
                 (click)="beginInlineEdit('height', heightInput)"
                 name="inlineHeight"
                 type="number"
@@ -125,17 +140,17 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
                 [class.bg-gray-50]="activeField === 'height'"
                 [class.cursor-pointer]="activeField !== 'height'"
                 [class.cursor-text]="activeField === 'height'"
-                class="w-16 border-0 rounded-xl px-1 py-1 text-lg font-bold text-gray-900 text-right focus:outline-none focus:ring-0"
+                class="w-14 border-0 rounded-xl px-1 py-0.5 text-base font-bold text-gray-900 text-center focus:outline-none focus:ring-0"
               />
               <span class="text-xs font-normal text-gray-400">cm</span>
               <button *ngIf="activeField === 'height'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
                 <mat-icon class="text-sm">check</mat-icon>
               </button>
-              <button *ngIf="activeField === 'height'" type="button" (click)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
+              <button *ngIf="activeField === 'height'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
                 <mat-icon class="text-sm">close</mat-icon>
               </button>
             </div>
-            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1">Height</p>
+            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1 text-center">Height</p>
           </div>
           <div>
             <div class="flex items-center justify-center gap-1">
@@ -143,7 +158,7 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
                 #ageInput
                 [(ngModel)]="form.age"
                 (keydown.enter)="applyInlineEdit()"
-                (blur)="applyInlineEdit()"
+                (blur)="onFieldBlur()"
                 (click)="beginInlineEdit('age', ageInput)"
                 name="inlineAge"
                 type="number"
@@ -154,17 +169,17 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
                 [class.bg-gray-50]="activeField === 'age'"
                 [class.cursor-pointer]="activeField !== 'age'"
                 [class.cursor-text]="activeField === 'age'"
-                class="w-16 border-0 rounded-xl px-1 py-1 text-lg font-bold text-gray-900 text-right focus:outline-none focus:ring-0"
+                class="w-14 border-0 rounded-xl px-1 py-0.5 text-base font-bold text-gray-900 text-center focus:outline-none focus:ring-0"
               />
               <span class="text-xs font-normal text-gray-400">yo</span>
               <button *ngIf="activeField === 'age'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
                 <mat-icon class="text-sm">check</mat-icon>
               </button>
-              <button *ngIf="activeField === 'age'" type="button" (click)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
+              <button *ngIf="activeField === 'age'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
                 <mat-icon class="text-sm">close</mat-icon>
               </button>
             </div>
-            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1">Age</p>
+            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1 text-center">Age</p>
           </div>
         </div>
       </div>
@@ -179,7 +194,7 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
           </div>
 
           <div class="flex flex-col items-center gap-3">
-            <img [src]="form.avatarUrl || user()?.avatarUrl || generateInitialsAvatar(user()?.name || 'User')" (error)="onAvatarError($event)" class="w-24 h-24 rounded-full object-cover bg-gray-100" />
+            <img [src]="form.avatarUrl || user()?.avatarUrl" class="w-24 h-24 rounded-full object-cover bg-gray-100" />
             <input #avatarUploadInput type="file" accept="image/*" (change)="uploadAvatar($event)" class="hidden" />
             <button type="button" [disabled]="avatarUploading" (click)="avatarUploadInput.click()" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl w-full disabled:opacity-70">
               Upload Photo
@@ -268,17 +283,11 @@ export class ProfileComponent {
   authService = inject(AuthService);
   statsService = inject(StatsService);
   supabase = inject(SupabaseService);
+  presenceService = inject(PresenceService);
   notifications = inject(NotificationService);
   router = inject(Router);
   cdr = inject(ChangeDetectorRef);
   user = this.authService.currentUser;
-  generateInitialsAvatar = generateInitialsAvatar;
-
-  onAvatarError(event: Event) {
-    const img = event.target as HTMLImageElement;
-    img.src = generateInitialsAvatar(this.user()?.name || 'User');
-  }
-
   activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | null = null;
   avatarModalOpen = false;
   avatarUploading = false;
@@ -343,6 +352,14 @@ export class ProfileComponent {
     if (inputEl) {
       setTimeout(() => inputEl.focus());
     }
+  }
+
+  onFieldBlur() {
+    setTimeout(() => {
+      if (this.activeField) {
+        this.applyInlineEdit();
+      }
+    });
   }
 
   private validateActiveField(): string | null {

@@ -177,7 +177,7 @@ describe('Cardio Unit Tests', () => {
     });
 
     it('calculates calories for outdoor run (MET 9.8, 70kg, 30min)', () => {
-      const calories = calcCalories(70, 9.8, 1800);
+      const calories = calcCalories(9.8, 1800, 70);
       expect(calories).toBeCloseTo(360.15, 1);
     });
 
@@ -447,6 +447,11 @@ describe('Cardio Integration Tests', () => {
         exerciseType: 'cardio',
         metValue: 9.8,
       });
+      const inProgress = vi.fn().mockReturnValue(null);
+      const setInProgress = vi.fn();
+      const clearInProgress = vi.fn();
+      const markPlanStartedLocally = vi.fn();
+      const markPlanCompletedLocally = vi.fn();
 
       const plan = {
         id: 'cardio-plan-1',
@@ -476,6 +481,11 @@ describe('Cardio Integration Tests', () => {
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
               addSession,
               getExerciseById,
+              inProgress,
+              setInProgress,
+              clearInProgress,
+              markPlanStartedLocally,
+              markPlanCompletedLocally,
             },
           },
           { provide: Router, useValue: { navigate } },
@@ -527,6 +537,11 @@ describe('Cardio Integration Tests', () => {
     it('persists both strength and cardio exercises correctly', async () => {
       const addSession = vi.fn().mockResolvedValue(true);
       const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+      const setInProgress = vi.fn();
+      const clearInProgress = vi.fn();
+      const markPlanStartedLocally = vi.fn();
+      const markPlanCompletedLocally = vi.fn();
 
       const cardioExercise: Exercise = {
         id: 'cardio-ex-1',
@@ -568,6 +583,11 @@ describe('Cardio Integration Tests', () => {
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
               addSession,
               getExerciseById,
+              inProgress,
+              setInProgress,
+              clearInProgress,
+              markPlanStartedLocally,
+              markPlanCompletedLocally,
             },
           },
           { provide: Router, useValue: { navigate } },
@@ -625,6 +645,9 @@ describe('Cardio Integration Tests', () => {
       const navigate = vi.fn();
       const clearInProgress = vi.fn();
       const inProgressFn = vi.fn().mockReturnValue(null);
+      const setInProgress = vi.fn();
+      const markPlanStartedLocally = vi.fn();
+      const markPlanCompletedLocally = vi.fn();
 
       const cardioExercise: Exercise = {
         id: 'cardio-ex-1',
@@ -654,12 +677,13 @@ describe('Cardio Integration Tests', () => {
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
               addSession,
               getExerciseById: vi.fn().mockReturnValue(cardioExercise),
-              inProgress: inProgressFn,
-              clearInProgress,
-              setInProgress: vi.fn(),
-              markPlanStartedLocally: vi.fn(),
+                inProgress: inProgressFn,
+                clearInProgress,
+                setInProgress,
+                markPlanStartedLocally,
+                markPlanCompletedLocally,
+              },
             },
-          },
           { provide: Router, useValue: { navigate } },
           {
             provide: ActivatedRoute,

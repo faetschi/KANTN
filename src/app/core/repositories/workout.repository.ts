@@ -61,6 +61,7 @@ interface WorkoutSessionExerciseRow {
   id: string;
   session_id: string;
   exercise_id: string | null;
+  exercise_type_snapshot: string | null;
   position: number;
   distance_meters: number | null;
   avg_pace_per_km_seconds: number | null;
@@ -181,6 +182,7 @@ export class WorkoutRepository {
         caloriesBurned: Number(row.total_calories || 0),
         exercises: exerciseRows.map(exRow => ({
           exerciseId: exRow.exercise_id || '',
+          exerciseTypeSnapshot: exRow.exercise_type_snapshot || undefined,
           notes: undefined,
           distanceMeters: exRow.distance_meters || 0,
           avgPacePerKmSeconds: exRow.avg_pace_per_km_seconds || 0,

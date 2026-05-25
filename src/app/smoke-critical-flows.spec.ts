@@ -16,9 +16,9 @@ import { Exercise } from './core/models/models';
 describe('Critical flow smoke tests', () => {
   it('saves profile and refreshes auth profile state', async () => {
     const refreshProfile = vi.fn().mockResolvedValue(true);
-    const eqSpy = vi.fn().mockResolvedValue(true);
-    const updateSpy = vi.fn().mockReturnValue(null);
-    const fromSpy = vi.fn().mockReturnValue(null);
+    const eqSpy = vi.fn().mockResolvedValue({ error: null });
+    const updateSpy = vi.fn().mockReturnValue({ eq: eqSpy });
+    const fromSpy = vi.fn().mockReturnValue({ update: updateSpy });
 
     await TestBed.configureTestingModule({
       imports: [ProfileComponent],
@@ -36,6 +36,7 @@ describe('Critical flow smoke tests', () => {
             }),
             refreshProfile,
             logout: vi.fn(),
+            updateLastSeen: vi.fn(),
           },
         },
         { provide: StatsService, useValue: { monthlyStats: () => ({ count: 0, calories: 0, duration: 0 }) } },
@@ -110,6 +111,20 @@ describe('Critical flow smoke tests', () => {
   it('finishes workout and persists session', async () => {
     const addSession = vi.fn().mockResolvedValue(true);
     const navigate = vi.fn();
+    const getExerciseById = vi.fn().mockReturnValue({
+      id: 'ex-1',
+      name: 'Squat',
+      imageUrl: 'https://example.com/squat.png',
+      description: '',
+      muscleGroup: 'Legs',
+      exerciseType: 'strength',
+      metValue: 5.0,
+    });
+    const inProgress = vi.fn().mockReturnValue(null);
+    const setInProgress = vi.fn();
+    const clearInProgress = vi.fn();
+    const markPlanStartedLocally = vi.fn();
+    const markPlanCompletedLocally = vi.fn();
     const plan = {
       id: 'plan-1',
       name: 'Plan',
@@ -132,9 +147,15 @@ describe('Critical flow smoke tests', () => {
         {
           provide: WorkoutService,
           useValue: {
-            getPlanById: vi.fn().mockReturnValue(null),
+            getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(null),
             addSession,
+            getExerciseById,
+            inProgress,
+            setInProgress,
+            clearInProgress,
+            markPlanStartedLocally,
+            markPlanCompletedLocally,
           },
         },
         { provide: Router, useValue: { navigate } },
@@ -161,7 +182,7 @@ describe('Critical flow smoke tests', () => {
 
   it('shares a plan with a resolved user id', async () => {
     const sharePlan = vi.fn().mockResolvedValue(true);
-    const resolveUserIdByEmail = vi.fn().mockResolvedValue(true);
+    const resolveUserIdByEmail = vi.fn().mockResolvedValue('user-2');
 
     await TestBed.configureTestingModule({
       imports: [PlansComponent],
@@ -176,6 +197,8 @@ describe('Critical flow smoke tests', () => {
           },
         },
         { provide: AuthService, useValue: { currentUser: () => ({ id: 'user-1' }) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
       ],
     }).compileComponents();
 
