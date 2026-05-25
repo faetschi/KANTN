@@ -7,6 +7,7 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { StatsService } from '../../core/services/stats.service';
 import { WorkoutPlan, WorkoutSession } from '../../core/models/models';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workoutTypeIconStyle } from '../../core/domain/workout-types';
+import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
 @Component({
   selector: 'app-home',
@@ -23,7 +24,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workou
         <div class="flex items-center gap-3">
           <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
           <a [routerLink]="['/profile']" class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer block">
-            <img [src]="user()?.avatarUrl" alt="Profile" class="w-full h-full object-cover">
+            <img [src]="user()?.avatarUrl || generateInitialsAvatar(user()?.name || 'User')" (error)="onAvatarError($event)" alt="Profile" class="w-full h-full object-cover">
           </a>
         </div>
       </header>
@@ -179,6 +180,7 @@ export class HomeComponent {
   workoutService = inject(WorkoutService);
   statsService = inject(StatsService);
   router = inject(Router);
+  generateInitialsAvatar = generateInitialsAvatar;
 
   showPeriod: 'week' | 'month' = 'week';
 
@@ -189,6 +191,11 @@ export class HomeComponent {
   user = this.authService.currentUser;
   activePlan = this.workoutService.activePlan;
   today = new Date();
+
+  onAvatarError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.src = generateInitialsAvatar(this.user()?.name || 'User');
+  }
 
   inProgress = computed(() => this.workoutService.inProgress());
 

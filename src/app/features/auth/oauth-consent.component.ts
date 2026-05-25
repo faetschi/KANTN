@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../core/services/supabase.service';
 import { AuthService } from '../../core/services/auth.service';
+import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
 @Component({
   selector: 'app-oauth-consent',
@@ -93,13 +94,14 @@ export class OAuthConsentComponent implements OnInit {
           return;
         }
 
+        const displayName = user.user_metadata?.name || user.email || 'User';
         const { error: insertError } = await client
           .from('profiles')
           .insert({
             id: user.id,
             email: user.email,
-            display_name: user.user_metadata?.name || null,
-            avatar_url: user.user_metadata?.avatar_url || null,
+            display_name: displayName,
+            avatar_url: generateInitialsAvatar(displayName),
           });
         if (insertError) throw insertError;
 

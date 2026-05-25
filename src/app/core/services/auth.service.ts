@@ -3,6 +3,7 @@ import { User } from '../models/models';
 import { MOCK_USER } from '../models/mock-data';
 import { SupabaseService } from './supabase.service';
 import { Session } from '@supabase/supabase-js';
+import { generateInitialsAvatar } from '../domain/avatar-utils';
 
 type DevWindow = Window & { __env?: { ENABLE_DEV_AUTH?: string }; __DEV_FAKE_AUTH?: boolean };
 type CryptoWithUUID = Crypto & { randomUUID?: () => string };
@@ -113,7 +114,6 @@ export class AuthService {
   private async loadProfileFromSession(session?: Session | null) {
     if (this.profileLoadInFlight) {
       await this.profileLoadInFlight;
-      return;
     }
 
     this.profileLoadInFlight = this.loadProfileFromSessionInternal(session);
@@ -149,7 +149,7 @@ export class AuthService {
       height: profile?.height ?? 0,
       weight: profile?.weight ?? 0,
       age: profile?.age ?? 0,
-      avatarUrl: profile?.avatar_url || user.user_metadata?.['avatar_url'] || undefined,
+      avatarUrl: profile?.avatar_url || generateInitialsAvatar(profile?.display_name || user.user_metadata?.['name'] || user.email || 'User'),
       funFact: profile?.fun_fact || undefined,
       is_admin: !!profile?.is_admin,
     };
@@ -221,6 +221,7 @@ export class AuthService {
       height: 180,
       weight: 75,
       age: 30,
+      avatarUrl: generateInitialsAvatar('Dev User'),
       is_admin: !!opts?.isAdmin,
     };
     this.currentUserSignal.set(fake);
