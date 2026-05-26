@@ -11,6 +11,7 @@ import { optimizeImageForUpload } from '../../core/domain/image-upload-domain';
 import { Router } from '@angular/router';
 import { NotificationService } from '../../core/services/notification.service';
 import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-badge.component';
+import { isValidUsername, normalizeUsername } from '../../core/domain/username-utils';
 
 @Component({
   selector: 'app-profile',
@@ -60,7 +61,42 @@ import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-ba
             </button>
           </div>
         </div>
-        <p class="text-gray-500 text-sm">{{ user()?.email }}</p>
+        <div class="relative w-full flex items-center justify-center">
+          <p
+            *ngIf="activeField !== 'username'"
+            (click)="beginInlineEdit('username')"
+            class="text-gray-500 text-sm cursor-pointer"
+          >@{{ form.username || 'username' }}</p>
+          <div *ngIf="activeField === 'username'" class="flex items-center justify-center gap-0">
+            <span class="text-gray-400 text-sm shrink-0">@</span>
+            <input
+              #usernameInput
+              [(ngModel)]="form.username"
+              (keydown.enter)="applyInlineEdit()"
+              (blur)="onFieldBlur()"
+              name="inlineUsername"
+              [class.text-sm]="true"
+              [class.text-gray-900]="true"
+              [class.font-semibold]="true"
+              [class.bg-gray-50]="true"
+              class="border-0 p-0 text-center focus:outline-none focus:ring-0 lowercase"
+              placeholder="username"
+              maxlength="20"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <button *ngIf="activeField === 'username'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
+              <mat-icon class="text-sm">check</mat-icon>
+            </button>
+            <button *ngIf="activeField === 'username'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
+              <mat-icon class="text-sm">close</mat-icon>
+            </button>
+          </div>
+        </div>
+
         <div class="relative w-full flex items-center justify-center mt-3 mb-3">
           <div class="flex items-center justify-center gap-0">
             <mat-icon *ngIf="activeField !== 'funFact' && form.funFact" class="text-sm text-yellow-400 w-auto h-auto">auto_awesome</mat-icon>
@@ -93,7 +129,7 @@ import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-ba
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-4 w-full border-t border-gray-100 pt-4">
+        <div class="grid grid-cols-3 gap-4 w-full border-t border-gray-100 pt-4 mt-3">
           <div>
             <div class="flex items-center justify-center gap-1">
               <input
@@ -288,12 +324,13 @@ export class ProfileComponent {
   router = inject(Router);
   cdr = inject(ChangeDetectorRef);
   user = this.authService.currentUser;
-  activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | null = null;
+  activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | 'username' | null = null;
   avatarModalOpen = false;
   avatarUploading = false;
   avatarUploadMessage = '';
   form = {
     name: '',
+    username: '',
     avatarUrl: '',
     funFact: '',
     height: 0,
@@ -307,6 +344,7 @@ export class ProfileComponent {
       if (!u) return;
       this.form = {
         name: u.name || '',
+        username: u.username || '',
         avatarUrl: u.avatarUrl || '',
         funFact: u.funFact || '',
         height: u.height || 0,
@@ -347,10 +385,12 @@ export class ProfileComponent {
     this.router.navigate(['/login']);
   }
 
-  beginInlineEdit(field: 'name' | 'funFact' | 'height' | 'weight' | 'age', inputEl?: HTMLInputElement) {
+  beginInlineEdit(field: 'name' | 'funFact' | 'height' | 'weight' | 'age' | 'username', inputEl?: HTMLInputElement) {
     this.activeField = field;
     if (inputEl) {
       setTimeout(() => inputEl.focus());
+    } else if (field === 'username') {
+      setTimeout(() => document.querySelector<HTMLInputElement>('[name="inlineUsername"]')?.focus());
     }
   }
 
@@ -384,6 +424,14 @@ export class ProfileComponent {
       }
     }
 
+    if (this.activeField === 'username') {
+      const normalized = normalizeUsername(this.form.username || '');
+      if (!isValidUsername(normalized)) {
+        return 'Username must be 3-20 characters (a-z, 0-9, underscore).';
+      }
+      this.form.username = normalized;
+    }
+
     return null;
   }
 
@@ -409,6 +457,7 @@ export class ProfileComponent {
 
     this.form = {
       name: current.name || '',
+      username: current.username || '',
       avatarUrl: current.avatarUrl || '',
       funFact: current.funFact || '',
       height: current.height || 0,
@@ -506,8 +555,15 @@ export class ProfileComponent {
     const current = this.user();
     if (!current) return;
 
+    const normalizedUsername = normalizeUsername(this.form.username || '');
+    if (!isValidUsername(normalizedUsername)) {
+      this.notifications.error('Username must be 3-20 characters (a-z, 0-9, underscore).');
+      return;
+    }
+
     const { error } = await client.from('profiles').update({
       display_name: this.form.name || null,
+      username: normalizedUsername || null,
       avatar_url: this.form.avatarUrl || null,
       fun_fact: this.form.funFact || null,
       height: this.form.height || null,
@@ -516,7 +572,12 @@ export class ProfileComponent {
     }).eq('id', current.id);
 
     if (error) {
-      this.notifications.error(error.message || 'Failed to save profile.');
+      const message = error.message || 'Failed to save profile.';
+      if (message.toLowerCase().includes('username')) {
+        this.notifications.error('Username is already taken.');
+      } else {
+        this.notifications.error(message);
+      }
       return;
     }
 

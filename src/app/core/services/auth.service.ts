@@ -137,7 +137,7 @@ export class AuthService {
 
     const { data: profile, error: profileError } = await client
       .from('profiles')
-      .select('id, email, display_name, avatar_url, fun_fact, height, weight, age, is_admin, last_seen')
+      .select('id, email, username, display_name, avatar_url, fun_fact, height, weight, age, is_admin, last_seen')
       .eq('id', user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -145,6 +145,7 @@ export class AuthService {
     const mapped: AuthUser = {
       id: user.id,
       name: profile?.display_name || user.user_metadata?.['name'] || user.email || 'User',
+      username: profile?.username || undefined,
       email: user.email || profile?.email || '',
       height: profile?.height ?? 0,
       weight: profile?.weight ?? 0,

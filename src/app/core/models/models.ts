@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   name: string;
+  username?: string;
   email: string;
   height: number; // cm
   weight: number; // kg

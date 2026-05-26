@@ -35,6 +35,7 @@ drop function if exists sync_profile_from_auth_user();
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
+  username text,
   display_name text,
   avatar_url text,
   fun_fact text,
@@ -50,6 +51,7 @@ create table if not exists profiles (
 -- Forward-safe migrations for profiles
 alter table profiles
   add column if not exists email text,
+  add column if not exists username text,
   add column if not exists display_name text,
   add column if not exists avatar_url text,
   add column if not exists fun_fact text,
@@ -61,6 +63,34 @@ alter table profiles
   add column if not exists approved boolean not null default false,
   add column if not exists is_admin boolean not null default false,
   add column if not exists last_seen timestamptz;
+
+do $$
+begin
+  update profiles
+  set username = lower(regexp_replace(
+    coalesce(nullif(split_part(coalesce(email, ''), '@', 1), ''), nullif(display_name, ''), 'user'),
+    '[^a-z0-9_]',
+    '',
+    'g'
+  )) || '_' || substr(replace(id::text, '-', ''), 1, 6)
+  where username is null or username = '';
+end;
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_name = 'profiles'
+      and column_name = 'username'
+      and is_nullable = 'YES'
+  ) then
+    alter table profiles
+      alter column username set not null;
+  end if;
+end;
+$$;
 
 -- Exercise master data:
 -- - default: admin-managed and visible to all users
@@ -351,6 +381,7 @@ alter table workout_session_sets
   add column if not exists completed boolean not null default false,
   add column if not exists created_at timestamptz not null default now();
 
+create unique index if not exists idx_profiles_username_unique on profiles (lower(username));
 create index if not exists idx_profiles_approved on profiles (approved);
 create index if not exists idx_profiles_admin on profiles (is_admin);
 create index if not exists idx_exercises_visibility on exercises (visibility, is_active);
@@ -392,10 +423,20 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into profiles (id, email, display_name, avatar_url)
+  insert into profiles (id, email, username, display_name, avatar_url)
   values (
     new.id,
     new.email,
+    lower(regexp_replace(
+      coalesce(
+        new.raw_user_meta_data ->> 'username',
+        split_part(coalesce(new.email, ''), '@', 1),
+        'user'
+      ),
+      '[^a-z0-9_]',
+      '',
+      'g'
+    )) || '_' || substr(replace(new.id::text, '-', ''), 1, 6),
     coalesce(
       new.raw_user_meta_data ->> 'name',
       split_part(coalesce(new.email, ''), '@', 1)
@@ -408,6 +449,7 @@ begin
   on conflict (id) do update
   set
     email = excluded.email,
+    username = coalesce(profiles.username, excluded.username),
     display_name = coalesce(excluded.display_name, profiles.display_name),
     avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url),
     updated_at = now();
@@ -420,10 +462,20 @@ create trigger trg_auth_users_profile_sync
 after insert or update of email, raw_user_meta_data on auth.users
 for each row execute function sync_profile_from_auth_user();
 
-insert into profiles (id, email, display_name, avatar_url)
+insert into profiles (id, email, username, display_name, avatar_url)
 select
   u.id,
   u.email,
+  lower(regexp_replace(
+    coalesce(
+      u.raw_user_meta_data ->> 'username',
+      split_part(coalesce(u.email, ''), '@', 1),
+      'user'
+    ),
+    '[^a-z0-9_]',
+    '',
+    'g'
+  )) || '_' || substr(replace(u.id::text, '-', ''), 1, 6),
   coalesce(
     u.raw_user_meta_data ->> 'name',
     split_part(coalesce(u.email, ''), '@', 1)
@@ -436,6 +488,7 @@ from auth.users u
 on conflict (id) do update
 set
   email = excluded.email,
+  username = coalesce(profiles.username, excluded.username),
   display_name = coalesce(excluded.display_name, profiles.display_name),
   avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url),
   updated_at = now();
@@ -622,6 +675,51 @@ begin
 exception
   when others then
     raise exception 'Failed to create workout session: %', SQLERRM;
+end;
+$$;
+
+create or replace function get_public_profile_by_username(p_username text)
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  fun_fact text,
+  height int,
+  weight int,
+  age int,
+  last_seen timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_requester_approved boolean := false;
+begin
+  select approved into v_requester_approved
+  from profiles
+  where id = auth.uid();
+
+  if not v_requester_approved then
+    return;
+  end if;
+
+  return query
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.fun_fact,
+    p.height,
+    p.weight,
+    p.age,
+    p.last_seen
+  from profiles p
+  where p.username = lower(p_username)
+    and p.approved = true;
 end;
 $$;
 
@@ -1095,10 +1193,20 @@ begin
     raise exception 'No auth.users row found for email: %', target_email;
   end if;
 
-  insert into profiles (id, email, display_name, approved, is_admin)
+  insert into profiles (id, email, username, display_name, approved, is_admin)
   select
     u.id,
     u.email,
+    lower(regexp_replace(
+      coalesce(
+        u.raw_user_meta_data ->> 'username',
+        split_part(coalesce(u.email, ''), '@', 1),
+        'user'
+      ),
+      '[^a-z0-9_]',
+      '',
+      'g'
+    )) || '_' || substr(replace(u.id::text, '-', ''), 1, 6),
     coalesce(u.raw_user_meta_data ->> 'name', split_part(u.email, '@', 1)),
     target_approved,
     target_is_admin
@@ -1107,6 +1215,7 @@ begin
   on conflict (id) do update
   set
     email = excluded.email,
+    username = coalesce(profiles.username, excluded.username),
     approved = excluded.approved,
     is_admin = excluded.is_admin,
     updated_at = now();
@@ -1135,6 +1244,7 @@ grant select, insert, update, delete on table workout_session_sets to authentica
 grant execute on function calc_burned_calories(numeric, numeric, integer) to authenticated;
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
 grant execute on function get_my_stats_periods() to authenticated;
+grant execute on function get_public_profile_by_username(text) to authenticated;
 grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
 grant execute on function create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer) to authenticated;
 grant execute on function update_workout_plan_tx(uuid, uuid, text, text, text, jsonb) to authenticated;

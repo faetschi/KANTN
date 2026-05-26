@@ -83,6 +83,10 @@ export function buildPersistedSessionPayload(
 
     const metValue = Number(exercise?.metValue ?? 5);
 
+    const distanceMeters = Math.max(0, Number.isFinite(exerciseSession.distanceMeters as number) ? Math.round(exerciseSession.distanceMeters as number) : 0);
+    const avgPacePerKmSeconds = Math.max(0, Number.isFinite(exerciseSession.avgPacePerKmSeconds as number) ? Math.round(exerciseSession.avgPacePerKmSeconds as number) : 0);
+    const maxPacePerKmSeconds = Math.max(0, Number.isFinite(exerciseSession.maxPacePerKmSeconds as number) ? Math.round(exerciseSession.maxPacePerKmSeconds as number) : 0);
+
     return {
       exerciseId: exercise?.id || null,
       exerciseNameSnapshot: exercise?.name || 'Custom Exercise',
@@ -92,9 +96,9 @@ export function buildPersistedSessionPayload(
       durationSeconds: exerciseDuration,
       caloriesBurned: calcCalories(metValue, exerciseDuration, userWeightKg),
       // Cardio fields
-      distanceMeters: exerciseSession.distanceMeters || 0,
-      avgPacePerKmSeconds: exerciseSession.avgPacePerKmSeconds || 0,
-      maxPacePerKmSeconds: exerciseSession.maxPacePerKmSeconds || 0,
+      distanceMeters,
+      avgPacePerKmSeconds,
+      maxPacePerKmSeconds,
       avgSpeedKmh: exerciseSession.avgSpeedKmh || 0,
       // Strength fields (empty for cardio)
       sets: isCardio ? [] : exerciseSession.sets.map(set => ({

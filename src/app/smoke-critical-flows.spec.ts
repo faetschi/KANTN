@@ -29,6 +29,7 @@ describe('Critical flow smoke tests', () => {
             currentUser: () => ({
               id: 'user-1',
               name: 'User',
+              username: 'user_1',
               email: 'user@example.com',
               height: 180,
               weight: 75,
@@ -49,6 +50,7 @@ describe('Critical flow smoke tests', () => {
     const component = fixture.componentInstance;
     component.form = {
       name: 'Updated Name',
+      username: 'updated_user',
       avatarUrl: 'https://example.com/avatar.png',
       funFact: 'Loves coding',
       height: 181,

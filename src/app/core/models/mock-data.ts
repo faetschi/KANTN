@@ -75,6 +75,7 @@ export const MOCK_PLANS: WorkoutPlan[] = [
 export const MOCK_USER: User = {
   id: 'u1',
   name: 'Alex Fitness',
+  username: 'alex_fitness',
   email: 'alex@example.com',
   height: 180,
   weight: 75,
