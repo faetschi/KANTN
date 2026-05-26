@@ -8,11 +8,12 @@ import { CardioExerciseData, Exercise, InProgressWorkout, WorkoutSession, Set as
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } from '../../core/domain/workout-types';
 import { computeCardioMetrics } from '../../core/domain/cardio-utils';
+import { CardioMapComponent } from './cardio-map.component';
 
 @Component({
   selector: 'app-workout',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule, SearchBarComponent],
+  imports: [CommonModule, MatIconModule, FormsModule, SearchBarComponent, CardioMapComponent],
   template: `
     <div class="h-screen flex flex-col bg-white">
       <!-- Header -->
@@ -157,6 +158,16 @@ import { computeCardioMetrics } from '../../core/domain/cardio-utils';
                     Enter Distance
                   </button>
                 </div>
+
+                @if (currentCardioData()?.gpsEnabled && (currentCardioData()?.gpsCoordinates?.length ?? 0) > 0) {
+                  <div class="mt-2">
+                    <button (click)="showMapModal.set(true)"
+                            class="w-full px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold flex items-center justify-center gap-2">
+                      <mat-icon class="text-base">map</mat-icon>
+                      Show Map
+                    </button>
+                  </div>
+                }
               </div>
             } @else {
               <!-- Strength UI (sets/reps/weight) -->
@@ -277,6 +288,14 @@ import { computeCardioMetrics } from '../../core/domain/cardio-utils';
         </div>
       }
 
+      @if (showMapModal()) {
+        <app-cardio-map
+          [gpsCoordinates]="currentCardioData()?.gpsCoordinates || []"
+          [currentPosition]="currentCardioPosition()"
+          (closeMap)="showMapModal.set(false)"
+        />
+      }
+
       @if (showFreestyleSaveModal()) {
         <div class="fixed top-0 left-0 right-0 z-50 bg-black/40 flex items-center justify-center p-4" style="bottom: calc(72px + env(safe-area-inset-bottom, 20px));">
           <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
@@ -376,6 +395,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   paused = signal(false);
   timerInterval: ReturnType<typeof setInterval> | undefined;
   saveErrorMessage = '';
+  showMapModal = signal(false);
   
   showInfo = false;
   showExercisePicker = false;
@@ -401,6 +421,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     const exerciseId = this.currentExercise()?.id;
     if (!exerciseId) return null;
     return this.cardioExerciseData().get(exerciseId) || null;
+  });
+
+  currentCardioPosition = computed(() => {
+    const data = this.currentCardioData();
+    const coords = data?.gpsCoordinates;
+    if (!coords || coords.length === 0) return null;
+    const last = coords[coords.length - 1];
+    return { lat: last.lat, lng: last.lng };
   });
 
   ngOnInit() {
@@ -648,6 +676,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   prevExercise() {
     if (this.currentExerciseIndex() > 0) {
+      this.showMapModal.set(false);
       this.currentExerciseIndex.update(i => i - 1);
       const exercise = this.currentExercise();
       if (exercise?.exerciseType === 'cardio') {
@@ -662,6 +691,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     if (this.isLastExercise()) {
       this.finishWorkout();
     } else {
+      this.showMapModal.set(false);
       this.currentExerciseIndex.update(i => i + 1);
       const exercise = this.currentExercise();
       if (exercise?.exerciseType === 'cardio') {

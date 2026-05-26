@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { convertToParamMap, ActivatedRoute, Router } from '@angular/router';
 import { WorkoutComponent } from './features/workout/workout.component';
+import { CardioMapComponent } from './features/workout/cardio-map.component';
 import { WorkoutService } from './core/services/workout.service';
 import { Exercise, CardioExerciseData, WorkoutSession } from './core/models/models';
 import {
@@ -789,6 +790,326 @@ describe('Exercise Type Detection Logic', () => {
       const visual = getWorkoutTypeVisual('strength');
       expect(visual.label).toBe('Strength');
       expect(visual.color).toBe('#dc2626');
+    });
+  });
+
+  describe('Cardio Map Integration', () => {
+    function createCardioPlan() {
+      const exercise: Exercise = {
+        id: 'cardio-ex-1', name: 'Outdoor Run', imageUrl: '', description: '', muscleGroup: '',
+        exerciseType: 'cardio', metValue: 9.8,
+      };
+      return {
+        id: 'plan-1', name: 'Cardio Plan', category: 'cardio', visibility: 'default' as const,
+        exercises: [exercise], createdBy: 'user-1', createdAt: new Date().toISOString(),
+        isAdmin: false,
+      };
+    }
+
+    it('shows Show Map button when GPS enabled and coordinates exist', async () => {
+      const plan = createCardioPlan();
+      const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+
+      await TestBed.configureTestingModule({
+        imports: [WorkoutComponent],
+        providers: [
+          { provide: WorkoutService, useValue: {
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            addSession: vi.fn(),
+            getExerciseById: vi.fn(),
+            inProgress,
+            setInProgress: vi.fn(),
+            clearInProgress: vi.fn(),
+            markPlanStartedLocally: vi.fn(),
+            markPlanCompletedLocally: vi.fn(),
+          }},
+          { provide: Router, useValue: { navigate } },
+          { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ planId: 'plan-1' })) } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(WorkoutComponent);
+      const component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      const exerciseId = component.currentExercise()!.id;
+      const data = new Map<string, CardioExerciseData>();
+      data.set(exerciseId, {
+        startTime: Date.now(), elapsedSeconds: 100, distanceMeters: 500,
+        currentPaceSecondsPerKm: 360, avgPaceSecondsPerKm: 360, maxPaceSecondsPerKm: 380,
+        avgSpeedKmh: 10.0, gpsEnabled: true,
+        gpsCoordinates: [{ lat: 52.52, lng: 13.405, timestamp: Date.now() }],
+      });
+      component.cardioExerciseData.set(data);
+      fixture.detectChanges();
+
+      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const showMapBtn = Array.from(buttons).find(b => (b as HTMLElement).textContent?.includes('Show Map'));
+      expect(showMapBtn).toBeTruthy();
+    });
+
+    it('hides Show Map button when GPS is off', async () => {
+      const plan = createCardioPlan();
+      const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+
+      await TestBed.configureTestingModule({
+        imports: [WorkoutComponent],
+        providers: [
+          { provide: WorkoutService, useValue: {
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            addSession: vi.fn(),
+            getExerciseById: vi.fn(),
+            inProgress,
+            setInProgress: vi.fn(),
+            clearInProgress: vi.fn(),
+            markPlanStartedLocally: vi.fn(),
+            markPlanCompletedLocally: vi.fn(),
+          }},
+          { provide: Router, useValue: { navigate } },
+          { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ planId: 'plan-1' })) } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(WorkoutComponent);
+      const component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      const exerciseId = component.currentExercise()!.id;
+      const data = new Map<string, CardioExerciseData>();
+      data.set(exerciseId, {
+        startTime: Date.now(), elapsedSeconds: 100, distanceMeters: 500,
+        currentPaceSecondsPerKm: 360, avgPaceSecondsPerKm: 360, maxPaceSecondsPerKm: 380,
+        avgSpeedKmh: 10.0, gpsEnabled: false,
+        gpsCoordinates: [{ lat: 52.52, lng: 13.405, timestamp: Date.now() }],
+      });
+      component.cardioExerciseData.set(data);
+      fixture.detectChanges();
+
+      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const showMapBtn = Array.from(buttons).find(b => (b as HTMLElement).textContent?.includes('Show Map'));
+      expect(showMapBtn).toBeFalsy();
+    });
+
+    it('hides Show Map button when coordinates are empty', async () => {
+      const plan = createCardioPlan();
+      const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+
+      await TestBed.configureTestingModule({
+        imports: [WorkoutComponent],
+        providers: [
+          { provide: WorkoutService, useValue: {
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            addSession: vi.fn(),
+            getExerciseById: vi.fn(),
+            inProgress,
+            setInProgress: vi.fn(),
+            clearInProgress: vi.fn(),
+            markPlanStartedLocally: vi.fn(),
+            markPlanCompletedLocally: vi.fn(),
+          }},
+          { provide: Router, useValue: { navigate } },
+          { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ planId: 'plan-1' })) } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(WorkoutComponent);
+      const component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      const exerciseId = component.currentExercise()!.id;
+      const data = new Map<string, CardioExerciseData>();
+      data.set(exerciseId, {
+        startTime: Date.now(), elapsedSeconds: 100, distanceMeters: 500,
+        currentPaceSecondsPerKm: 360, avgPaceSecondsPerKm: 360, maxPaceSecondsPerKm: 380,
+        avgSpeedKmh: 10.0, gpsEnabled: true,
+        gpsCoordinates: [],
+      });
+      component.cardioExerciseData.set(data);
+      fixture.detectChanges();
+
+      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const showMapBtn = Array.from(buttons).find(b => (b as HTMLElement).textContent?.includes('Show Map'));
+      expect(showMapBtn).toBeFalsy();
+    });
+
+    it('opens map modal when Show Map is clicked', async () => {
+      const plan = createCardioPlan();
+      const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+
+      await TestBed.configureTestingModule({
+        imports: [WorkoutComponent],
+        providers: [
+          { provide: WorkoutService, useValue: {
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            addSession: vi.fn(),
+            getExerciseById: vi.fn(),
+            inProgress,
+            setInProgress: vi.fn(),
+            clearInProgress: vi.fn(),
+            markPlanStartedLocally: vi.fn(),
+            markPlanCompletedLocally: vi.fn(),
+          }},
+          { provide: Router, useValue: { navigate } },
+          { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ planId: 'plan-1' })) } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(WorkoutComponent);
+      const component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      const exerciseId = component.currentExercise()!.id;
+      const data = new Map<string, CardioExerciseData>();
+      data.set(exerciseId, {
+        startTime: Date.now(), elapsedSeconds: 100, distanceMeters: 500,
+        currentPaceSecondsPerKm: 360, avgPaceSecondsPerKm: 360, maxPaceSecondsPerKm: 380,
+        avgSpeedKmh: 10.0, gpsEnabled: true,
+        gpsCoordinates: [{ lat: 52.52, lng: 13.405, timestamp: Date.now() }],
+      });
+      component.cardioExerciseData.set(data);
+      fixture.detectChanges();
+
+      component.showMapModal.set(true);
+      fixture.detectChanges();
+
+      const mapModal = fixture.nativeElement.querySelector('app-cardio-map');
+      expect(mapModal).toBeTruthy();
+      expect(component.showMapModal()).toBe(true);
+    });
+
+    it('closes map modal on close output', async () => {
+      const plan = createCardioPlan();
+      const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+
+      await TestBed.configureTestingModule({
+        imports: [WorkoutComponent],
+        providers: [
+          { provide: WorkoutService, useValue: {
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            addSession: vi.fn(),
+            getExerciseById: vi.fn(),
+            inProgress,
+            setInProgress: vi.fn(),
+            clearInProgress: vi.fn(),
+            markPlanStartedLocally: vi.fn(),
+            markPlanCompletedLocally: vi.fn(),
+          }},
+          { provide: Router, useValue: { navigate } },
+          { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ planId: 'plan-1' })) } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(WorkoutComponent);
+      const component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.showMapModal.set(true);
+      fixture.detectChanges();
+      expect(component.showMapModal()).toBe(true);
+
+      component.showMapModal.set(false);
+      fixture.detectChanges();
+
+      const mapModal = fixture.nativeElement.querySelector('app-cardio-map');
+      expect(mapModal).toBeFalsy();
+    });
+
+    it('closes map modal when switching exercises', async () => {
+      const exercise1: Exercise = {
+        id: 'cardio-ex-1', name: 'Outdoor Run', imageUrl: '', description: '', muscleGroup: '',
+        exerciseType: 'cardio', metValue: 9.8,
+      };
+      const exercise2: Exercise = {
+        id: 'cardio-ex-2', name: 'Cycling', imageUrl: '', description: '', muscleGroup: '',
+        exerciseType: 'cardio', metValue: 7.5,
+      };
+      const plan = {
+        id: 'plan-2', name: 'Cardio Plan', category: 'cardio' as const, visibility: 'default' as const,
+        exercises: [exercise1, exercise2], createdBy: 'user-1', createdAt: new Date().toISOString(),
+        isAdmin: false,
+      };
+      const navigate = vi.fn();
+      const inProgress = vi.fn().mockReturnValue(null);
+
+      await TestBed.configureTestingModule({
+        imports: [WorkoutComponent],
+        providers: [
+          { provide: WorkoutService, useValue: {
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            addSession: vi.fn(),
+            getExerciseById: vi.fn(),
+            inProgress,
+            setInProgress: vi.fn(),
+            clearInProgress: vi.fn(),
+            markPlanStartedLocally: vi.fn(),
+            markPlanCompletedLocally: vi.fn(),
+          }},
+          { provide: Router, useValue: { navigate } },
+          { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ planId: 'plan-2' })) } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(WorkoutComponent);
+      const component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.showMapModal.set(true);
+      fixture.detectChanges();
+      expect(component.showMapModal()).toBe(true);
+      expect(component.currentExerciseIndex()).toBe(0);
+
+      component.nextExercise();
+      fixture.detectChanges();
+
+      expect(component.showMapModal()).toBe(false);
+      expect(component.currentExerciseIndex()).toBe(1);
+    });
+
+    it('renders CardioMapComponent with correct GPS coordinate inputs', () => {
+      const coords = [
+        { lat: 52.52, lng: 13.405, timestamp: 1000 },
+        { lat: 52.521, lng: 13.406, timestamp: 2000 },
+      ];
+
+      const fixture = TestBed.createComponent(CardioMapComponent);
+      const component = fixture.componentInstance;
+      fixture.componentRef.setInput('gpsCoordinates', coords);
+      fixture.componentRef.setInput('currentPosition', { lat: 52.521, lng: 13.406 });
+      fixture.detectChanges();
+
+      expect(component.gpsCoordinates().length).toBe(2);
+      expect(component.gpsCoordinates()[0].lat).toBe(52.52);
+      expect(component.currentPosition()).toEqual({ lat: 52.521, lng: 13.406 });
+    });
+
+    it('shows waiting for GPS message when no coordinates', () => {
+      const fixture = TestBed.createComponent(CardioMapComponent);
+      fixture.componentRef.setInput('gpsCoordinates', []);
+      fixture.detectChanges();
+
+      const waitingMsg = fixture.nativeElement.textContent;
+      expect(waitingMsg).toContain('Waiting for GPS');
+    });
+
+    it('shows SSR fallback when platform is not browser', () => {
+      const fixture = TestBed.createComponent(CardioMapComponent);
+      const component = fixture.componentInstance;
+      component['isBrowser'] = false;
+      fixture.detectChanges();
+
+      const fallback = fixture.nativeElement.textContent;
+      expect(fallback).toContain('Map unavailable');
     });
   });
 });
