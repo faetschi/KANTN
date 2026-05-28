@@ -33,12 +33,16 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
           <div>
             <div class="block text-xs font-semibold text-gray-500 mb-1">Category</div>
             <select [(ngModel)]="planForm.category" class="w-full border border-gray-200 rounded-xl px-3 py-2">
-              <option value="">Select Category</option>
+              <option value="" disabled>Select Category</option>
               <option value="upper body">Upper Body</option>
               <option value="lower body">Lower Body</option>
               <option value="core">Core</option>
-              <option value="cardio">Cardio</option>
+              <option value="full body">Full Body</option>
               <option value="mobility">Mobility</option>
+              <option value="running">Running</option>
+              <option value="cycling">Cycling</option>
+              <option value="swimming">Swimming</option>
+              <option value="hiking">Hiking</option>
             </select>
           </div>
         </div>

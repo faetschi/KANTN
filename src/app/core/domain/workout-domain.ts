@@ -18,6 +18,7 @@ export interface PersistedSessionExercise {
   avgPacePerKmSeconds?: number;
   maxPacePerKmSeconds?: number;
   avgSpeedKmh?: number;
+  mapSnapshotUrl?: string;
 }
 
 export interface PersistedSessionPayload {

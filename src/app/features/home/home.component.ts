@@ -6,7 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { StatsService } from '../../core/services/stats.service';
 import { WorkoutPlan, WorkoutSession } from '../../core/models/models';
-import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workoutTypeIconStyle } from '../../core/domain/workout-types';
+import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workoutTypeIconStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
 @Component({
@@ -73,17 +73,18 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
                 <div>
                   <h3 class="text-xl font-bold mb-1">{{ plan.name }}</h3>
                   <div class="flex items-center gap-2 mb-1">
+                    <span
+                      class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                      [ngStyle]="typeBadgeStyle(plan)"
+                    >
+                      <span class="mr-1" aria-hidden="true">{{ typeEmoji(plan) }}</span>
+                      {{ typeLabel(plan) }}
+                    </span>
                     @if (plan.category) {
                       <span class="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur-sm">
                         {{ plan.category }}
                       </span>
                     }
-                    <span
-                      class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                      [ngStyle]="typeBadgeStyle(plan)"
-                    >
-                      {{ typeLabel(plan) }}
-                    </span>
                     <p class="text-gray-400 text-sm">{{ plan.exercises.length }} Exercises</p>
                   </div>
                 </div>
@@ -237,6 +238,10 @@ export class HomeComponent {
 
   typeBadgeStyle(plan: WorkoutPlan) {
     return workoutTypeBadgeStyle(getWorkoutPlanType(plan));
+  }
+
+  typeEmoji(plan: WorkoutPlan) {
+    return getWorkoutTypeEmoji(getWorkoutPlanType(plan)) || '';
   }
 
   sessionIconStyle(session: WorkoutSession) {

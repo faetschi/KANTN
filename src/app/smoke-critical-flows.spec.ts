@@ -102,6 +102,7 @@ describe('Critical flow smoke tests', () => {
 
     component.name = 'Beginner Plan';
     component.description = 'Starter';
+    component.workoutPlanType.set('strength');
     component.selectedExercises.set([exercise]);
 
     await component.createPlan();

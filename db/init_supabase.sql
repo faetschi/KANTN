@@ -196,7 +196,7 @@ create table if not exists workout_plans (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references profiles(id) on delete cascade,
   name text not null,
-  category text check (category in ('upper body', 'lower body', 'core', 'cardio', 'mobility', 'full body')),
+  category text check (category in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking')),
   description text,
   visibility text not null default 'private' check (visibility in ('private', 'shared', 'public')),
   is_active boolean not null default false,
@@ -222,7 +222,7 @@ alter table workout_plans
 
 alter table workout_plans
   add constraint workout_plans_category_check
-  check (category in ('upper body', 'lower body', 'core', 'cardio', 'mobility', 'full body'));
+  check (category in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking'));
 
 create table if not exists workout_plan_shares (
   id uuid primary key default gen_random_uuid(),
@@ -1119,17 +1119,14 @@ begin
     values (
       p_owner_id,
       'Beginner Cardio',
-      'Intro cardio workout focused on running and cycling for endurance.',
-      'cardio',
+      'Beginner cardio workout — the category defines the activity.',
+      'running',
       'private',
       false
     )
     returning id into v_plan_c_id;
 
-    insert into workout_plan_exercises (plan_id, exercise_id, position, target_duration_seconds)
-    values
-      (v_plan_c_id, '11111111-1111-1111-1111-111111111113', 0, 900),
-      (v_plan_c_id, '11111111-1111-1111-1111-111111111114', 1, 900);
+    -- Cardio plans have no exercise entries; the category defines the activity.
 
     v_created := true;
   end if;

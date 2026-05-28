@@ -7,13 +7,14 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Exercise } from '../../core/models/models';
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
+import { ShareDialogComponent } from '../../shared/components/share-dialog.component';
 
 @Component({
   selector: 'app-custom-exercises',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatIconModule],
+  imports: [CommonModule, FormsModule, RouterLink, MatIconModule, ShareDialogComponent],
   template: `
-    <div class="h-screen flex flex-col bg-white">
+    <div class="min-h-screen flex flex-col bg-white">
       <header class="px-6 py-4 flex items-center justify-between border-b border-gray-100">
         <div class="flex items-center">
         <button routerLink="/plans/create" class="mr-4 text-gray-600">
@@ -23,7 +24,7 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
         </div>
         <button
           type="button"
-          (click)="showSharePanel = !showSharePanel"
+          (click)="showSharePanel = true; shareMessage = ''"
           class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
           aria-label="Share custom exercise"
         >
@@ -31,7 +32,7 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
         </button>
       </header>
 
-      <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      <div class="flex-1 p-6 space-y-6">
         <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Create Custom Exercise</h3>
@@ -115,44 +116,19 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
           {{ toastMessage }}
         </div>
 
-        @if (showSharePanel) {
-        <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3">
-            <select [(ngModel)]="shareExerciseId" class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
-              <option [ngValue]="''">Select your custom exercise</option>
-              @for (exercise of myCustomExercises(); track exercise.id) {
-                <option [ngValue]="exercise.id">{{ exercise.name }}</option>
-              }
-            </select>
-            <input
-              type="email"
-              [(ngModel)]="shareEmail"
-              placeholder="user@example.com"
-              class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-            <button
-              type="button"
-              (click)="shareCustomExercise()"
-              [disabled]="sharingExercise || unsharingExercise"
-              class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-            >
-              {{ sharingExercise ? 'Sharing…' : 'Share' }}
-            </button>
-            <button
-              type="button"
-              (click)="unshareCustomExercise()"
-              [disabled]="sharingExercise || unsharingExercise"
-              class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-            >
-              {{ unsharingExercise ? 'Revoking…' : 'Unshare' }}
-            </button>
-          </div>
-
-          @if (shareMessage) {
-            <span class="text-xs text-gray-500">{{ shareMessage }}</span>
-          }
-        </section>
-        }
+        <app-share-dialog
+          [visible]="showSharePanel"
+          (visibleChange)="closeSharePanel()"
+          title="Share Custom Exercise"
+          itemLabel="exercise"
+          [items]="shareableExercises()"
+          [(selectedItemId)]="shareExerciseId"
+          [sharing]="sharingExercise"
+          [unsharing]="unsharingExercise"
+          [message]="shareMessage"
+          (share)="onShareDialogShare($event)"
+          (unshare)="onShareDialogUnshare($event)"
+        />
 
         <section class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <h3 class="text-sm font-semibold mb-3">Your Custom Exercises</h3>
@@ -173,7 +149,7 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
                 </div>
                 <div class="flex items-center gap-2">
                   <button (click)="editCustomExercise(exercise)" class="text-sm text-gray-700">Edit</button>
-                  <button (click)="shareExerciseId = exercise.id; showSharePanel = true" class="text-sm text-blue-600">Share</button>
+                  <button (click)="openShareForExercise(exercise)" class="text-sm text-blue-600">Share</button>
                   <button (click)="deleteCustomExercise(exercise.id)" class="text-sm text-red-600">Delete</button>
                 </div>
               </div>
@@ -326,6 +302,21 @@ export class CustomExercisesComponent {
     this.selectedExerciseId = null;
   }
 
+  shareableExercises() {
+    return this.myCustomExercises().map(e => ({ id: e.id, name: e.name }));
+  }
+
+  openShareForExercise(exercise: Exercise) {
+    this.shareExerciseId = exercise.id;
+    this.shareMessage = '';
+    this.showSharePanel = true;
+  }
+
+  closeSharePanel() {
+    this.showSharePanel = false;
+    this.shareMessage = '';
+  }
+
   private showToast(text: string, type: 'success' | 'error' = 'success') {
     this.toastMessage = text;
     this.toastType = type;
@@ -338,17 +329,9 @@ export class CustomExercisesComponent {
     }, 3000);
   }
 
-  async shareCustomExercise() {
-    const exerciseId = this.shareExerciseId;
-    const email = this.shareEmail.trim();
-    if (!exerciseId) {
-      this.shareMessage = 'Please select an exercise to share.';
-      return;
-    }
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
+  async onShareDialogShare(event: { itemId: string; email: string }) {
+    const exerciseId = event.itemId;
+    const email = event.email;
 
     this.sharingExercise = true;
     this.shareMessage = '';
@@ -369,25 +352,18 @@ export class CustomExercisesComponent {
 
     const ok = await this.workoutService.shareExercise(exerciseId, targetUserId);
     this.sharingExercise = false;
-    this.shareMessage = ok ? 'Exercise shared successfully.' : 'Failed to share exercise.';
     if (ok) {
-      this.shareEmail = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to share exercise.';
     }
   }
 
-  async unshareCustomExercise() {
-    const exerciseId = this.shareExerciseId;
-    const email = this.shareEmail.trim();
-    if (!exerciseId) {
-      this.shareMessage = 'Please select an exercise to unshare.';
-      return;
-    }
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
+  async onShareDialogUnshare(event: { itemId: string; email: string }) {
+    const exerciseId = event.itemId;
+    const email = event.email;
 
     this.unsharingExercise = true;
     this.shareMessage = '';
@@ -401,11 +377,12 @@ export class CustomExercisesComponent {
 
     const ok = await this.workoutService.unshareExercise(exerciseId, targetUserId);
     this.unsharingExercise = false;
-    this.shareMessage = ok ? 'Exercise unshared successfully.' : 'Failed to unshare exercise.';
     if (ok) {
-      this.shareEmail = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to unshare exercise.';
     }
   }
 

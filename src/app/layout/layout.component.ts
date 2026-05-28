@@ -9,8 +9,8 @@ import { NotificationOutletComponent } from '../shared/components/notification-o
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, NotificationOutletComponent],
   template: `
-    <div class="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans">
-      <main class="flex-1 overflow-y-auto pb-20">
+    <div class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
+      <main class="flex-1 pb-20">
         <router-outlet></router-outlet>
       </main>
 

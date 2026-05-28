@@ -3,7 +3,7 @@ import { SupabaseService } from '../services/supabase.service';
 import { CreateExerciseInput, Exercise, WorkoutPlan, WorkoutSession } from '../models/models';
 import { PersistedSessionPayload } from '../domain/workout-domain';
 import { optimizeImageForUpload } from '../domain/image-upload-domain';
-import { deriveWorkoutPlanType } from '../domain/workout-types';
+import { getWorkoutPlanTypeWithFallback } from '../domain/workout-types';
 
 interface ExerciseRow {
   id: string;
@@ -142,12 +142,18 @@ export class WorkoutRepository {
           .map(pe => exerciseById.get(pe.exercise_id))
           .filter((exercise): exercise is Exercise => !!exercise);
 
+      const planType = getWorkoutPlanTypeWithFallback({
+        exercises: planExercises,
+        workoutPlanType: undefined,
+        category: (row.category as WorkoutPlan['category']) || undefined,
+      });
+
       return {
         id: row.id,
         name: row.name,
         category: (row.category as WorkoutPlan['category']) || undefined,
         description: row.description || '',
-        workoutPlanType: deriveWorkoutPlanType(planExercises),
+        workoutPlanType: planType,
         exercises: planExercises,
         isActive: !!row.is_active,
         lastPerformed: row.last_performed_at ? new Date(row.last_performed_at) : undefined,
@@ -306,7 +312,7 @@ export class WorkoutRepository {
     return data;
   }
 
-  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category'>) {
+  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category' | 'workoutPlanType'>) {
     const client = this.supabase.getClient();
     if (!client) return false;
 

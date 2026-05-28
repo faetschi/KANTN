@@ -20,10 +20,10 @@ const TYPE_VISUALS: Record<WorkoutExerciseType, WorkoutTypeVisual> = {
   },
   cardio: {
     label: 'Cardio',
-    color: '#ea580c',
-    bgColor: '#ffedd5',
-    textColor: '#9a3412',
-    borderColor: '#fed7aa',
+    color: '#059669',
+    bgColor: '#d1fae5',
+    textColor: '#065f46',
+    borderColor: '#a7f3d0',
   },
   mobility: {
     label: 'Mobility',
@@ -118,15 +118,33 @@ export function deriveWorkoutPlanType(exercises: Exercise[]): WorkoutExerciseTyp
   return bestCount > exercises.length / 2 ? bestType : 'mixed';
 }
 
-export function getWorkoutPlanType(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType'> | null | undefined): WorkoutExerciseType {
+const CARDIO_CATEGORIES = new Set(['running', 'cycling', 'swimming', 'hiking']);
+const STRENGTH_CATEGORIES = new Set(['upper body', 'lower body', 'core', 'mobility', 'full body']);
+
+export function deriveTypeFromCategory(category: string | undefined | null): WorkoutExerciseType {
+  const cat = (category || '').trim().toLowerCase();
+  if (CARDIO_CATEGORIES.has(cat)) return 'cardio';
+  if (STRENGTH_CATEGORIES.has(cat)) return 'strength';
+  return 'general';
+}
+
+export function getWorkoutPlanTypeWithFallback(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType' | 'category'> | null | undefined): WorkoutExerciseType {
   if (!plan) return 'general';
-  return normalizeWorkoutType(plan.workoutPlanType || deriveWorkoutPlanType(plan.exercises));
+  if (plan.workoutPlanType) return normalizeWorkoutType(plan.workoutPlanType);
+  if (plan.exercises.length > 0) return deriveWorkoutPlanType(plan.exercises);
+  return deriveTypeFromCategory(plan.category);
+}
+
+export function getWorkoutPlanType(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType' | 'category'> | null | undefined): WorkoutExerciseType {
+  if (!plan) return 'general';
+  return getWorkoutPlanTypeWithFallback(plan);
 }
 
 export function getWorkoutTypeEmoji(type: string | null | undefined): string | null {
   const normalized = (type || '').trim().toLowerCase();
-  if (normalized === 'cardio') return '🚴';
-  if (normalized === 'strength') return '🏋️';
+  if (normalized === 'cardio') return '🏃';
+  if (normalized === 'strength') return '💪';
+  if (normalized === 'core') return '🎯';
   if (normalized === 'mobility') return '🧘';
   if (normalized === 'hiit') return '⚡';
   return null;
@@ -137,7 +155,7 @@ export function getWorkoutPlanEmoji(exercises: Exercise[]): string | null {
   return getWorkoutTypeEmoji(deriveWorkoutPlanType(exercises));
 }
 
-export function getWorkoutPlanAction(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType'> | null | undefined): {
+export function getWorkoutPlanAction(plan: Pick<WorkoutPlan, 'exercises' | 'workoutPlanType' | 'category'> | null | undefined): {
   actionType: WorkoutExerciseType;
   emoji: string | null;
 } {

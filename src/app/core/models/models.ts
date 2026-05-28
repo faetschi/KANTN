@@ -41,6 +41,7 @@ export interface ExerciseSession {
   maxPacePerKmSeconds?: number;
   avgSpeedKmh?: number;
   exerciseDurationSeconds?: number;
+  mapSnapshotUrl?: string;
 }
 
 export interface WorkoutSession {
@@ -58,7 +59,7 @@ export interface WorkoutPlan {
   id: string;
   name: string;
   description: string;
-  category?: 'upper body' | 'lower body' | 'core' | 'cardio' | 'mobility' | 'full body';
+  category?: 'upper body' | 'lower body' | 'core' | 'mobility' | 'full body' | 'running' | 'cycling' | 'swimming' | 'hiking';
   workoutPlanType?: string;
   exercises: Exercise[];
   schedule?: string[]; // e.g., ['Monday', 'Wednesday', 'Friday']
@@ -89,6 +90,7 @@ export interface CardioExerciseData {
   avgSpeedKmh: number;
   gpsEnabled: boolean;
   gpsCoordinates: Array<{lat: number; lng: number; timestamp: number}>;
+  mapSnapshotUrl?: string;
 }
 
 export interface InProgressWorkout {

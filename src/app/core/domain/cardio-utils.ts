@@ -1,6 +1,36 @@
 import { Exercise, WorkoutSession } from '../models/models';
 import { calcCalories, buildPersistedSessionPayload, PersistedSessionPayload } from './workout-domain';
 
+export const CARDIO_CATEGORY_MET: Record<string, number> = {
+  running: 9.8,
+  cycling: 7.5,
+  swimming: 8.0,
+  hiking: 5.3,
+};
+
+export function getCardioCategoryMet(category: string): number {
+  return CARDIO_CATEGORY_MET[category.trim().toLowerCase()] || 5;
+}
+
+export function createVirtualCardioExercise(category: string): Exercise | null {
+  const cat = category.trim().toLowerCase() as keyof typeof CARDIO_CATEGORY_MET;
+  if (!CARDIO_CATEGORY_MET[cat]) return null;
+  return {
+    id: `virtual-cardio-${cat}`,
+    name: cat.charAt(0).toUpperCase() + cat.slice(1),
+    imageUrl: '',
+    description: `${cat.charAt(0).toUpperCase() + cat.slice(1)} workout`,
+    muscleGroup: 'Cardio',
+    exerciseType: 'cardio',
+    metValue: CARDIO_CATEGORY_MET[cat],
+    visibility: 'default',
+  };
+}
+
+export function isVirtualCardioId(exerciseId: string): boolean {
+  return exerciseId.startsWith('virtual-cardio-');
+}
+
 export function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;

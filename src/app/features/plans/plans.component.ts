@@ -7,13 +7,14 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { ShareDialogComponent } from '../../shared/components/share-dialog.component';
 import { WorkoutPlan } from '../../core/models/models';
-import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
+import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plans',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent, ShareDialogComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -21,7 +22,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
         <div class="flex items-center gap-2">
           <button
             type="button"
-            (click)="showSharePanel = !showSharePanel"
+            (click)="showSharePanel = true; shareMessage = ''"
             class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
             aria-label="Share plan"
           >
@@ -33,43 +34,19 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
         </div>
       </header>
 
-      @if (showSharePanel) {
-      <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3">
-          <select [(ngModel)]="sharePlanId" class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
-            <option [ngValue]="''">Select your plan</option>
-            @for (plan of myOwnedPlans(); track plan.id) {
-              <option [ngValue]="plan.id">{{ plan.name }}</option>
-            }
-          </select>
-          <input
-            type="email"
-            [(ngModel)]="shareEmail"
-            placeholder="user@example.com"
-            class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-          >
-          <button
-            type="button"
-            (click)="sharePlan()"
-            [disabled]="sharingPlan || unsharingPlan"
-            class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-          >
-            {{ sharingPlan ? 'Sharing…' : 'Share' }}
-          </button>
-          <button
-            type="button"
-            (click)="unsharePlan()"
-            [disabled]="sharingPlan || unsharingPlan"
-            class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-          >
-            {{ unsharingPlan ? 'Revoking…' : 'Unshare' }}
-          </button>
-        </div>
-        @if (shareMessage) {
-          <span class="text-xs text-gray-500">{{ shareMessage }}</span>
-        }
-      </section>
-      }
+      <app-share-dialog
+        [visible]="showSharePanel"
+        (visibleChange)="closeSharePanel()"
+        title="Share Plan"
+        itemLabel="plan"
+        [items]="shareablePlans()"
+        [(selectedItemId)]="sharePlanId"
+        [sharing]="sharingPlan"
+        [unsharing]="unsharingPlan"
+        [message]="shareMessage"
+        (share)="onShareDialogShare($event)"
+        (unshare)="onShareDialogUnshare($event)"
+      />
 
       @if (pendingInvites().length) {
         <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
@@ -128,17 +105,18 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle } from 
               <div>
                 <h3 class="text-lg font-bold text-gray-900">{{ plan.name }}</h3>
                 <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span
+                    class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    [ngStyle]="typeBadgeStyle(plan)"
+                  >
+                    <span class="mr-1" aria-hidden="true">{{ typeEmoji(plan) }}</span>
+                    {{ typeLabel(plan) }}
+                  </span>
                   @if (plan.category) {
                     <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">
                       {{ plan.category }}
                     </span>
                   }
-                  <span
-                    class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                    [ngStyle]="typeBadgeStyle(plan)"
-                  >
-                    {{ typeLabel(plan) }}
-                  </span>
                   <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                     @if (plan.lastPerformed) {
                       Last: {{ plan.lastPerformed | date:'MMM d' }}
@@ -238,6 +216,10 @@ export class PlansComponent {
     return workoutTypeBadgeStyle(getWorkoutPlanType(plan));
   }
 
+  typeEmoji(plan: WorkoutPlan) {
+    return getWorkoutTypeEmoji(getWorkoutPlanType(plan)) || '';
+  }
+
   pendingInvites = computed(() => this.planInvites().filter(invite => invite.status === 'pending'));
 
   async activatePlan(id: string) {
@@ -273,19 +255,18 @@ export class PlansComponent {
     this.notifications.success('Plan activated.', 1000);
   }
 
-  async sharePlan() {
-    const planId = this.sharePlanId;
-    const email = this.shareEmail.trim();
+  shareablePlans() {
+    return this.myOwnedPlans().map(p => ({ id: p.id, name: p.name }));
+  }
 
-    if (!planId) {
-      this.shareMessage = 'Please select a plan to share.';
-      return;
-    }
+  closeSharePanel() {
+    this.showSharePanel = false;
+    this.shareMessage = '';
+  }
 
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
+  async onShareDialogShare(event: { itemId: string; email: string }) {
+    const planId = event.itemId;
+    const email = event.email;
 
     this.sharingPlan = true;
     this.shareMessage = '';
@@ -306,25 +287,16 @@ export class PlansComponent {
 
     const ok = await this.workoutService.sharePlan(planId, targetUserId);
     this.sharingPlan = false;
-    this.shareMessage = ok ? 'Plan shared successfully.' : 'Failed to share plan.';
     if (ok) {
-      this.shareEmail = '';
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to share plan.';
     }
   }
 
-  async unsharePlan() {
-    const planId = this.sharePlanId;
-    const email = this.shareEmail.trim();
-
-    if (!planId) {
-      this.shareMessage = 'Please select a plan to unshare.';
-      return;
-    }
-
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
+  async onShareDialogUnshare(event: { itemId: string; email: string }) {
+    const planId = event.itemId;
+    const email = event.email;
 
     this.unsharingPlan = true;
     this.shareMessage = '';
@@ -338,9 +310,10 @@ export class PlansComponent {
 
     const ok = await this.workoutService.unsharePlan(planId, targetUserId);
     this.unsharingPlan = false;
-    this.shareMessage = ok ? 'Plan unshared successfully.' : 'Failed to unshare plan.';
     if (ok) {
-      this.shareEmail = '';
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to unshare plan.';
     }
   }
 

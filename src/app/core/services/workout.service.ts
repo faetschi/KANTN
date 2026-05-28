@@ -189,13 +189,13 @@ export class WorkoutService {
     }
   }
 
-  async addSession(session: WorkoutSession) {
+  async addSession(session: WorkoutSession, virtualExercises?: Exercise[]) {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 
     const payload = buildPersistedSessionPayload(
       session,
-      exerciseId => this.getExerciseById(exerciseId),
+      exerciseId => this.getExerciseById(exerciseId) || virtualExercises?.find(e => e.id === exerciseId),
       this.getUserWeightKg()
     );
 
@@ -217,7 +217,7 @@ export class WorkoutService {
     return planId;
   }
 
-  async updatePlan(planId: string, updates: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category'>) {
+  async updatePlan(planId: string, updates: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category' | 'workoutPlanType'>) {
     const userId = this.getCurrentUserId();
     if (!userId) return false;
 

@@ -87,6 +87,12 @@ import { WorkoutSession } from '../../core/models/models';
                       <p class="text-lg font-semibold text-gray-900">{{ exerciseSession.avgSpeedKmh | number:'1.1-1' }} km/h</p>
                     </div>
                   }
+                  @if (exerciseSession.mapSnapshotUrl) {
+                    <div class="mt-3">
+                      <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Route Map</p>
+                      <img [src]="exerciseSession.mapSnapshotUrl" alt="Route Map" class="w-full rounded-xl border border-orange-200" />
+                    </div>
+                  }
                 </div>
               } @else {
                 <div class="space-y-2">

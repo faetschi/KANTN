@@ -46,11 +46,14 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
             (click)="beginInlineEdit('name', nameInput)"
             name="inlineName"
             [readonly]="activeField !== 'name'"
+            [class.text-lg]="activeField !== 'name'"
+            [class.font-bold]="activeField !== 'name'"
+            [class.text-gray-900]="activeField !== 'name'"
             [class.bg-transparent]="activeField !== 'name'"
             [class.bg-gray-50]="activeField === 'name'"
             [class.cursor-pointer]="activeField !== 'name'"
             [class.cursor-text]="activeField === 'name'"
-            class="text-lg font-bold text-gray-900 border-0 rounded-xl px-2 py-1 text-center max-w-44 focus:outline-none focus:ring-0"
+            class="border-0 rounded-xl px-2 py-1 text-center max-w-44 focus:outline-none focus:ring-0 transition-all"
           />
           <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <button *ngIf="activeField === 'name'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
@@ -62,24 +65,29 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
           </div>
         </div>
         <div class="relative w-full flex items-center justify-center">
-          <p
-            *ngIf="activeField !== 'username'"
-            (click)="beginInlineEdit('username')"
-            class="text-gray-500 text-sm cursor-pointer"
-          >@{{ form.username || 'username' }}</p>
-          <div *ngIf="activeField === 'username'" class="flex items-center justify-center gap-0">
-            <span class="text-gray-400 text-sm shrink-0">@</span>
+          <div class="flex items-center justify-center gap-0">
+            <span
+              [class.text-gray-400]="activeField !== 'username'"
+              [class.text-gray-900]="activeField === 'username'"
+              class="text-sm transition-all shrink-0"
+            >@</span>
             <input
               #usernameInput
               [(ngModel)]="form.username"
               (keydown.enter)="applyInlineEdit()"
               (blur)="onFieldBlur()"
+              (click)="beginInlineEdit('username', usernameInput)"
               name="inlineUsername"
+              [readonly]="activeField !== 'username'"
               [class.text-sm]="true"
-              [class.text-gray-900]="true"
-              [class.font-semibold]="true"
-              [class.bg-gray-50]="true"
-              class="border-0 p-0 text-center focus:outline-none focus:ring-0 lowercase"
+              [class.text-gray-500]="activeField !== 'username'"
+              [class.text-gray-900]="activeField === 'username'"
+              [class.font-semibold]="activeField === 'username'"
+              [class.bg-transparent]="activeField !== 'username'"
+              [class.bg-gray-50]="activeField === 'username'"
+              [class.cursor-pointer]="activeField !== 'username'"
+              [class.cursor-text]="activeField === 'username'"
+              class="border-0 p-0 text-center focus:outline-none focus:ring-0 lowercase transition-all"
               placeholder="username"
               maxlength="20"
               autocapitalize="off"
@@ -143,11 +151,15 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
                 min="1"
                 max="300"
                 [readonly]="activeField !== 'weight'"
+                [class.text-sm]="activeField === 'weight'"
+                [class.text-base]="activeField !== 'weight'"
+                [class.text-gray-900]="activeField !== 'weight'"
+                [class.text-gray-400]="activeField === 'weight'"
                 [class.bg-transparent]="activeField !== 'weight'"
                 [class.bg-gray-50]="activeField === 'weight'"
                 [class.cursor-pointer]="activeField !== 'weight'"
                 [class.cursor-text]="activeField === 'weight'"
-                class="w-14 border-0 rounded-xl px-1 py-0.5 text-base font-bold text-gray-900 text-center focus:outline-none focus:ring-0"
+                class="w-14 border-0 rounded-xl px-1 py-0.5 font-bold text-center focus:outline-none focus:ring-0 transition-all"
               />
               <span class="text-xs font-normal text-gray-400">kg</span>
               <button *ngIf="activeField === 'weight'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
@@ -172,11 +184,15 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
                 min="1"
                 max="300"
                 [readonly]="activeField !== 'height'"
+                [class.text-sm]="activeField === 'height'"
+                [class.text-base]="activeField !== 'height'"
+                [class.text-gray-900]="activeField !== 'height'"
+                [class.text-gray-400]="activeField === 'height'"
                 [class.bg-transparent]="activeField !== 'height'"
                 [class.bg-gray-50]="activeField === 'height'"
                 [class.cursor-pointer]="activeField !== 'height'"
                 [class.cursor-text]="activeField === 'height'"
-                class="w-14 border-0 rounded-xl px-1 py-0.5 text-base font-bold text-gray-900 text-center focus:outline-none focus:ring-0"
+                class="w-14 border-0 rounded-xl px-1 py-0.5 font-bold text-center focus:outline-none focus:ring-0 transition-all"
               />
               <span class="text-xs font-normal text-gray-400">cm</span>
               <button *ngIf="activeField === 'height'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
@@ -201,11 +217,15 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
                 min="1"
                 max="150"
                 [readonly]="activeField !== 'age'"
+                [class.text-sm]="activeField === 'age'"
+                [class.text-base]="activeField !== 'age'"
+                [class.text-gray-900]="activeField !== 'age'"
+                [class.text-gray-400]="activeField === 'age'"
                 [class.bg-transparent]="activeField !== 'age'"
                 [class.bg-gray-50]="activeField === 'age'"
                 [class.cursor-pointer]="activeField !== 'age'"
                 [class.cursor-text]="activeField === 'age'"
-                class="w-14 border-0 rounded-xl px-1 py-0.5 text-base font-bold text-gray-900 text-center focus:outline-none focus:ring-0"
+                class="w-14 border-0 rounded-xl px-1 py-0.5 font-bold text-center focus:outline-none focus:ring-0 transition-all"
               />
               <span class="text-xs font-normal text-gray-400">yo</span>
               <button *ngIf="activeField === 'age'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
