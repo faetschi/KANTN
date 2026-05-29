@@ -16,6 +16,10 @@ interface StatsRpcRow {
   total_calories: number | string | null;
 }
 
+interface StatsPeriodRow extends StatsRpcRow {
+  period: string | null;
+}
+
 function parseNumberOrFallback(value: number | string | null | undefined, fallback: number): number {
   if (value === null || value === undefined) return fallback;
   const parsed = Number(value);
@@ -84,6 +88,30 @@ export class StatsService {
     };
   }
 
+  private async fetchPeriodStats(): Promise<{ weekly?: AggregateStats; monthly?: AggregateStats } | null> {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    const { data, error } = await client.rpc('get_my_stats_periods');
+    if (error || !Array.isArray(data)) return null;
+
+    const byPeriod = new Map<string, AggregateStats>();
+    for (const row of data as StatsPeriodRow[]) {
+      const key = (row.period || '').toLowerCase();
+      if (key !== 'week' && key !== 'month') continue;
+      byPeriod.set(key, {
+        count: parseNumberOrFallback(row.workout_count, 0),
+        duration: parseNumberOrFallback(row.total_duration_seconds, 0),
+        calories: parseNumberOrFallback(row.total_calories, 0),
+      });
+    }
+
+    return {
+      weekly: byPeriod.get('week'),
+      monthly: byPeriod.get('month'),
+    };
+  }
+
   private async refreshStats() {
     const now = new Date();
     const weekStart = startOfWeek(now);
@@ -91,6 +119,21 @@ export class StatsService {
 
     const weeklyFallback = this.getFallbackStats(weekStart);
     const monthlyFallback = this.getFallbackStats(monthStart);
+
+    const periodStats = await this.fetchPeriodStats();
+    if (periodStats?.weekly && periodStats?.monthly) {
+      this.weeklyStatsSignal.set({
+        count: periodStats.weekly.count || weeklyFallback.count,
+        duration: periodStats.weekly.duration || weeklyFallback.duration,
+        calories: periodStats.weekly.calories || weeklyFallback.calories,
+      });
+      this.monthlyStatsSignal.set({
+        count: periodStats.monthly.count || monthlyFallback.count,
+        duration: periodStats.monthly.duration || monthlyFallback.duration,
+        calories: periodStats.monthly.calories || monthlyFallback.calories,
+      });
+      return;
+    }
 
     const [weekly, monthly] = await Promise.all([
       this.fetchRangeStats(weekStart, now, weeklyFallback),

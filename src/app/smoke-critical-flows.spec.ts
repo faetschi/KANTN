@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { convertToParamMap, ActivatedRoute, Router } from '@angular/router';
@@ -14,10 +15,10 @@ import { Exercise } from './core/models/models';
 
 describe('Critical flow smoke tests', () => {
   it('saves profile and refreshes auth profile state', async () => {
-    const refreshProfile = jasmine.createSpy('refreshProfile').and.resolveTo();
-    const eqSpy = jasmine.createSpy('eq').and.resolveTo({ error: null });
-    const updateSpy = jasmine.createSpy('update').and.returnValue({ eq: eqSpy });
-    const fromSpy = jasmine.createSpy('from').and.returnValue({ update: updateSpy });
+    const refreshProfile = vi.fn().mockResolvedValue(true);
+    const eqSpy = vi.fn().mockResolvedValue({ error: null });
+    const updateSpy = vi.fn().mockReturnValue({ eq: eqSpy });
+    const fromSpy = vi.fn().mockReturnValue({ update: updateSpy });
 
     await TestBed.configureTestingModule({
       imports: [ProfileComponent],
@@ -28,18 +29,20 @@ describe('Critical flow smoke tests', () => {
             currentUser: () => ({
               id: 'user-1',
               name: 'User',
+              username: 'user_1',
               email: 'user@example.com',
               height: 180,
               weight: 75,
               age: 30,
             }),
             refreshProfile,
-            logout: jasmine.createSpy('logout'),
+            logout: vi.fn(),
+            updateLastSeen: vi.fn(),
           },
         },
         { provide: StatsService, useValue: { monthlyStats: () => ({ count: 0, calories: 0, duration: 0 }) } },
         { provide: SupabaseService, useValue: { getClient: () => ({ from: fromSpy }) } },
-        { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
       ],
     }).compileComponents();
 
@@ -47,6 +50,7 @@ describe('Critical flow smoke tests', () => {
     const component = fixture.componentInstance;
     component.form = {
       name: 'Updated Name',
+      username: 'updated_user',
       avatarUrl: 'https://example.com/avatar.png',
       funFact: 'Loves coding',
       height: 181,
@@ -63,9 +67,9 @@ describe('Critical flow smoke tests', () => {
   });
 
   it('creates a plan via workout service', async () => {
-    const createPlan = jasmine.createSpy('createPlan').and.resolveTo('plan-1');
-    const navigate = jasmine.createSpy('navigate');
-    const open = jasmine.createSpy('open');
+    const createPlan = vi.fn().mockResolvedValue(true);
+    const navigate = vi.fn();
+    const open = vi.fn();
 
     await TestBed.configureTestingModule({
       imports: [PlanCreateComponent],
@@ -74,7 +78,7 @@ describe('Critical flow smoke tests', () => {
           provide: WorkoutService,
           useValue: {
             exercises: () => [],
-            getPlanById: jasmine.createSpy('getPlanById').and.returnValue(null),
+            getPlanById: vi.fn().mockReturnValue(null),
             createPlan,
           },
         },
@@ -98,6 +102,7 @@ describe('Critical flow smoke tests', () => {
 
     component.name = 'Beginner Plan';
     component.description = 'Starter';
+    component.workoutPlanType.set('strength');
     component.selectedExercises.set([exercise]);
 
     await component.createPlan();
@@ -107,8 +112,22 @@ describe('Critical flow smoke tests', () => {
   });
 
   it('finishes workout and persists session', async () => {
-    const addSession = jasmine.createSpy('addSession').and.resolveTo(true);
-    const navigate = jasmine.createSpy('navigate');
+    const addSession = vi.fn().mockResolvedValue(true);
+    const navigate = vi.fn();
+    const getExerciseById = vi.fn().mockReturnValue({
+      id: 'ex-1',
+      name: 'Squat',
+      imageUrl: 'https://example.com/squat.png',
+      description: '',
+      muscleGroup: 'Legs',
+      exerciseType: 'strength',
+      metValue: 5.0,
+    });
+    const inProgress = vi.fn().mockReturnValue(null);
+    const setInProgress = vi.fn();
+    const clearInProgress = vi.fn();
+    const markPlanStartedLocally = vi.fn();
+    const markPlanCompletedLocally = vi.fn();
     const plan = {
       id: 'plan-1',
       name: 'Plan',
@@ -131,9 +150,15 @@ describe('Critical flow smoke tests', () => {
         {
           provide: WorkoutService,
           useValue: {
-            getPlanById: jasmine.createSpy('getPlanById').and.returnValue(plan),
-            getLastSessionForPlan: jasmine.createSpy('getLastSessionForPlan').and.returnValue(undefined),
+            getPlanById: vi.fn().mockReturnValue(plan),
+            getLastSessionForPlan: vi.fn().mockReturnValue(null),
             addSession,
+            getExerciseById,
+            inProgress,
+            setInProgress,
+            clearInProgress,
+            markPlanStartedLocally,
+            markPlanCompletedLocally,
           },
         },
         { provide: Router, useValue: { navigate } },
@@ -159,8 +184,8 @@ describe('Critical flow smoke tests', () => {
   });
 
   it('shares a plan with a resolved user id', async () => {
-    const sharePlan = jasmine.createSpy('sharePlan').and.resolveTo(true);
-    const resolveUserIdByEmail = jasmine.createSpy('resolveUserIdByEmail').and.resolveTo('user-2');
+    const sharePlan = vi.fn().mockResolvedValue(true);
+    const resolveUserIdByEmail = vi.fn().mockResolvedValue('user-2');
 
     await TestBed.configureTestingModule({
       imports: [PlansComponent],
@@ -171,10 +196,12 @@ describe('Critical flow smoke tests', () => {
             plans: () => [{ id: 'plan-1', name: 'Plan', description: '', exercises: [], isActive: false, ownerId: 'user-1' }],
             resolveUserIdByEmail,
             sharePlan,
-            setActivePlan: jasmine.createSpy('setActivePlan').and.resolveTo(true),
+            setActivePlan: vi.fn().mockResolvedValue(true),
           },
         },
         { provide: AuthService, useValue: { currentUser: () => ({ id: 'user-1' }) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
       ],
     }).compileComponents();
 

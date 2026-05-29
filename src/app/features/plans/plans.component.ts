@@ -5,7 +5,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { WorkoutPlan } from '../../core/models/models';
+import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plans',
@@ -18,7 +21,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         <div class="flex items-center gap-2">
           <button
             type="button"
-            (click)="showSharePanel = !showSharePanel"
+            (click)="showSharePanel.set(true); shareMessage = ''"
             class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
             aria-label="Share plan"
           >
@@ -30,46 +33,92 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         </div>
       </header>
 
-      @if (showSharePanel) {
-      <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3">
-          <select [(ngModel)]="sharePlanId" class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
-            <option [ngValue]="''">Select your plan</option>
-            @for (plan of myOwnedPlans(); track plan.id) {
-              <option [ngValue]="plan.id">{{ plan.name }}</option>
-            }
-          </select>
-          <input
-            type="email"
-            [(ngModel)]="shareEmail"
-            placeholder="user@example.com"
-            class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-          >
-          <button
-            type="button"
-            (click)="sharePlan()"
-            [disabled]="sharingPlan || unsharingPlan"
-            class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-          >
-            {{ sharingPlan ? 'Sharing…' : 'Share' }}
-          </button>
-          <button
-            type="button"
-            (click)="unsharePlan()"
-            [disabled]="sharingPlan || unsharingPlan"
-            class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-          >
-            {{ unsharingPlan ? 'Revoking…' : 'Unshare' }}
-          </button>
+      @if (showSharePanel()) {
+      <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" (click)="closeSharePanel()">
+        <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4" (click)="$event.stopPropagation()">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-bold text-gray-900">Share Plan</h3>
+            <button type="button" (click)="closeSharePanel()" class="text-gray-400">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+          <div class="grid grid-cols-1 gap-3">
+            <select [(ngModel)]="sharePlanId" class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
+              <option [ngValue]="''">Select your plan</option>
+              @for (plan of myOwnedPlans(); track plan.id) {
+                <option [ngValue]="plan.id">{{ plan.name }}</option>
+              }
+            </select>
+            <input
+              type="email"
+              [(ngModel)]="shareEmail"
+              placeholder="user@example.com"
+              class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            >
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                (click)="sharePlan()"
+                [disabled]="sharingPlan || unsharingPlan"
+                class="flex-1 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+              >
+                {{ sharingPlan ? 'Sharing\u2026' : 'Share' }}
+              </button>
+              <button
+                type="button"
+                (click)="unsharePlan()"
+                [disabled]="sharingPlan || unsharingPlan"
+                class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+              >
+                {{ unsharingPlan ? 'Revoking\u2026' : 'Unshare' }}
+              </button>
+            </div>
+          </div>
+          @if (shareMessage) {
+            <span class="text-xs text-gray-500">{{ shareMessage }}</span>
+          }
         </div>
-        @if (shareMessage) {
-          <span class="text-xs text-gray-500">{{ shareMessage }}</span>
-        }
-      </section>
+      </div>
       }
 
-      @if (activationMessage) {
-        <span class="text-xs text-red-500">{{ activationMessage }}</span>
+      @if (pendingInvites().length) {
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+          <h2 class="text-sm font-semibold text-gray-900">Pending plan invites</h2>
+          <div class="space-y-3">
+            @for (invite of pendingInvites(); track invite.id) {
+              <div class="flex flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <div>
+                  <p class="text-sm font-semibold text-gray-900">{{ invite.planName }}</p>
+                  <p class="text-xs text-gray-500 line-clamp-2">{{ invite.planDescription || 'Shared workout plan' }}</p>
+                  @if (invite.sharedByEmail || invite.sharedByName) {
+                    <p class="text-[11px] text-gray-400">Shared by {{ invite.sharedByName || invite.sharedByEmail }}</p>
+                  }
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    (click)="respondToInvite(invite.id, true)"
+                    [disabled]="respondingInviteId === invite.id"
+                    class="flex-1 bg-gray-900 text-white text-xs font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                  >
+                    {{ respondingInviteId === invite.id ? 'Accepting…' : 'Accept' }}
+                  </button>
+                  <button
+                    type="button"
+                    (click)="respondToInvite(invite.id, false)"
+                    [disabled]="respondingInviteId === invite.id"
+                    class="flex-1 bg-white text-gray-600 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 disabled:opacity-50"
+                  >
+                    {{ respondingInviteId === invite.id ? 'Declining…' : 'Decline' }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+          @if (inviteMessage) {
+            <span class="text-xs text-gray-500">{{ inviteMessage }}</span>
+          }
+        </section>
       }
 
       <app-search-bar
@@ -78,6 +127,17 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         (valueChange)="planSearchQuery.set($event)"
         placeholder="Search workout plans"
       />
+
+      @if (filteredPlans().length === 0) {
+        <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-10 text-center">
+          <mat-icon class="text-4xl text-gray-300 mb-3">fitness_center</mat-icon>
+          <p class="text-gray-500 font-semibold mb-1">No workout plans yet</p>
+          <p class="text-gray-400 text-sm mb-5">Create your first plan to get started.</p>
+          <button routerLink="/plans/create" class="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md">
+            Create Plan
+          </button>
+        </div>
+      }
 
       <div class="space-y-4">
         @for (plan of filteredPlans(); track plan.id) {
@@ -88,7 +148,34 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
             <div class="flex justify-between items-start mb-3">
               <div>
                 <h3 class="text-lg font-bold text-gray-900">{{ plan.name }}</h3>
-                <p class="text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
+                <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span
+                    class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    [ngStyle]="typeBadgeStyle(plan)"
+                  >
+                    <span class="mr-1" aria-hidden="true">{{ typeEmoji(plan) }}</span>
+                    {{ typeLabel(plan) }}
+                  </span>
+                  @if (plan.category) {
+                    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">
+                      {{ plan.category }}
+                    </span>
+                  }
+                  <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    @if (plan.lastPerformed) {
+                      Last: {{ plan.lastPerformed | date:'MMM d' }}
+                    } @else {
+                      Not started yet
+                    }
+                  </span>
+                  @if (nextScheduledDate(plan.id); as sched) {
+                    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                      <mat-icon class="text-[12px] mr-0.5" style="font-size:12px;width:12px;height:12px;">calendar_today</mat-icon>
+                      {{ sched | date:'MMM d' }}
+                    </span>
+                  }
+                </div>
+                <p class="mt-2 text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
               </div>
               @if (plan.isActive) {
                 <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Active</span>
@@ -110,6 +197,10 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
               <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
                 Start
               </button>
+              <button (click)="openScheduleDialog(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
+                <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">calendar_today</mat-icon>
+                <span class="hidden sm:inline">Schedule</span>
+              </button>
               @if (isOwnedPlan(plan.id)) {
                 <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
                   Edit
@@ -119,7 +210,7 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
                 </button>
               }
               @if (!plan.isActive) {
-                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId && activatingPlanId !== plan.id" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
+                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId !== ''" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
                   {{ activatingPlanId === plan.id ? 'Activating…' : 'Activate' }}
                 </button>
               }
@@ -128,22 +219,83 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
         }
       </div>
     </div>
+
+      @if (showScheduleDialog()) {
+        <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
+          <div class="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-900">Schedule Workout</h3>
+              <button type="button" (click)="closeScheduleDialog()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <p class="text-sm text-gray-500">Pick a date for this workout.</p>
+            <input type="date" [(ngModel)]="scheduleDateInput" [min]="minScheduleDate"
+                   class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+            <div class="flex items-center justify-end gap-2">
+              <button type="button" (click)="closeScheduleDialog()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Cancel</button>
+              <button type="button" (click)="confirmSchedule()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Schedule</button>
+            </div>
+          </div>
+        </div>
+      }
   `
 })
 export class PlansComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  notifications = inject(NotificationService);
   
   plans = this.workoutService.plans;
+  planInvites = this.workoutService.planInvites;
   sharePlanId = '';
   shareEmail = '';
-  showSharePanel = false;
+  showSharePanel = signal(false);
   planSearchQuery = signal('');
   sharingPlan = false;
   unsharingPlan = false;
   shareMessage = '';
-  activationMessage = '';
+  inviteMessage = '';
   activatingPlanId = '';
+  respondingInviteId = '';
+
+  // ── Schedule state ──
+  showScheduleDialog = signal(false);
+  schedulePlanId = signal('');
+  scheduleDateInput = '';
+  minScheduleDate = new Date().toISOString().split('T')[0];
+
+  nextScheduledDate(planId: string): Date | null {
+    const now = new Date();
+    const matches = this.workoutService.scheduledWorkouts()
+      .filter(sw => sw.planId === planId && sw.status === 'scheduled')
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+    return matches.length > 0 ? matches[0].scheduledDate : null;
+  }
+
+  openScheduleDialog(planId: string) {
+    this.schedulePlanId.set(planId);
+    this.scheduleDateInput = new Date().toISOString().split('T')[0];
+    this.showScheduleDialog.set(true);
+  }
+
+  closeScheduleDialog() {
+    this.showScheduleDialog.set(false);
+    this.schedulePlanId.set('');
+    this.scheduleDateInput = '';
+  }
+
+  async confirmSchedule() {
+    const planId = this.schedulePlanId();
+    if (!planId || !this.scheduleDateInput) return;
+    const ok = await this.workoutService.schedulePlan(planId, new Date(this.scheduleDateInput));
+    if (ok) {
+      this.notifications.success('Workout scheduled.');
+    } else {
+      this.notifications.error('Failed to schedule workout.');
+    }
+    this.closeScheduleDialog();
+  }
 
   myOwnedPlans() {
     const currentUserId = this.authService.currentUser()?.id;
@@ -163,13 +315,26 @@ export class PlansComponent {
     if (!query) return sorted;
 
     return sorted.filter(plan => {
-      const haystack = [plan.name, plan.description || ''].join(' ').toLowerCase();
+      const haystack = [plan.name, plan.description || '', plan.category || '', getWorkoutPlanType(plan)].join(' ').toLowerCase();
       return haystack.includes(query);
     });
   });
 
+  typeLabel(plan: WorkoutPlan) {
+    return getWorkoutTypeVisual(getWorkoutPlanType(plan)).label;
+  }
+
+  typeBadgeStyle(plan: WorkoutPlan) {
+    return workoutTypeBadgeStyle(getWorkoutPlanType(plan));
+  }
+
+  typeEmoji(plan: WorkoutPlan) {
+    return getWorkoutTypeEmoji(getWorkoutPlanType(plan)) || '';
+  }
+
+  pendingInvites = computed(() => this.planInvites().filter(invite => invite.status === 'pending'));
+
   async activatePlan(id: string) {
-    this.activationMessage = '';
     this.activatingPlanId = id;
 
     const currentUserId = this.authService.currentUser()?.id;
@@ -195,8 +360,16 @@ export class PlansComponent {
       // Revert optimistic change via service
       console.debug('[PlansComponent] activatePlan revert to previousActiveId=', previousActiveId);
       this.workoutService.setActiveLocally(previousActiveId || null);
-      this.activationMessage = 'Failed to activate plan.';
+      this.notifications.error('Failed to activate plan.');
+      return;
     }
+
+    this.notifications.success('Plan activated.', 1000);
+  }
+
+  closeSharePanel() {
+    this.showSharePanel.set(false);
+    this.shareMessage = '';
   }
 
   async sharePlan() {
@@ -232,9 +405,11 @@ export class PlansComponent {
 
     const ok = await this.workoutService.sharePlan(planId, targetUserId);
     this.sharingPlan = false;
-    this.shareMessage = ok ? 'Plan shared successfully.' : 'Failed to share plan.';
     if (ok) {
       this.shareEmail = '';
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to share plan.';
     }
   }
 
@@ -264,9 +439,23 @@ export class PlansComponent {
 
     const ok = await this.workoutService.unsharePlan(planId, targetUserId);
     this.unsharingPlan = false;
-    this.shareMessage = ok ? 'Plan unshared successfully.' : 'Failed to unshare plan.';
     if (ok) {
       this.shareEmail = '';
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to unshare plan.';
+    }
+  }
+
+  async respondToInvite(shareId: string, accept: boolean) {
+    this.inviteMessage = '';
+    this.respondingInviteId = shareId;
+
+    const ok = await this.workoutService.respondToPlanInvite(shareId, accept);
+    this.respondingInviteId = '';
+
+    if (!ok) {
+      this.inviteMessage = accept ? 'Failed to accept invite.' : 'Failed to decline invite.';
     }
   }
 
@@ -274,7 +463,7 @@ export class PlansComponent {
     if (!confirm('Delete this plan? This cannot be undone.')) return;
     const ok = await this.workoutService.deletePlan(id);
     if (!ok) {
-      this.activationMessage = 'Failed to delete plan.';
+      this.notifications.error('Failed to delete plan.');
     }
   }
 }

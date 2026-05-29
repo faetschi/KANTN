@@ -73,12 +73,21 @@ export const routes: Routes = [
         loadComponent: () => import('./features/history/history-detail.component').then(m => m.HistoryDetailComponent)
       },
       {
+        path: 'calendar',
+        loadComponent: () => import('./features/calendar/calendar.component').then(m => m.CalendarComponent)
+      },
+      {
         path: 'workout/:planId',
         loadComponent: () => import('./features/workout/workout.component').then(m => m.WorkoutComponent)
       },
       {
         path: 'profile',
         loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent)
+      },
+      {
+        path: 'profile/@:username',
+        loadComponent: () => import('./features/profile/public-profile.component').then(m => m.PublicProfileComponent),
+        canActivate: [ApprovedGuard]
       }
     ]
   }

@@ -6,13 +6,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Exercise } from '../../core/models/models';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-custom-exercises',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, MatIconModule],
   template: `
-    <div class="h-screen flex flex-col bg-white">
+    <div class="min-h-screen flex flex-col bg-white">
       <header class="px-6 py-4 flex items-center justify-between border-b border-gray-100">
         <div class="flex items-center">
         <button routerLink="/plans/create" class="mr-4 text-gray-600">
@@ -22,7 +23,7 @@ import { Exercise } from '../../core/models/models';
         </div>
         <button
           type="button"
-          (click)="showSharePanel = !showSharePanel"
+          (click)="showSharePanel.set(true); shareMessage = ''"
           class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
           aria-label="Share custom exercise"
         >
@@ -30,7 +31,7 @@ import { Exercise } from '../../core/models/models';
         </button>
       </header>
 
-      <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      <div class="flex-1 p-6 space-y-6">
         <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Create Custom Exercise</h3>
@@ -50,23 +51,18 @@ import { Exercise } from '../../core/models/models';
               placeholder="Muscle group (optional)"
               class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
-            <div class="flex items-center gap-3">
-              <input #customExerciseImageInput type="file" accept="image/*" (change)="onCustomExerciseImageSelected($event)" class="hidden" />
-              <button type="button" (click)="customExerciseImageInput.click()" class="bg-gray-200 text-gray-800 text-sm font-semibold px-3 py-2 rounded-xl">
-                {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
-              </button>
-              <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
-            </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <input
-                  type="text"
+                <select
                   [(ngModel)]="customExercise.exerciseType"
-                  placeholder="Exercise type"
                   aria-describedby="exercise-type-help"
                   class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
                 >
-                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (e.g. strength, cardio, mobility). Default: "general".</div>
+                  <option value="strength">Strength</option>
+                  <option value="cardio">Cardio</option>
+                  <option value="mobility">Mobility</option>
+                </select>
+                <div id="exercise-type-help" class="text-xs text-gray-500 mt-1">Type helps categorize exercises (strength, cardio, mobility).</div>
               </div>
               <div>
                 <input
@@ -78,6 +74,13 @@ import { Exercise } from '../../core/models/models';
                 >
                 <div id="met-help" class="text-xs text-gray-500 mt-1">MET is metabolic equivalent used to estimate calories burned (default: 5).</div>
               </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <input #customExerciseImageInput type="file" accept="image/*" (change)="onCustomExerciseImageSelected($event)" class="hidden" />
+              <button type="button" (click)="customExerciseImageInput.click()" class="bg-gray-200 text-gray-800 text-sm font-semibold px-3 py-2 rounded-xl">
+                {{ imageUploading ? 'Uploading...' : 'Upload Image' }}
+              </button>
+              <span class="text-xs text-gray-500" *ngIf="imageUploadMessage">{{ imageUploadMessage }}</span>
             </div>
             <textarea
               rows="2"
@@ -112,43 +115,52 @@ import { Exercise } from '../../core/models/models';
           {{ toastMessage }}
         </div>
 
-        @if (showSharePanel) {
-        <section class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3">
-            <select [(ngModel)]="shareExerciseId" class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
-              <option [ngValue]="''">Select your custom exercise</option>
-              @for (exercise of myCustomExercises(); track exercise.id) {
-                <option [ngValue]="exercise.id">{{ exercise.name }}</option>
-              }
-            </select>
-            <input
-              type="email"
-              [(ngModel)]="shareEmail"
-              placeholder="user@example.com"
-              class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-            <button
-              type="button"
-              (click)="shareCustomExercise()"
-              [disabled]="sharingExercise || unsharingExercise"
-              class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-            >
-              {{ sharingExercise ? 'Sharing…' : 'Share' }}
-            </button>
-            <button
-              type="button"
-              (click)="unshareCustomExercise()"
-              [disabled]="sharingExercise || unsharingExercise"
-              class="bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-            >
-              {{ unsharingExercise ? 'Revoking…' : 'Unshare' }}
-            </button>
+        @if (showSharePanel()) {
+        <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" (click)="closeSharePanel()">
+          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4" (click)="$event.stopPropagation()">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-900">Share Custom Exercise</h3>
+              <button type="button" (click)="closeSharePanel()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 gap-3">
+              <select [(ngModel)]="shareExerciseId" class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                <option [ngValue]="''">Select your custom exercise</option>
+                @for (exercise of myCustomExercises(); track exercise.id) {
+                  <option [ngValue]="exercise.id">{{ exercise.name }}</option>
+                }
+              </select>
+              <input
+                type="email"
+                [(ngModel)]="shareEmail"
+                placeholder="user@example.com"
+                class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              >
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  (click)="shareCustomExercise()"
+                  [disabled]="sharingExercise || unsharingExercise"
+                  class="flex-1 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                >
+                  {{ sharingExercise ? 'Sharing\u2026' : 'Share' }}
+                </button>
+                <button
+                  type="button"
+                  (click)="unshareCustomExercise()"
+                  [disabled]="sharingExercise || unsharingExercise"
+                  class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                >
+                  {{ unsharingExercise ? 'Revoking\u2026' : 'Unshare' }}
+                </button>
+              </div>
+            </div>
+            @if (shareMessage) {
+              <span class="text-xs text-gray-500">{{ shareMessage }}</span>
+            }
           </div>
-
-          @if (shareMessage) {
-            <span class="text-xs text-gray-500">{{ shareMessage }}</span>
-          }
-        </section>
+        </div>
         }
 
         <section class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -158,11 +170,19 @@ import { Exercise } from '../../core/models/models';
               <div class="flex items-center justify-between p-2 rounded-lg border">
                 <div>
                   <div class="font-medium text-gray-900">{{ exercise.name }}</div>
-                  <div class="text-xs text-gray-500">{{ exercise.muscleGroup }}</div>
+                  <div class="mt-1 flex flex-wrap items-center gap-2">
+                    <div class="text-xs text-gray-500">{{ exercise.muscleGroup }}</div>
+                    <span
+                      class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                      [ngStyle]="typeBadgeStyle(exercise.exerciseType)"
+                    >
+                      {{ typeLabel(exercise.exerciseType) }}
+                    </span>
+                  </div>
                 </div>
                 <div class="flex items-center gap-2">
                   <button (click)="editCustomExercise(exercise)" class="text-sm text-gray-700">Edit</button>
-                  <button (click)="shareExerciseId = exercise.id; showSharePanel = true" class="text-sm text-blue-600">Share</button>
+                  <button (click)="openShareForExercise(exercise)" class="text-sm text-blue-600">Share</button>
                   <button (click)="deleteCustomExercise(exercise.id)" class="text-sm text-red-600">Delete</button>
                 </div>
               </div>
@@ -184,7 +204,7 @@ export class CustomExercisesComponent {
   customExerciseMessage = '';
   shareMessage = '';
   imageUploadMessage = '';
-  showSharePanel = false;
+  showSharePanel = signal(false);
   shareExerciseId = '';
   shareEmail = '';
   customExercise = {
@@ -192,7 +212,7 @@ export class CustomExercisesComponent {
     description: '',
     muscleGroup: '',
     imageUrl: '',
-    exerciseType: 'general',
+    exerciseType: 'strength',
     metValue: 5,
   };
   myCustomExercises = signal<Exercise[]>([]);
@@ -226,6 +246,14 @@ export class CustomExercisesComponent {
     this.myCustomExercises.set(mine);
   }
 
+  typeLabel(type?: string) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type?: string) {
+    return workoutTypeBadgeStyle(type);
+  }
+
   async onCustomExerciseImageSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input?.files?.[0];
@@ -256,7 +284,7 @@ export class CustomExercisesComponent {
       description: this.customExercise.description.trim() || undefined,
       muscleGroup: this.customExercise.muscleGroup.trim() || undefined,
       imageUrl: this.customExercise.imageUrl.trim() || undefined,
-      exerciseType: this.customExercise.exerciseType.trim() || 'general',
+      exerciseType: this.customExercise.exerciseType.trim() || 'strength',
       metValue: Number(this.customExercise.metValue) || 5,
       visibility: 'private' as const,
     };
@@ -293,7 +321,7 @@ export class CustomExercisesComponent {
       description: '',
       muscleGroup: '',
       imageUrl: '',
-      exerciseType: 'general',
+      exerciseType: 'strength',
       metValue: 5,
     };
     this.customExerciseMessage = 'Custom exercise created.';
@@ -305,6 +333,17 @@ export class CustomExercisesComponent {
       this.showToast('Custom exercise saved.', 'success');
     }
     this.selectedExerciseId = null;
+  }
+
+  openShareForExercise(exercise: Exercise) {
+    this.shareExerciseId = exercise.id;
+    this.shareMessage = '';
+    this.showSharePanel.set(true);
+  }
+
+  closeSharePanel() {
+    this.showSharePanel.set(false);
+    this.shareMessage = '';
   }
 
   private showToast(text: string, type: 'success' | 'error' = 'success') {
@@ -322,10 +361,12 @@ export class CustomExercisesComponent {
   async shareCustomExercise() {
     const exerciseId = this.shareExerciseId;
     const email = this.shareEmail.trim();
+
     if (!exerciseId) {
       this.shareMessage = 'Please select an exercise to share.';
       return;
     }
+
     if (!email) {
       this.shareMessage = 'Please enter an email address.';
       return;
@@ -350,21 +391,25 @@ export class CustomExercisesComponent {
 
     const ok = await this.workoutService.shareExercise(exerciseId, targetUserId);
     this.sharingExercise = false;
-    this.shareMessage = ok ? 'Exercise shared successfully.' : 'Failed to share exercise.';
     if (ok) {
       this.shareEmail = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to share exercise.';
     }
   }
 
   async unshareCustomExercise() {
     const exerciseId = this.shareExerciseId;
     const email = this.shareEmail.trim();
+
     if (!exerciseId) {
       this.shareMessage = 'Please select an exercise to unshare.';
       return;
     }
+
     if (!email) {
       this.shareMessage = 'Please enter an email address.';
       return;
@@ -382,11 +427,13 @@ export class CustomExercisesComponent {
 
     const ok = await this.workoutService.unshareExercise(exerciseId, targetUserId);
     this.unsharingExercise = false;
-    this.shareMessage = ok ? 'Exercise unshared successfully.' : 'Failed to unshare exercise.';
     if (ok) {
       this.shareEmail = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
+      this.closeSharePanel();
+    } else {
+      this.shareMessage = 'Failed to unshare exercise.';
     }
   }
 

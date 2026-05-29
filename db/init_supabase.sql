@@ -2,18 +2,8 @@
 
 create extension if not exists pgcrypto;
 
--- Dev reset (optional): drop app tables so re-running this file is idempotent.
--- Note: this does NOT delete auth.users. Uncomment the line below if you want to wipe users in dev.
--- delete from auth.users;
-drop table if exists workout_session_sets cascade;
-drop table if exists workout_session_exercises cascade;
-drop table if exists workout_sessions cascade;
-drop table if exists workout_plan_exercises cascade;
-drop table if exists workout_plan_shares cascade;
-drop table if exists workout_plans cascade;
-drop table if exists exercise_shares cascade;
-drop table if exists exercises cascade;
-drop table if exists profiles cascade;
+-- All tables use CREATE TABLE IF NOT EXISTS (safe to re-run).
+-- auth.users is not modified by this script.
 
 -- Drop storage policies before dropping helper functions they reference.
 drop policy if exists "exercise_images_select" on storage.objects;
@@ -28,13 +18,16 @@ drop policy if exists "avatars_insert" on storage.objects;
 drop policy if exists "avatars_update" on storage.objects;
 drop policy if exists "avatars_delete" on storage.objects;
 
-drop function if exists is_admin();
-drop function if exists touch_updated_at();
 drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
+drop function if exists get_my_stats_periods();
 drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
+drop function if exists create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb);
+drop function if exists create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer);
+drop function if exists update_workout_plan_tx(uuid, uuid, text, text, text, jsonb);
 drop function if exists seed_beginner_plans_for_user(uuid);
 drop function if exists set_user_role_by_email(text, boolean, boolean);
+drop function if exists respond_to_workout_plan_share(uuid, boolean);
 drop trigger if exists trg_auth_users_profile_sync on auth.users;
 drop function if exists sync_profile_from_auth_user();
 
@@ -42,6 +35,7 @@ drop function if exists sync_profile_from_auth_user();
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
+  username text,
   display_name text,
   avatar_url text,
   fun_fact text,
@@ -53,6 +47,50 @@ create table if not exists profiles (
   approved boolean not null default false,
   is_admin boolean not null default false
 );
+
+-- Forward-safe migrations for profiles
+alter table profiles
+  add column if not exists email text,
+  add column if not exists username text,
+  add column if not exists display_name text,
+  add column if not exists avatar_url text,
+  add column if not exists fun_fact text,
+  add column if not exists height int,
+  add column if not exists weight int,
+  add column if not exists age int,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists approved boolean not null default false,
+  add column if not exists is_admin boolean not null default false,
+  add column if not exists last_seen timestamptz;
+
+do $$
+begin
+  update profiles
+  set username = lower(regexp_replace(
+    coalesce(nullif(split_part(coalesce(email, ''), '@', 1), ''), nullif(display_name, ''), 'user'),
+    '[^a-z0-9_]',
+    '',
+    'g'
+  )) || '_' || substr(replace(id::text, '-', ''), 1, 6)
+  where username is null or username = '';
+end;
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_name = 'profiles'
+      and column_name = 'username'
+      and is_nullable = 'YES'
+  ) then
+    alter table profiles
+      alter column username set not null;
+  end if;
+end;
+$$;
 
 -- Exercise master data:
 -- - default: admin-managed and visible to all users
@@ -72,6 +110,71 @@ create table if not exists exercises (
   updated_at timestamptz not null default now()
 );
 
+-- Forward-safe migrations for exercises
+alter table exercises
+  add column if not exists created_by uuid,
+  add column if not exists name text,
+  add column if not exists description text,
+  add column if not exists image_url text,
+  add column if not exists muscle_group text,
+  add column if not exists exercise_type text not null default 'general',
+  add column if not exists met_value numeric(5, 2) not null default 5.00,
+  add column if not exists visibility text not null default 'default',
+  add column if not exists is_active boolean not null default true,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+-- Default exercises (idempotent upsert)
+insert into exercises (id, created_by, name, description, image_url, muscle_group, exercise_type, met_value, visibility, is_active)
+values
+  (
+    '11111111-1111-1111-1111-111111111111',
+    null,
+    'Burpee',
+    'Full-body conditioning move that builds power and stamina.',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=burpee',
+    'Full Body',
+    'full body',
+    8.0,
+    'default',
+    true
+  ),
+  (
+    '11111111-1111-1111-1111-111111111113',
+    null,
+    'Outdoor Run',
+    'Running or jogging outdoors for cardiovascular fitness.',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=outdoor-run',
+    'Full Body',
+    'cardio',
+    9.8,
+    'default',
+    true
+  ),
+  (
+    '11111111-1111-1111-1111-111111111114',
+    null,
+    'Cycling',
+    'Outdoor or indoor cycling for endurance and cardio.',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=cycling',
+    'Full Body',
+    'cardio',
+    7.5,
+    'default',
+    true
+  )
+on conflict (id) do update
+set
+  name = excluded.name,
+  description = excluded.description,
+  image_url = excluded.image_url,
+  muscle_group = excluded.muscle_group,
+  exercise_type = excluded.exercise_type,
+  met_value = excluded.met_value,
+  visibility = 'default',
+  is_active = true,
+  updated_at = now();
+
 create table if not exists exercise_shares (
   id uuid primary key default gen_random_uuid(),
   exercise_id uuid not null references exercises(id) on delete cascade,
@@ -81,11 +184,19 @@ create table if not exists exercise_shares (
   unique (exercise_id, shared_with_user_id)
 );
 
+-- Forward-safe migrations for exercise_shares
+alter table exercise_shares
+  add column if not exists exercise_id uuid,
+  add column if not exists shared_with_user_id uuid,
+  add column if not exists created_by uuid,
+  add column if not exists created_at timestamptz not null default now();
+
 -- Workout plan definitions (per user, optional sharing)
 create table if not exists workout_plans (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references profiles(id) on delete cascade,
   name text not null,
+  category text check (category in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking')),
   description text,
   visibility text not null default 'private' check (visibility in ('private', 'shared', 'public')),
   is_active boolean not null default false,
@@ -94,14 +205,75 @@ create table if not exists workout_plans (
   last_performed_at timestamptz
 );
 
+-- Forward-safe migrations for workout_plans
+alter table workout_plans
+  add column if not exists owner_id uuid,
+  add column if not exists name text,
+  add column if not exists category text,
+  add column if not exists description text,
+  add column if not exists visibility text not null default 'private',
+  add column if not exists is_active boolean not null default false,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists last_performed_at timestamptz;
+
+alter table workout_plans
+  drop constraint if exists workout_plans_category_check;
+
+alter table workout_plans
+  add constraint workout_plans_category_check
+  check (category in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking'));
+
 create table if not exists workout_plan_shares (
   id uuid primary key default gen_random_uuid(),
   plan_id uuid not null references workout_plans(id) on delete cascade,
   shared_with_user_id uuid not null references profiles(id) on delete cascade,
   created_by uuid not null references profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  accepted_at timestamptz,
+  declined_at timestamptz,
+  plan_name_snapshot text,
+  plan_description_snapshot text,
+  shared_by_email text,
+  shared_by_name text,
   created_at timestamptz not null default now(),
   unique (plan_id, shared_with_user_id)
 );
+
+-- Forward-safe migrations for workout_plan_shares
+alter table workout_plan_shares
+  add column if not exists plan_id uuid,
+  add column if not exists shared_with_user_id uuid,
+  add column if not exists created_by uuid,
+  add column if not exists status text not null default 'pending',
+  add column if not exists accepted_at timestamptz,
+  add column if not exists declined_at timestamptz,
+  add column if not exists plan_name_snapshot text,
+  add column if not exists plan_description_snapshot text,
+  add column if not exists shared_by_email text,
+  add column if not exists shared_by_name text,
+  add column if not exists created_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'workout_plan_shares_status_check'
+  ) then
+    alter table workout_plan_shares
+      add constraint workout_plan_shares_status_check
+      check (status in ('pending', 'accepted', 'declined'));
+  end if;
+end;
+$$;
+
+-- Preserve legacy shares by treating existing rows as accepted.
+update workout_plan_shares
+set
+  status = 'accepted',
+  accepted_at = coalesce(accepted_at, created_at)
+where status is null or status = 'pending';
 
 create table if not exists workout_plan_exercises (
   id uuid primary key default gen_random_uuid(),
@@ -110,10 +282,25 @@ create table if not exists workout_plan_exercises (
   position int not null,
   target_sets int,
   target_reps int,
+  -- Cardio-specific targets
+  target_distance_meters int,
+  target_duration_seconds int,
   notes text,
   created_at timestamptz not null default now(),
   unique (plan_id, position)
 );
+
+-- Forward-safe migrations for workout_plan_exercises
+alter table workout_plan_exercises
+  add column if not exists plan_id uuid,
+  add column if not exists exercise_id uuid,
+  add column if not exists position int,
+  add column if not exists target_sets int,
+  add column if not exists target_reps int,
+  add column if not exists target_distance_meters int,
+  add column if not exists target_duration_seconds int,
+  add column if not exists notes text,
+  add column if not exists created_at timestamptz not null default now();
 
 -- Completed workout data and detailed exercise/set results
 create table if not exists workout_sessions (
@@ -128,6 +315,17 @@ create table if not exists workout_sessions (
   created_at timestamptz not null default now()
 );
 
+-- Forward-safe migrations for workout_sessions
+alter table workout_sessions
+  add column if not exists owner_id uuid,
+  add column if not exists plan_id uuid,
+  add column if not exists started_at timestamptz,
+  add column if not exists finished_at timestamptz,
+  add column if not exists duration_seconds int not null default 0,
+  add column if not exists total_calories numeric(10, 2) not null default 0,
+  add column if not exists notes text,
+  add column if not exists created_at timestamptz not null default now();
+
 create table if not exists workout_session_exercises (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references workout_sessions(id) on delete cascade,
@@ -138,9 +336,30 @@ create table if not exists workout_session_exercises (
   position int not null default 0,
   duration_seconds int not null default 0,
   calories_burned numeric(10, 2) not null default 0,
+  -- Cardio-specific metrics
+  distance_meters int not null default 0,
+  avg_pace_per_km_seconds int not null default 0,
+  max_pace_per_km_seconds int not null default 0,
+  avg_speed_kmh numeric(5, 2) not null default 0,
   created_at timestamptz not null default now(),
   unique (session_id, position)
 );
+
+-- Forward-safe migrations for workout_session_exercises
+alter table workout_session_exercises
+  add column if not exists session_id uuid,
+  add column if not exists exercise_id uuid,
+  add column if not exists exercise_name_snapshot text,
+  add column if not exists exercise_type_snapshot text,
+  add column if not exists met_value_snapshot numeric(5, 2) not null default 5.00,
+  add column if not exists position int not null default 0,
+  add column if not exists duration_seconds int not null default 0,
+  add column if not exists calories_burned numeric(10, 2) not null default 0,
+  add column if not exists distance_meters int not null default 0,
+  add column if not exists avg_pace_per_km_seconds int not null default 0,
+  add column if not exists max_pace_per_km_seconds int not null default 0,
+  add column if not exists avg_speed_kmh numeric(5, 2) not null default 0,
+  add column if not exists created_at timestamptz not null default now();
 
 create table if not exists workout_session_sets (
   id uuid primary key default gen_random_uuid(),
@@ -153,6 +372,16 @@ create table if not exists workout_session_sets (
   unique (session_exercise_id, set_order)
 );
 
+-- Forward-safe migrations for workout_session_sets
+alter table workout_session_sets
+  add column if not exists session_exercise_id uuid,
+  add column if not exists set_order int,
+  add column if not exists reps int,
+  add column if not exists weight numeric(8, 2),
+  add column if not exists completed boolean not null default false,
+  add column if not exists created_at timestamptz not null default now();
+
+create unique index if not exists idx_profiles_username_unique on profiles (lower(username));
 create index if not exists idx_profiles_approved on profiles (approved);
 create index if not exists idx_profiles_admin on profiles (is_admin);
 create index if not exists idx_exercises_visibility on exercises (visibility, is_active);
@@ -160,6 +389,32 @@ create index if not exists idx_exercises_created_by on exercises (created_by);
 create index if not exists idx_workout_plans_owner on workout_plans (owner_id);
 create index if not exists idx_workout_sessions_owner_created on workout_sessions (owner_id, created_at desc);
 create index if not exists idx_workout_sessions_owner_finished on workout_sessions (owner_id, finished_at desc);
+
+-- Enforce at most one active plan per owner
+do $$
+begin
+  -- Resolve any existing duplicate active plans (keep the most recently updated)
+  with dupes as (
+    select owner_id, id
+    from workout_plans
+    where is_active = true
+      and (owner_id, id) not in (
+        select distinct on (owner_id) owner_id, id
+        from workout_plans
+        where is_active = true
+        order by owner_id, updated_at desc
+      )
+  )
+  update workout_plans
+  set is_active = false
+  from dupes
+  where workout_plans.id = dupes.id;
+end;
+$$;
+
+create unique index if not exists idx_workout_plans_one_active
+  on workout_plans (owner_id)
+  where is_active = true;
 
 create or replace function touch_updated_at()
 returns trigger
@@ -170,6 +425,10 @@ begin
   return new;
 end;
 $$;
+
+drop trigger if exists trg_profiles_updated_at on profiles;
+drop trigger if exists trg_exercises_updated_at on exercises;
+drop trigger if exists trg_workout_plans_updated_at on workout_plans;
 
 create trigger trg_profiles_updated_at
 before update on profiles
@@ -190,10 +449,20 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into profiles (id, email, display_name, avatar_url)
+  insert into profiles (id, email, username, display_name, avatar_url)
   values (
     new.id,
     new.email,
+    lower(regexp_replace(
+      coalesce(
+        new.raw_user_meta_data ->> 'username',
+        split_part(coalesce(new.email, ''), '@', 1),
+        'user'
+      ),
+      '[^a-z0-9_]',
+      '',
+      'g'
+    )) || '_' || substr(replace(new.id::text, '-', ''), 1, 6),
     coalesce(
       new.raw_user_meta_data ->> 'name',
       split_part(coalesce(new.email, ''), '@', 1)
@@ -206,6 +475,7 @@ begin
   on conflict (id) do update
   set
     email = excluded.email,
+    username = coalesce(profiles.username, excluded.username),
     display_name = coalesce(excluded.display_name, profiles.display_name),
     avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url),
     updated_at = now();
@@ -218,10 +488,20 @@ create trigger trg_auth_users_profile_sync
 after insert or update of email, raw_user_meta_data on auth.users
 for each row execute function sync_profile_from_auth_user();
 
-insert into profiles (id, email, display_name, avatar_url)
+insert into profiles (id, email, username, display_name, avatar_url)
 select
   u.id,
   u.email,
+  lower(regexp_replace(
+    coalesce(
+      u.raw_user_meta_data ->> 'username',
+      split_part(coalesce(u.email, ''), '@', 1),
+      'user'
+    ),
+    '[^a-z0-9_]',
+    '',
+    'g'
+  )) || '_' || substr(replace(u.id::text, '-', ''), 1, 6),
   coalesce(
     u.raw_user_meta_data ->> 'name',
     split_part(coalesce(u.email, ''), '@', 1)
@@ -234,6 +514,7 @@ from auth.users u
 on conflict (id) do update
 set
   email = excluded.email,
+  username = coalesce(profiles.username, excluded.username),
   display_name = coalesce(excluded.display_name, profiles.display_name),
   avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url),
   updated_at = now();
@@ -280,6 +561,36 @@ as $$
   where ws.owner_id = auth.uid()
     and ws.created_at >= from_ts
     and ws.created_at < to_ts;
+$$;
+
+create or replace function get_my_stats_periods()
+returns table (
+  period text,
+  workout_count bigint,
+  total_duration_seconds bigint,
+  total_calories numeric
+)
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  with ranges as (
+    select 'week'::text as period, date_trunc('week', now()) as from_ts, now() as to_ts
+    union all
+    select 'month'::text as period, date_trunc('month', now()) as from_ts, now() as to_ts
+  )
+  select
+    r.period,
+    count(ws.id)::bigint as workout_count,
+    coalesce(sum(ws.duration_seconds), 0)::bigint as total_duration_seconds,
+    coalesce(sum(ws.total_calories), 0)::numeric as total_calories
+  from ranges r
+  left join workout_sessions ws
+    on ws.owner_id = auth.uid()
+    and ws.created_at >= r.from_ts
+    and ws.created_at < r.to_ts
+  group by r.period;
 $$;
 
 create or replace function create_workout_session_tx(
@@ -336,7 +647,11 @@ begin
       met_value_snapshot,
       position,
       duration_seconds,
-      calories_burned
+      calories_burned,
+      distance_meters,
+      avg_pace_per_km_seconds,
+      max_pace_per_km_seconds,
+      avg_speed_kmh
     )
     values (
       v_session_id,
@@ -346,7 +661,11 @@ begin
       coalesce((ex_item ->> 'metValueSnapshot')::numeric, 5),
       coalesce((ex_item ->> 'position')::int, 0),
       coalesce((ex_item ->> 'durationSeconds')::int, 0),
-      coalesce((ex_item ->> 'caloriesBurned')::numeric, 0)
+      coalesce((ex_item ->> 'caloriesBurned')::numeric, 0),
+      coalesce((ex_item ->> 'distanceMeters')::int, 0),
+      coalesce((ex_item ->> 'avgPacePerKmSeconds')::int, 0),
+      coalesce((ex_item ->> 'maxPacePerKmSeconds')::int, 0),
+      coalesce((ex_item ->> 'avgSpeedKmh')::numeric, 0)
     )
     returning id into v_session_exercise_id;
 
@@ -379,6 +698,224 @@ begin
   end if;
 
   return v_session_id;
+exception
+  when others then
+    raise exception 'Failed to create workout session: %', SQLERRM;
+end;
+$$;
+
+create or replace function get_public_profile_by_username(p_username text)
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  fun_fact text,
+  height int,
+  weight int,
+  age int,
+  last_seen timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_requester_approved boolean := false;
+begin
+  select approved into v_requester_approved
+  from profiles
+  where id = auth.uid();
+
+  if not v_requester_approved then
+    return;
+  end if;
+
+  return query
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.fun_fact,
+    p.height,
+    p.weight,
+    p.age,
+    p.last_seen
+  from profiles p
+  where p.username = lower(p_username)
+    and p.approved = true;
+end;
+$$;
+
+create or replace function create_workout_plan_tx(
+  p_owner_id uuid,
+  p_name text,
+  p_description text,
+  p_category text,
+  p_visibility text,
+  p_is_active boolean,
+  p_exercises jsonb,
+  p_target_distance_meters numeric default null,
+  p_target_duration_seconds integer default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_plan_id uuid;
+  v_exercise_item jsonb;
+  v_position int;
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to create workout plan for this user';
+  end if;
+
+  if p_is_active then
+    update workout_plans
+    set is_active = false
+    where owner_id = p_owner_id
+      and is_active = true;
+  end if;
+
+  insert into workout_plans (
+    owner_id,
+    name,
+    description,
+    category,
+    visibility,
+    is_active
+  )
+  values (
+    p_owner_id,
+    p_name,
+    p_description,
+    nullif(p_category, ''),
+    coalesce(p_visibility, 'private'),
+    p_is_active
+  )
+  returning id into v_plan_id;
+
+  v_position := 0;
+  for v_exercise_item in select value from jsonb_array_elements(coalesce(p_exercises, '[]'::jsonb))
+  loop
+    insert into workout_plan_exercises (
+      plan_id,
+      exercise_id,
+      position,
+      target_distance_meters,
+      target_duration_seconds
+    )
+    values (
+      v_plan_id,
+      (v_exercise_item ->> 'exerciseId')::uuid,
+      v_position,
+      p_target_distance_meters,
+      p_target_duration_seconds
+    );
+    v_position := v_position + 1;
+  end loop;
+
+  return v_plan_id;
+exception
+  when others then
+    raise exception 'Failed to create workout plan: %', SQLERRM;
+end;
+$$;
+
+create or replace function set_active_plan(
+  p_owner_id uuid,
+  p_plan_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to set active plan for this user';
+  end if;
+
+  if not exists (
+    select 1 from workout_plans
+    where id = p_plan_id and owner_id = p_owner_id
+  ) then
+    return false;
+  end if;
+
+  update workout_plans
+  set is_active = false
+  where owner_id = p_owner_id
+    and is_active = true;
+
+  update workout_plans
+  set is_active = true
+  where id = p_plan_id and owner_id = p_owner_id;
+
+  return true;
+end;
+$$;
+
+create or replace function update_workout_plan_tx(
+  p_owner_id uuid,
+  p_plan_id uuid,
+  p_name text,
+  p_description text,
+  p_category text,
+  p_exercises jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_exercise_item jsonb;
+  v_position int;
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to update workout plan for this user';
+  end if;
+
+  update workout_plans
+  set
+    name = p_name,
+    description = p_description,
+    category = nullif(p_category, ''),
+    updated_at = now()
+  where id = p_plan_id
+    and owner_id = p_owner_id;
+
+  delete from workout_plan_exercises
+  where plan_id = p_plan_id;
+
+  v_position := 0;
+  for v_exercise_item in select value from jsonb_array_elements(coalesce(p_exercises, '[]'::jsonb))
+  loop
+    insert into workout_plan_exercises (
+      plan_id,
+      exercise_id,
+      position
+    )
+    values (
+      p_plan_id,
+      (v_exercise_item ->> 'exerciseId')::uuid,
+      v_position
+    );
+    v_position := v_position + 1;
+  end loop;
+
+  return true;
+exception
+  when others then
+    raise exception 'Failed to update workout plan: %', SQLERRM;
 end;
 $$;
 
@@ -393,6 +930,7 @@ declare
   v_created boolean := false;
   v_plan_a_id uuid;
   v_plan_b_id uuid;
+  v_plan_c_id uuid;
 begin
   if auth.uid() is distinct from p_owner_id and not is_admin() then
     raise exception 'Not allowed to seed plans for this user';
@@ -447,6 +985,126 @@ begin
       3.5,
       'default',
       true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111105',
+      null,
+      'Bench Press',
+      'Classic upper-body strength move focusing on chest and triceps.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=bench-press',
+      'Upper Body',
+      'strength',
+      6.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111106',
+      null,
+      'Overhead Press',
+      'Shoulder-dominant press for upper-body stability and strength.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=overhead-press',
+      'Upper Body',
+      'strength',
+      6.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111107',
+      null,
+      'Pull-Up',
+      'Bodyweight pull movement targeting lats and upper back.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=pull-up',
+      'Upper Body',
+      'strength',
+      7.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111108',
+      null,
+      'Reverse Lunge',
+      'Lower-body unilateral movement for legs and glutes.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=reverse-lunge',
+      'Lower Body',
+      'strength',
+      5.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111109',
+      null,
+      'Romanian Deadlift',
+      'Hinge movement focusing on hamstrings and posterior chain.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=romanian-deadlift',
+      'Lower Body',
+      'strength',
+      6.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111110',
+      null,
+      'Calf Raise',
+      'Lower-leg strength exercise targeting calves.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=calf-raise',
+      'Lower Body',
+      'strength',
+      4.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111111',
+      null,
+      'Burpee',
+      'Full-body conditioning move that builds power and stamina.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=burpee',
+      'Full Body',
+      'full body',
+      8.0,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111112',
+      null,
+      'Kettlebell Swing',
+      'Explosive full-body hinge emphasizing hips and core.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=kettlebell-swing',
+      'Full Body',
+      'strength',
+      6.5,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111113',
+      null,
+      'Outdoor Run',
+      'Running or jogging outdoors for cardiovascular fitness.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=outdoor-run',
+      'Full Body',
+      'cardio',
+      9.8,
+      'default',
+      true
+    ),
+    (
+      '11111111-1111-1111-1111-111111111114',
+      null,
+      'Cycling',
+      'Outdoor or indoor cycling for endurance and cardio.',
+      'https://api.dicebear.com/7.x/shapes/svg?seed=cycling',
+      'Full Body',
+      'cardio',
+      7.5,
+      'default',
+      true
     )
   on conflict (id) do update
   set
@@ -466,11 +1124,12 @@ begin
     where p.owner_id = p_owner_id
       and p.name = 'Beginner Full Body A'
   ) then
-    insert into workout_plans (owner_id, name, description, visibility, is_active)
+    insert into workout_plans (owner_id, name, description, category, visibility, is_active)
     values (
       p_owner_id,
       'Beginner Full Body A',
       'Intro full-body workout focused on squat, push, and core fundamentals.',
+      'full body',
       'private',
       false
     )
@@ -491,11 +1150,12 @@ begin
     where p.owner_id = p_owner_id
       and p.name = 'Beginner Full Body B'
   ) then
-    insert into workout_plans (owner_id, name, description, visibility, is_active)
+    insert into workout_plans (owner_id, name, description, category, visibility, is_active)
     values (
       p_owner_id,
       'Beginner Full Body B',
       'Beginner progression day with balanced lower body, pull, and core work.',
+      'full body',
       'private',
       false
     )
@@ -510,7 +1170,55 @@ begin
     v_created := true;
   end if;
 
+  if not exists (
+    select 1
+    from workout_plans p
+    where p.owner_id = p_owner_id
+      and p.name = 'Beginner Cardio'
+  ) then
+    insert into workout_plans (owner_id, name, description, category, visibility, is_active)
+    values (
+      p_owner_id,
+      'Beginner Cardio',
+      'Beginner cardio workout — the category defines the activity.',
+      'running',
+      'private',
+      false
+    )
+    returning id into v_plan_c_id;
+
+    -- Cardio plans have no exercise entries; the category defines the activity.
+
+    v_created := true;
+  end if;
+
   return v_created;
+end;
+$$;
+
+create or replace function respond_to_workout_plan_share(
+  p_share_id uuid,
+  p_accept boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_updated int;
+begin
+  update workout_plan_shares
+  set
+    status = case when p_accept then 'accepted' else 'declined' end,
+    accepted_at = case when p_accept then now() else null end,
+    declined_at = case when p_accept then null else now() end
+  where id = p_share_id
+    and shared_with_user_id = auth.uid();
+
+  get diagnostics v_updated = row_count;
+  return v_updated > 0;
 end;
 $$;
 
@@ -543,10 +1251,20 @@ begin
     raise exception 'No auth.users row found for email: %', target_email;
   end if;
 
-  insert into profiles (id, email, display_name, approved, is_admin)
+  insert into profiles (id, email, username, display_name, approved, is_admin)
   select
     u.id,
     u.email,
+    lower(regexp_replace(
+      coalesce(
+        u.raw_user_meta_data ->> 'username',
+        split_part(coalesce(u.email, ''), '@', 1),
+        'user'
+      ),
+      '[^a-z0-9_]',
+      '',
+      'g'
+    )) || '_' || substr(replace(u.id::text, '-', ''), 1, 6),
     coalesce(u.raw_user_meta_data ->> 'name', split_part(u.email, '@', 1)),
     target_approved,
     target_is_admin
@@ -555,6 +1273,7 @@ begin
   on conflict (id) do update
   set
     email = excluded.email,
+    username = coalesce(profiles.username, excluded.username),
     approved = excluded.approved,
     is_admin = excluded.is_admin,
     updated_at = now();
@@ -582,8 +1301,14 @@ grant select, insert, update, delete on table workout_session_sets to authentica
 
 grant execute on function calc_burned_calories(numeric, numeric, integer) to authenticated;
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
+grant execute on function get_my_stats_periods() to authenticated;
+grant execute on function get_public_profile_by_username(text) to authenticated;
 grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
+grant execute on function create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer) to authenticated;
+grant execute on function update_workout_plan_tx(uuid, uuid, text, text, text, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
+grant execute on function set_active_plan(uuid, uuid) to authenticated;
+grant execute on function respond_to_workout_plan_share(uuid, boolean) to authenticated;
 
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from public;
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from anon;
@@ -702,6 +1427,7 @@ create policy "plans_select" on workout_plans
       from workout_plan_shares ps
       where ps.plan_id = workout_plans.id
         and ps.shared_with_user_id = auth.uid()
+        and ps.status = 'accepted'
     )
     or is_admin()
   );
@@ -721,6 +1447,7 @@ create policy "plans_delete" on workout_plans
 
 drop policy if exists "plan_shares_select" on workout_plan_shares;
 drop policy if exists "plan_shares_insert" on workout_plan_shares;
+drop policy if exists "plan_shares_update" on workout_plan_shares;
 drop policy if exists "plan_shares_delete" on workout_plan_shares;
 
 create policy "plan_shares_select" on workout_plan_shares
@@ -735,6 +1462,7 @@ create policy "plan_shares_insert" on workout_plan_shares
   for insert
   with check (
     created_by = auth.uid()
+    and status = 'pending'
     and exists (
       select 1
       from workout_plans p
@@ -742,6 +1470,11 @@ create policy "plan_shares_insert" on workout_plan_shares
         and (p.owner_id = auth.uid() or is_admin())
     )
   );
+
+create policy "plan_shares_update" on workout_plan_shares
+  for update
+  using (created_by = auth.uid() or is_admin())
+  with check (created_by = auth.uid() or is_admin());
 
 create policy "plan_shares_delete" on workout_plan_shares
   for delete
@@ -766,6 +1499,7 @@ create policy "plan_exercises_select" on workout_plan_exercises
             select 1 from workout_plan_shares s
             where s.plan_id = p.id
               and s.shared_with_user_id = auth.uid()
+              and s.status = 'accepted'
           )
           or is_admin()
         )

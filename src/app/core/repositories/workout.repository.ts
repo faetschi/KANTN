@@ -3,6 +3,7 @@ import { SupabaseService } from '../services/supabase.service';
 import { CreateExerciseInput, Exercise, WorkoutPlan, WorkoutSession } from '../models/models';
 import { PersistedSessionPayload } from '../domain/workout-domain';
 import { optimizeImageForUpload } from '../domain/image-upload-domain';
+import { getWorkoutPlanTypeWithFallback } from '../domain/workout-types';
 
 interface ExerciseRow {
   id: string;
@@ -21,6 +22,7 @@ interface WorkoutPlanRow {
   id: string;
   owner_id: string;
   name: string;
+  category: string | null;
   description: string | null;
   visibility: 'private' | 'shared' | 'public';
   is_active: boolean;
@@ -31,6 +33,18 @@ interface WorkoutPlanExerciseRow {
   plan_id: string;
   exercise_id: string;
   position: number;
+}
+
+interface WorkoutPlanShareRow {
+  id: string;
+  plan_id: string;
+  plan_name_snapshot: string | null;
+  plan_description_snapshot: string | null;
+  shared_by_email: string | null;
+  shared_by_name: string | null;
+  shared_with_user_id: string;
+  created_at: string;
+  status: 'pending' | 'accepted' | 'declined';
 }
 
 interface WorkoutSessionRow {
@@ -47,7 +61,12 @@ interface WorkoutSessionExerciseRow {
   id: string;
   session_id: string;
   exercise_id: string | null;
+  exercise_type_snapshot: string | null;
   position: number;
+  distance_meters: number | null;
+  avg_pace_per_km_seconds: number | null;
+  max_pace_per_km_seconds: number | null;
+  avg_speed_kmh: number | string | null;
 }
 
 interface WorkoutSessionSetRow {
@@ -84,13 +103,18 @@ export class WorkoutRepository {
     const client = this.supabase.getClient();
     if (!client) return null;
 
-    const [exercisesRes, plansRes, planExercisesRes, sessionsRes, sessionExercisesRes, sessionSetsRes] = await Promise.all([
+    const [exercisesRes, plansRes, planExercisesRes, sessionsRes, sessionExercisesRes, sessionSetsRes, planSharesRes] = await Promise.all([
       client.from('exercises').select('*').eq('is_active', true).order('name', { ascending: true }),
       client.from('workout_plans').select('*').order('created_at', { ascending: false }),
       client.from('workout_plan_exercises').select('*').order('position', { ascending: true }),
       client.from('workout_sessions').select('*').eq('owner_id', userId).order('created_at', { ascending: false }),
       client.from('workout_session_exercises').select('*').order('position', { ascending: true }),
       client.from('workout_session_sets').select('*').order('set_order', { ascending: true }),
+      client
+        .from('workout_plan_shares')
+        .select('id, plan_id, plan_name_snapshot, plan_description_snapshot, shared_by_email, shared_by_name, shared_with_user_id, created_at, status')
+        .eq('shared_with_user_id', userId)
+        .order('created_at', { ascending: false }),
     ]);
 
     if (exercisesRes.error) throw exercisesRes.error;
@@ -99,6 +123,7 @@ export class WorkoutRepository {
     if (sessionsRes.error) throw sessionsRes.error;
     if (sessionExercisesRes.error) throw sessionExercisesRes.error;
     if (sessionSetsRes.error) throw sessionSetsRes.error;
+    if (planSharesRes.error) throw planSharesRes.error;
 
     const exercises = ((exercisesRes.data || []) as ExerciseRow[]).map(row => this.mapExercise(row));
     const exerciseById = new Map(exercises.map(e => [e.id, e]));
@@ -112,14 +137,24 @@ export class WorkoutRepository {
 
     const plans: WorkoutPlan[] = ((plansRes.data || []) as WorkoutPlanRow[]).map(row => {
       const exerciseRows = planExercisesByPlanId.get(row.id) || [];
+      const planExercises = exerciseRows
+          .sort((a, b) => a.position - b.position)
+          .map(pe => exerciseById.get(pe.exercise_id))
+          .filter((exercise): exercise is Exercise => !!exercise);
+
+      const planType = getWorkoutPlanTypeWithFallback({
+        exercises: planExercises,
+        workoutPlanType: undefined,
+        category: (row.category as WorkoutPlan['category']) || undefined,
+      });
+
       return {
         id: row.id,
         name: row.name,
+        category: (row.category as WorkoutPlan['category']) || undefined,
         description: row.description || '',
-        exercises: exerciseRows
-          .sort((a, b) => a.position - b.position)
-          .map(pe => exerciseById.get(pe.exercise_id))
-          .filter((exercise): exercise is Exercise => !!exercise),
+        workoutPlanType: planType,
+        exercises: planExercises,
         isActive: !!row.is_active,
         lastPerformed: row.last_performed_at ? new Date(row.last_performed_at) : undefined,
         visibility: row.visibility,
@@ -153,7 +188,12 @@ export class WorkoutRepository {
         caloriesBurned: Number(row.total_calories || 0),
         exercises: exerciseRows.map(exRow => ({
           exerciseId: exRow.exercise_id || '',
+          exerciseTypeSnapshot: exRow.exercise_type_snapshot || undefined,
           notes: undefined,
+          distanceMeters: exRow.distance_meters || 0,
+          avgPacePerKmSeconds: exRow.avg_pace_per_km_seconds || 0,
+          maxPacePerKmSeconds: exRow.max_pace_per_km_seconds || 0,
+          avgSpeedKmh: Number(exRow.avg_speed_kmh || 0),
           sets: (sessionSetsByExerciseId.get(exRow.id) || []).map(setRow => ({
             reps: setRow.reps || 0,
             weight: Number(setRow.weight || 0),
@@ -163,32 +203,30 @@ export class WorkoutRepository {
       };
     });
 
-    return { userId, exercises, plans, sessions };
+    const planInvites = ((planSharesRes.data || []) as WorkoutPlanShareRow[]).map(row => ({
+      id: row.id,
+      planId: row.plan_id,
+      planName: row.plan_name_snapshot || 'Shared workout plan',
+      planDescription: row.plan_description_snapshot || '',
+      sharedByName: row.shared_by_name || undefined,
+      sharedByEmail: row.shared_by_email || undefined,
+      sharedAt: new Date(row.created_at),
+      status: row.status,
+    }));
+
+    return { userId, exercises, plans, sessions, planInvites };
   }
 
-  async setActivePlan(userId: string, planId: string) {
+  async setActivePlan(userId: string, planId: string): Promise<boolean> {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    // First ensure the requested plan is actually owned and updatable by this user.
-    // If no row is returned, treat activation as failed instead of a false-positive success.
-    const setRes = await client
-      .from('workout_plans')
-      .update({ is_active: true })
-      .eq('owner_id', userId)
-      .eq('id', planId)
-      .select('id');
+    const { data, error } = await client.rpc('set_active_plan', {
+      p_owner_id: userId,
+      p_plan_id: planId,
+    });
 
-    if (setRes.error || !setRes.data?.length) return false;
-
-    const clearRes = await client
-      .from('workout_plans')
-      .update({ is_active: false })
-      .eq('owner_id', userId)
-      .neq('id', planId)
-      .eq('is_active', true);
-
-    return !clearRes.error;
+    return !error && data === true;
   }
 
   async ensureFirstRunSeed(userId: string) {
@@ -219,85 +257,56 @@ export class WorkoutRepository {
     return !error && !!data;
   }
 
-  async createPlan(userId: string, plan: WorkoutPlan) {
+  async createPlan(userId: string, plan: WorkoutPlan, cardioTargets?: { targetDistanceMeters?: number | null; targetDurationSeconds?: number | null }) {
     const client = this.supabase.getClient();
     if (!client) return null;
 
-    const { data: planInsert, error: planError } = await client
-      .from('workout_plans')
-      .insert({
-        owner_id: userId,
-        name: plan.name,
-        description: plan.description,
-        visibility: plan.visibility || 'private',
-        is_active: !!plan.isActive,
-      })
-      .select('id')
-      .single();
+    const exercisesPayload = plan.exercises.map((exercise, index) => ({
+      exerciseId: exercise.id,
+      position: index,
+    }));
 
-    if (planError || !planInsert?.id) return null;
+    const payload = {
+      p_owner_id: userId,
+      p_name: plan.name,
+      p_description: plan.description || '',
+      p_category: plan.category || '',
+      p_visibility: plan.visibility || 'private',
+      p_is_active: !!plan.isActive,
+      p_exercises: exercisesPayload,
+      p_target_distance_meters: cardioTargets?.targetDistanceMeters || null,
+      p_target_duration_seconds: cardioTargets?.targetDurationSeconds || null,
+    };
 
-    if (plan.exercises.length) {
-      const rows = plan.exercises.map((exercise, index) => ({
-        plan_id: planInsert.id,
-        exercise_id: exercise.id,
-        position: index,
-      }));
+    const { data, error } = await client.rpc('create_workout_plan_tx', payload);
 
-      const { error: relationError } = await client.from('workout_plan_exercises').insert(rows);
-      if (relationError) {
-        await client.from('workout_plans').delete().eq('id', planInsert.id).eq('owner_id', userId);
-        return null;
-      }
+    if (error) {
+      console.error('[WorkoutRepository] createPlan rpc failed', error);
+      return null;
     }
 
-    if (plan.isActive) {
-      const { error: activationError } = await client
-        .from('workout_plans')
-        .update({ is_active: false })
-        .eq('owner_id', userId)
-        .neq('id', planInsert.id);
-
-      if (activationError) return null;
-    }
-
-    return planInsert.id;
+    return data;
   }
 
-  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises'>) {
+  async updatePlan(userId: string, planId: string, plan: Pick<WorkoutPlan, 'name' | 'description' | 'exercises' | 'category' | 'workoutPlanType'>) {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    const { error: planError } = await client
-      .from('workout_plans')
-      .update({
-        name: plan.name,
-        description: plan.description,
-      })
-      .eq('id', planId)
-      .eq('owner_id', userId);
+    const exercisesPayload = plan.exercises.map((exercise, index) => ({
+      exerciseId: exercise.id,
+      position: index,
+    }));
 
-    if (planError) return false;
+    const { data, error } = await client.rpc('update_workout_plan_tx', {
+      p_owner_id: userId,
+      p_plan_id: planId,
+      p_name: plan.name,
+      p_description: plan.description || '',
+      p_category: plan.category || '',
+      p_exercises: exercisesPayload,
+    });
 
-    const { error: deleteError } = await client
-      .from('workout_plan_exercises')
-      .delete()
-      .eq('plan_id', planId);
-
-    if (deleteError) return false;
-
-    if (plan.exercises.length) {
-      const rows = plan.exercises.map((exercise, index) => ({
-        plan_id: planId,
-        exercise_id: exercise.id,
-        position: index,
-      }));
-
-      const { error: insertError } = await client.from('workout_plan_exercises').insert(rows);
-      if (insertError) return false;
-    }
-
-    return true;
+    return !error && !!data;
   }
 
   async createExercise(userId: string, input: CreateExerciseInput) {
@@ -471,15 +480,29 @@ export class WorkoutRepository {
     return true;
   }
 
-  async sharePlan(userId: string, planId: string, sharedWithUserId: string) {
+  async sharePlan(userId: string, planId: string, sharedWithUserId: string, sharedBy?: { name?: string; email?: string }) {
     const client = this.supabase.getClient();
     if (!client) return false;
+
+    const { data: planRow, error: planError } = await client
+      .from('workout_plans')
+      .select('id, name, description, owner_id')
+      .eq('id', planId)
+      .eq('owner_id', userId)
+      .maybeSingle();
+
+    if (planError || !planRow) return false;
 
     const { error } = await client.from('workout_plan_shares').upsert(
       {
         plan_id: planId,
         shared_with_user_id: sharedWithUserId,
         created_by: userId,
+        status: 'pending',
+        plan_name_snapshot: planRow.name,
+        plan_description_snapshot: planRow.description || null,
+        shared_by_email: sharedBy?.email || null,
+        shared_by_name: sharedBy?.name || null,
       },
       { onConflict: 'plan_id,shared_with_user_id' }
     );
@@ -495,6 +518,19 @@ export class WorkoutRepository {
     if (visibilityError) return false;
 
     return true;
+  }
+
+  async respondToPlanShare(shareId: string, accept: boolean) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { data, error } = await client.rpc('respond_to_workout_plan_share', {
+      p_share_id: shareId,
+      p_accept: accept,
+    });
+
+    if (error) return false;
+    return !!data;
   }
 
   async unsharePlan(userId: string, planId: string, sharedWithUserId: string) {
@@ -580,5 +616,107 @@ export class WorkoutRepository {
 
     const { data } = client.storage.from('exercise-images').getPublicUrl(filePath);
     return data.publicUrl || null;
+  }
+
+  // ── Scheduled Workouts ──
+
+  async getScheduledWorkouts(userId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    const { data, error } = await client
+      .from('workout_schedule')
+      .select('*')
+      .eq('owner_id', userId)
+      .order('scheduled_date', { ascending: true });
+
+    if (error) return null;
+    return data;
+  }
+
+  async insertScheduledWorkout(userId: string, planId: string, scheduledDate: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .insert({ owner_id: userId, plan_id: planId, scheduled_date: scheduledDate, status: 'scheduled' });
+
+    return !error;
+  }
+
+  async updateScheduledWorkoutStatus(scheduleId: string, status: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .update({ status })
+      .eq('id', scheduleId);
+
+    return !error;
+  }
+
+  async rescheduleWorkout(scheduleId: string, newDate: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .update({ scheduled_date: newDate })
+      .eq('id', scheduleId);
+
+    return !error;
+  }
+
+  // ── Plan Exercise Targets ──
+
+  async getPlanExerciseTargets(planId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    const { data, error } = await client
+      .from('plan_exercise_targets')
+      .select('*')
+      .eq('plan_id', planId);
+
+    if (error) return null;
+    return data;
+  }
+
+  async setPlanExerciseTargets(planId: string, targets: Array<{
+    exerciseId: string;
+    targetSets?: number;
+    targetReps?: number;
+    targetWeight?: number;
+    targetDistanceMeters?: number;
+    targetDurationSeconds?: number;
+  }>) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    // Delete existing targets for this plan, then batch insert
+    const { error: delError } = await client
+      .from('plan_exercise_targets')
+      .delete()
+      .eq('plan_id', planId);
+
+    if (delError) return false;
+
+    if (targets.length === 0) return true;
+
+    const { error: insError } = await client
+      .from('plan_exercise_targets')
+      .insert(targets.map(t => ({
+        plan_id: planId,
+        exercise_id: t.exerciseId,
+        target_sets: t.targetSets || null,
+        target_reps: t.targetReps || null,
+        target_weight: t.targetWeight || null,
+        target_distance_meters: t.targetDistanceMeters || null,
+        target_duration_seconds: t.targetDurationSeconds || null,
+      })));
+
+    return !insError;
   }
 }

@@ -5,77 +5,16 @@ Use this file as an implementation tracker.
 Audit status last updated: 2026-02-28.
 
 ### Already Implemented (Documentation)
-- [x] Create feature/backend branch for backend persistence work.
-- [x] Implement full Supabase schema in `db/init_supabase.sql` (profiles, exercises, plans, sessions, shares, set details).
-- [x] Add RLS + helper SQL functions (`is_admin`, calories formula, stats function) and indexes.
-- [x] Add Supabase storage bucket/policies for admin-managed exercise images.
-- [x] Refactor workout persistence service to use Supabase as source of truth with fallback handling.
-- [x] Persist workout plan creation per user (including plan-exercise relations).
-- [x] Persist finished workouts with session, exercise, set, duration, and calories data.
-- [x] Implement calories/minutes tracking logic based on duration + MET values.
-- [x] Add admin default exercise management backend integration (create/update + image upload).
-- [x] Add user custom exercise creation (private by default) in app flow.
-- [x] Implement exercise sharing backend flow (share custom exercises with other users by email lookup).
-- [x] Implement workout plan sharing UX and backend wiring.
-- [x] Harden persistence flows so successful actions are only treated as completed when Supabase save succeeds (deployment-safe behavior). (Write paths now fail-fast for nested relations and dependent visibility updates.)
-- [ ] Add richer statistics queries/views for weekly/monthly analytics optimization, while keeping existing Profile (default monthly, also be able to switch between weekly/monthly) and Home (calories/minutes) design. Users should be able to choose in Profile if they want weekly or monthly statistics.
-- [x] Structure backend in modular targets (repositories, domain, application services).
-- [x] Add user workout history with month filtering and full workout detail page (including set-level reps/weight) plus previous/next session navigation.
 
-### Recent UI Fixes (2026-04-27)
-
-- [x] Show paused in-progress workout in Home Recent Activity and add Resume button.
-- [x] Merge paused UI into recent activity list (remove separate paused block).
-- [x] Ensure `inProgress` computed declared before `recentSessions` to avoid initializer order issues.
-- [x] Fix cancel flow so cancelling works after resuming (clear in-progress marker and await navigation).
-- [x] Remove/disable the cancel confirmation modal so cancel performs immediately.
-- [x] Show `pause` (yellow) icon for in-progress session in Recent Activity.
-- [x] Make workout footer sit flush at bottom (adjusted `.workout-content` padding and `.workout-action-bar` bottom).
-- [x] Make bottom navigation icons inherit link color so the active tab icon turns blue.
-
-- [x] Allow activating default/public plans: clone the default/public plan into a user-owned private plan and activate the clone (fix RLS/0-row update issue).
-
-### MVP Must-Haves (Before Production)
-- [x] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
-- [x] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
-- [x] Implement revoke/unshare flow for shared plans/exercises.
-- [x] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
-- [x] Implement default exercises/plans first-run seed load (idempotent).
- - [x] Complete go-live verification run in staging + define rollback steps for DB/policy changes. (Rollback + checklist documented in `GO_LIVE_RUNBOOK.md`; staging execution pending.)
-- [x] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
-- [x] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
-- [x] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
-- [x] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
-- [x] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
-- [x] Apply the same compact share-icon pattern to exercise sharing actions.
-- [x] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init.
-- [x] In the admin page, there should be a sub page for admins to configure exercise & workouts, e.g. "Default Exercises" management should be in a sub-page, not directly in /admin. Also the edit for Default Exercises should be more intuative and easier for admins to use, also add universal search here that can search exercises. This searchbar should be implemented in a general way, as this searchbar component will be reused in user Exercise selection, workout plan search, etc.
-- [x] Admins should be able to Approve / Decline Users after they registered in the Admin Page, currently only "Approve" works correcly, but "Decline" doesnt work correctly (gives error that user cant be found or similiar). Error Message: chunk-AHUI2ROU.js:43  DELETE https://nhudzopadrydydiojhxn.supabase.co/rest/v1/profiles?id=eq.9e80d0fa-c494-4306-a407-765d64b006e4&select=id 406 (Not Acceptable)
-- [x] When selecting Exercises, there should be a Search bar to search Exercises. While typing in the search bar, relevant results should already show, e.g. user types "Benc" and it should show "Bench Press" already.
-- [x] Users should be able to start a on the fly workout "Freestyle", where the workout is started and they choose exercises during the workout on the fly without the need for a predefined workout plan to be selected. This Freestyle option should always be available by default. After a "Freestyle" workout is finished, the user should be asked whether the exercise of this freestyle workout should be saved to a new Workout plan, with yes/no. If no, then dont create a Workoutplan out of this freestyle workout. If user selects yes, create a new user personal workout plan with the exercises and same sequence he just did in this freestyle workout. On homepage, user can directly start Active Plan, but also in this active plan component there should be the option to "Start Freestyle", which starts a freestyle workout where exercise can be chosen on the fly.
-- [x] Bug I found: on the /plans workout plan page, when workout plan changes active to another workout plan (e.g. workout plan A active, then workout plan b Activiate is pressed), the currently active workout plan should always be the first one / on top.
-- [x] In the workout plan page /plans, add a search bar for workout plans, similiar to search bar in Select Exercises page
-- [x] On profile page, make "Edit Profile" more intuative, by making "edit" symbol next to name, height, weight, age. Also when profile picture is pressed, a new photo should be able to be uploaded for use.
-- [x] On /workout page, when workout is active, there currently is the Option to "+ Add Set", but no way to remove a Set (maybe with small X) to remove a set, e.g. when a user accidently adds a set, it can be removed again.
-- [x] On profile page, when Profile Picture is uploaded via "Upload" button, the button changes to "Uploading...", but it should stay as "Upload", the note next to it updates to "Uploading..." but is stuck forever, it should change to "Uploaded!" after it has been succesfully uploaded.Currently it is stuck in Uploading... even though picture has been uploaded already: pressing Save works corerctly and uses the uploaded picture, its just not visually noticable when the upload is done for the user.
-- [x] On all pages, but particularly /workout, the header and the bottom action bar (to switch exercises & finish) should ALWAYS be in front / visible / ankered, and shouldnt be hidden while scrolling by any other elements.
-- [x] After finishing a freestyle workout, the user gets asked if he wants to save the freestyle workout as a new workout plan. When this occurs, the question pop up should happen WITHIN the app, not by the browser. If no is selected, the just finished workout should not be called "Unknown Plan", but "Freestyle".
- - [x] Users should be able to delete custom Workoutplans and custom Exercises, if they no longer want to use them. Default Exercises and Default Workoutplans can never be deleted by users, only adjusted/mangaged by admins.
- - [x] Admins: There should be a "Backup" option to backup all current workout/exercises data from the database from all users, incase of database problem or similiar to backup existing data at a specific date, so it can be imported again in the future if any data ends up missing.
- - [x] In "Create Custom Exercise", it should provide more description for the user what each field is, e.g. ExerciseName and Muscle Group (optional) is already there, but nothign for the other 2 fields (whats the default "general" or "5"?), so he can reliably create a correct exercise.
- - [x] In "Create Custom Exercise", after pressing "Create" it is stuck in "Creating..." endless loop and no feedback. Implement "Saved" pop up similiar to how it is handled in profile page when editing/saving metadata.
-- [x] Users can create "Custom" exercises, but they cant manage their custom exercises anywhere. After a user created a personal custom exercise, it should be able to be managed or edited. Users can only edit their own custom exercises, NOT default ones or shared ones.
-- [x] When a user starts a workout, and is currently inside the active workout but then switches pages (e.g. accidently goes back to home page), he should be able to go back into the active workout in the home page (the active plan card already has something like this "Not started yet". This could change when a workout is currently active in the background and the user accidently switched pages, the user could return with a button in this active plan card, the button in the card could be switched out with a new Continue button (instead of "Start Workout" button a "Continue" button could appear). Similiarly behaviour in Freestyle Mode.
-- [x] In Freestyle Mode, the pop up "Save as workout plan?" looks good, but it should be centered of the page (is currently on the bottom and HIDDEN by the footer which is on top of it). Make the pop up appear in the middle of the page and be fully visible.
-- [x] During a workout, the user should be able to press a button or the e.g. "1/3" in the bottom action bar to reveal the list of all exercises in the current workout plan. Similiar in freestyle mode it should show the current list of exercises in the freestyle workout.
-- [X] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 
+- [ ] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 
 another user (bug, fix this)
-- [ ] For each Workout Plan there should be a distinct Category (e.g. upper body, lower body, core, cardio, mobility): this needs to be implemented for Workouts, each Workout Plan can only have one Category at once.
-- [ ] Each Exercise should have: Exercise Name, muscle_group (optional, e.g. legs, chest, back, core, arms, shoulders), Image (optional), exercise_type (strength, mobility, cardio). Those should be adjustable by users when creating "Custom Exercise" and Admins adjusting "Default Exercises". 
-- [ ] Admins should be able to manage/add/remove exercises from "Default Exercises" that are available to all users
-- [ ] In footer, there should be a new button leading to a new page "Calendar". This page shows the a Calendar, which shows all previous Workouts, future planned workouts and workouts on the current date marked on the date in the calendar. The calendar always shows a monthly overview of the current month the user is in. On top, before the calendar, show total Workouts Planned this Month and already completed workouts this month (e.g. 0/20 Workouts completed this month, 20 Workouts planned this month, this should look similiar to calories and minutes card in the home page). When total workouts this month is clicked, a detailed view should open up, showing the completed/planned workouts (e.g. 2/5 completed) for each workout category (e.g. there is upper body, lower body, core, cardio).
-- [ ] Each workout plan should have a overall exercise_type, depending if most of the exercises in the workout plan have a distinct type, e.g. 3 out of 5 exercises in the workout plan have the exercise_type = strength, then the workout plan should also have this workoutplan_type. There should be distinct colors for each exercise_type and workoutplan_type (e.g. red for strength). When a workout is marked in the Calendar page inside the calendar, it should use this color - for this make sure the colors are consistent for Exercise Type, Workoutplan Type and in Calendar.
-- [ ] In active workout page /workout, during freestyle mode the "Add exercise" top navigation should be fixed / sticky similiar to the bottom action bar navigation is correctly already.
+
+- [ ] Pressing the "share" button on the /plans page should make a pop up appear where the whole sharing dialogue happens.
+
+- [ ] During activate freestyle workout on the /workout/freestyle page, the button "Hide exercise picker" AND "Add exercise" should be sticky (currently only Hide exercise picker). Whne the "Add exercise" button is pressed, it should auto scroll the page all the way up so the user sees the exercises to add next correctly (and doesnt have to scroll up himself). WHen the exercises are shown, it should only show top 8, and user should use search bar to show other exercises.
+
+- 1. [ ] It should be possible to visit other users profile pages, currenlty only via direct url: /profile currently only shows the logged in users profile, but users should be able to visit other peoples profiles via /profile/@username (in the future, other users will be seen in upcoming features, so this is important to be done before those features are implemented). you can use the profiles table username for this.
+- 2. [ ] The Workout-Plan sharing feature should work by selecting/defining a other users username (@username), not by E-Mail. DUring the "Share" dialogue, if the defined user does not exist the user should receive feedback in this dialogue.
 
 - [ ] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
 - [ ] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
@@ -94,34 +33,12 @@ another user (bug, fix this)
 Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings zu viel tippen muss? Lösung: Signaltöne
 - [ ] For specific Cardio exercises, add GPS capability (e.g. Running/Cycling, mit abgespielten Signalton (konfigurierbar) bei bestimmer (konfigurierbarer) Distanz, z.B. alle 5km)
 - [ ] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
+- [ ] When user is not approved, "Completing signin...." is shown, but intended is "Pending Approval"
 
 
 
 
 ### Post-MVP / Remaining TODO
-
-### 0) Project Setup
-- [x] Create and switch to feature branch for backend persistence work.
-- [x] Define rollout strategy (dev first, staging validation, production deploy).
-- [x] Add implementation notes in `DEVELOPMENT.md` for local Supabase setup.
-
-### 1) Database Foundation (`db/init_supabase.sql`)
-- [x] Create/extend core tables:
-	- [x] `profiles` (linked to `auth.users.id` as PK/FK)
-	- [x] `exercises` (default + custom + visibility metadata)
-	- [x] `workout_plans`
-	- [x] `workout_plan_exercises`
-	- [x] `workout_sessions`
-	- [x] `workout_session_exercises`
-	- [x] `workout_session_sets`
-	- [x] sharing tables for plans/exercises
-- [x] Add all required constraints and foreign keys.
-- [x] Add indexes for common lookups (user + date, user + month, plan/session joins).
-- [x] Add helper SQL functions:
-	- [x] `is_admin` helper (implemented as `is_admin()`)
-	- [x] calories calculation helper
-	- [x] stats aggregation helper(s)
-- [x] Keep SQL idempotent for safe re-runs in development.
 
 ### 2) Supabase DB Security (RLS + Auth Data Handling)
 - [x] Enable RLS on all user data tables.
@@ -134,69 +51,10 @@ Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings
 - [x] Verify `public.profiles` policy only allows owner access to profile row.
 - [ ] Validate anon key cannot read cross-user profile data.
 
-### 3) Profile Persistence
-- [x] Persist profile edits to `profiles`.
-- [x] Refresh client-side profile state after save.
-- [x] Keep fields synchronized: name, avatar, fun fact, height, weight, age.
-- [x] Handle profile upsert for first login. (DB-level auth trigger/upsert flow implemented in SQL.)
-
-### 4) Workout Plans Persistence
-- [x] Persist user-created plans in Supabase.
-- [x] Persist plan-to-exercise relations.
-- [x] Support visibility model (private/shared/public-ready).
-- [x] Load plans from Supabase on app initialization/auth change.
-- [x] Remove mock-only dependency for plans (keep fallback only for outage/dev-safe mode).
-
-### 5) Exercises Persistence + Admin Management
-- [x] Implement exercise model supporting:
-	- [x] global default exercises
-	- [x] user private custom exercises
-	- [x] explicitly shared custom exercises
-- [x] Load available exercises from Supabase.
-- [x] Support user custom exercise creation (private by default).
-- [x] Add exercise sharing flow (share custom exercise with user by email lookup).
-- [x] Add admin management for default exercises:
-	- [x] create/edit default exercise records
-	- [x] upload/manage images in Supabase Storage
-	- [x] link image paths/URLs in exercise records
-- [x] Enforce upload-based custom images for exercise and plan visuals (no manual/external image URL entry); persist uploaded storage path/public URL in DB and always render from saved DB value.
-
-### 6) Completed Workouts + History
-- [x] Persist completed workout session metadata (plan, timestamps, duration, calories, owner).
-- [x] Persist per-exercise workout results.
-- [x] Persist per-set details (set number, reps, weight, etc.).
-- [x] Drive Recent Activity from persisted sessions.
-- [x] Implement history month filtering.
-- [x] Implement workout detail page with set-level data.
-- [x] Add previous/next workout session navigation in detail view.
-
-### 7) Minutes + Calories Tracking
-- [x] Track workout duration from timer start to finish.
-- [x] Calculate calories from duration + MET/exercise data.
-- [x] Persist minutes and calories per session.
-- [x] Aggregate weekly stats for Home page.
-- [x] Aggregate monthly stats for Profile page.
-- [x] Keep existing Home/Profile design while changing only data source.
-
-### 8) Sharing Workflows
-- [x] Implement workout plan sharing UX + backend wiring.
-- [ ] Add invite/access control for shared workout plans. (Basic email-based share exists; invite workflow not implemented.)
-- [x] Ensure unshared private plans are never visible to other users.
-- [x] Implement revoke access flow for shared plans/exercises.
-
-### 9) Service/Architecture Refactor
-- [x] Refactor services to use Supabase as source of truth.
-- [x] Keep modular architecture boundaries:
-	- [x] repositories
-	- [x] domain
-	- [x] application services
-- [x] Ensure actions are marked successful only after confirmed Supabase write success. (Nested plan relation writes and share visibility updates now fail-fast.)
-- [x] Keep fallback behavior only when Supabase is unavailable.
-
 ### 10) Admin Menu + Default Seed Data
 - [ ] Add admin submenu entries for:
 	- [x] default exercises creation/management (Moved to dedicated `/admin/exercises` page with field labels and reusable search.)
-	- [ ] default workout plans creation/management
+	- [x] default workout plans creation/management
 - [x] Add predefined seed file(s) for default exercises/plans.
 - [x] Implement first app initialization flow to load seed data into DB.
 - [x] Ensure seed import is idempotent (safe to rerun without duplicates).

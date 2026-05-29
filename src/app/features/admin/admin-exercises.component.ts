@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-admin-exercises',
@@ -34,7 +35,11 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
           </div>
           <div>
             <div class="block text-xs font-semibold text-gray-500 mb-1">Exercise Type</div>
-            <input [(ngModel)]="exerciseForm.exerciseType" placeholder="strength" class="w-full border border-gray-200 rounded-xl px-3 py-2" />
+            <select [(ngModel)]="exerciseForm.exerciseType" class="w-full border border-gray-200 rounded-xl px-3 py-2">
+              <option value="strength">Strength</option>
+              <option value="cardio">Cardio</option>
+              <option value="mobility">Mobility</option>
+            </select>
           </div>
           <div>
             <div class="block text-xs font-semibold text-gray-500 mb-1">MET Value</div>
@@ -88,11 +93,19 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
               <div class="font-medium text-gray-900 truncate">{{ ex.name }}</div>
               <div class="text-xs text-gray-500 truncate">{{ ex.muscleGroup || '-' }}</div>
             </div>
-            <div class="text-sm text-gray-700">{{ ex.exerciseType || 'general' }}</div>
+            <div>
+              <span
+                class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                [ngStyle]="typeBadgeStyle(ex.exerciseType)"
+              >
+                {{ typeLabel(ex.exerciseType) }}
+              </span>
+            </div>
             <div class="text-sm text-gray-700">{{ ex.visibility || 'default' }}</div>
             <div class="text-sm text-gray-700">{{ ex.metValue || 5 }}</div>
-            <div class="flex justify-end">
+            <div class="flex justify-end gap-2">
               <button (click)="editExercise(ex)" class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">Edit</button>
+              <button (click)="deleteExercise(ex)" class="px-2 py-1 text-xs rounded bg-red-100 text-red-600">Delete</button>
             </div>
           </div>
         </ng-container>
@@ -115,7 +128,7 @@ export class AdminExercisesComponent {
     description: '',
     imageUrl: '',
     muscleGroup: '',
-    exerciseType: 'general',
+    exerciseType: 'strength',
     metValue: 5,
   };
 
@@ -133,6 +146,14 @@ export class AdminExercisesComponent {
     });
   }
 
+  typeLabel(type?: string) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type?: string) {
+    return workoutTypeBadgeStyle(type);
+  }
+
   private async loadDefaultExercises() {
     this.exercisesLoading = true;
     await this.workoutService.refresh();
@@ -147,10 +168,33 @@ export class AdminExercisesComponent {
       description: exercise.description || '',
       imageUrl: exercise.imageUrl || '',
       muscleGroup: exercise.muscleGroup || '',
-      exerciseType: exercise.exerciseType || 'general',
+      exerciseType: exercise.exerciseType || 'strength',
       metValue: exercise.metValue || 5,
     };
     this.exerciseMessage = '';
+  }
+
+  async deleteExercise(exercise: Exercise) {
+    if (!confirm(`Are you sure you want to delete "${exercise.name}"? This will remove it from default exercises.`)) {
+      return;
+    }
+
+    this.exerciseBusy = true;
+    this.exerciseMessage = 'Deleting...';
+    try {
+      // Assuming deleteExercise exists in workoutService as it's typically required for CRUD
+      const success = await this.workoutService.deleteExercise(exercise.id);
+      if (success) {
+        this.exerciseMessage = 'Exercise deleted.';
+        await this.loadDefaultExercises();
+      } else {
+        this.exerciseMessage = 'Failed to delete exercise.';
+      }
+    } catch {
+      this.exerciseMessage = 'Error deleting exercise.';
+    } finally {
+      this.exerciseBusy = false;
+    }
   }
 
   resetExerciseForm() {
@@ -160,7 +204,7 @@ export class AdminExercisesComponent {
       description: '',
       imageUrl: '',
       muscleGroup: '',
-      exerciseType: 'general',
+      exerciseType: 'strength',
       metValue: 5,
     };
     this.exerciseMessage = '';
@@ -205,7 +249,7 @@ export class AdminExercisesComponent {
       description: this.exerciseForm.description.trim() || undefined,
       imageUrl: this.exerciseForm.imageUrl.trim() || undefined,
       muscleGroup: this.exerciseForm.muscleGroup.trim() || undefined,
-      exerciseType: this.exerciseForm.exerciseType.trim() || 'general',
+      exerciseType: this.exerciseForm.exerciseType.trim() || 'strength',
       metValue: Number(this.exerciseForm.metValue) || 5,
       visibility: 'default' as const,
     };

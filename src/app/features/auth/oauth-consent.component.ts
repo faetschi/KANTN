@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../core/services/supabase.service';
 import { AuthService } from '../../core/services/auth.service';
+import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
 @Component({
   selector: 'app-oauth-consent',
@@ -11,7 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
   template: `
     <div class="flex items-center justify-center h-screen">
       <div class="text-center">
-        <h2 class="text-2xl font-semibold mb-4">Completing sign in…</h2>
+        <h2 class="text-2xl font-semibold mb-4">{{ isPendingApproval ? 'Account pending approval' : 'Completing sign in…' }}</h2>
         <p *ngIf="error" class="text-red-600">{{ error }}</p>
       </div>
     </div>
@@ -19,6 +20,7 @@ import { AuthService } from '../../core/services/auth.service';
 })
 export class OAuthConsentComponent implements OnInit {
   error?: string;
+  isPendingApproval = false;
   private supabase = inject(SupabaseService);
   private auth = inject(AuthService);
 
@@ -92,13 +94,14 @@ export class OAuthConsentComponent implements OnInit {
           return;
         }
 
+        const displayName = user.user_metadata?.name || user.email || 'User';
         const { error: insertError } = await client
           .from('profiles')
           .insert({
             id: user.id,
             email: user.email,
-            display_name: user.user_metadata?.name || null,
-            avatar_url: user.user_metadata?.avatar_url || null,
+            display_name: displayName,
+            avatar_url: generateInitialsAvatar(displayName),
           });
         if (insertError) throw insertError;
 
@@ -118,6 +121,7 @@ export class OAuthConsentComponent implements OnInit {
         await this.auth.refreshProfile();
         this.router.navigateByUrl('/home');
       } else {
+        this.isPendingApproval = true;
         this.error = 'Your account is pending approval. Please wait for admin approval.';
       }
     } catch (err: any) {
