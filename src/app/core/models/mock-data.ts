@@ -84,6 +84,46 @@ export const MOCK_USER: User = {
   lastSeen: new Date().toISOString()
 };
 
+export const MOCK_SCHEDULED_WORKOUTS: import('./models').ScheduledWorkout[] = [
+  {
+    id: 'sw1',
+    planId: 'p1',
+    planName: 'Full Body Beginner',
+    planExercises: [MOCK_EXERCISES[0], MOCK_EXERCISES[1], MOCK_EXERCISES[3], MOCK_EXERCISES[5]],
+    scheduledDate: new Date(Date.now() + 86400000 * 1), // tomorrow
+    status: 'scheduled',
+    planCategory: 'full body',
+  },
+  {
+    id: 'sw2',
+    planId: 'p2',
+    planName: 'Upper Body Power',
+    planExercises: [MOCK_EXERCISES[0], MOCK_EXERCISES[2], MOCK_EXERCISES[4]],
+    scheduledDate: new Date(Date.now() + 86400000 * 3), // 3 days from now
+    status: 'scheduled',
+    planCategory: 'upper body',
+  },
+];
+
+export const MOCK_PLAN_EXERCISE_TARGETS: import('./models').PlanExerciseTarget[] = [
+  {
+    id: 'pt1',
+    planId: 'p1',
+    exerciseId: '1',
+    targetSets: 3,
+    targetReps: 10,
+    targetWeight: 60,
+  },
+  {
+    id: 'pt2',
+    planId: 'p1',
+    exerciseId: '2',
+    targetSets: 3,
+    targetReps: 12,
+    targetWeight: 80,
+  },
+];
+
 export const MOCK_SESSIONS: WorkoutSession[] = [
   {
     id: 's1',

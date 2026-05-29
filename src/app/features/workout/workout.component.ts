@@ -7,6 +7,7 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { CardioExerciseData, Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } from '../../core/domain/workout-types';
+import { resolveDefault, resolveCardioDefaults, getUnitMismatchMessage, sourceLabel, DefaultSource } from '../../core/domain/smart-defaults';
 import { computeCardioMetrics, createVirtualCardioExercise } from '../../core/domain/cardio-utils';
 import { CardioMapComponent } from './cardio-map.component';
 
@@ -168,6 +169,19 @@ import { CardioMapComponent } from './cardio-map.component';
             <div class="mb-4 rounded-xl bg-red-50 text-red-600 text-sm px-4 py-3 border border-red-100">{{ saveErrorMessage }}</div>
           }
 
+          @if (showMissingExercisesBanner() && missingExercises().length > 0) {
+            <div class="mb-4 rounded-xl bg-yellow-50 text-yellow-800 text-sm px-4 py-3 border border-yellow-200 flex items-start gap-2">
+              <mat-icon class="text-yellow-600 text-base mt-0.5">warning</mat-icon>
+              <div>
+                <p class="font-semibold">Exercises removed</p>
+                <p>The following exercises are no longer available: {{ missingExercises().join(', ') }}. Add a replacement from your exercises.</p>
+                <button type="button" (click)="showExercisePicker = true; showMissingExercisesBanner.set(false)" class="mt-2 text-blue-600 font-semibold text-xs underline">
+                  Add Exercise
+                </button>
+              </div>
+            </div>
+          }
+
           @if (freestyleMode()) {
             <div class="sticky top-0 z-10 -mx-6 px-6 py-3 mb-4 bg-white/95 backdrop-blur border-b border-gray-100" #freestyleListAnchor>
               <div class="flex items-center justify-between">
@@ -223,8 +237,22 @@ import { CardioMapComponent } from './cardio-map.component';
                 <p class="text-gray-500 text-sm mb-6 bg-gray-50 p-4 rounded-xl">{{ exercise.description }}</p>
               }
 
+              <!-- Quick confirm actions -->
+              <div class="flex gap-2 mb-4">
+                <button (click)="confirmCurrentExercise()"
+                        class="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-semibold text-sm shadow-sm active:scale-95 transition-transform">
+                  <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">check_circle</mat-icon>
+                  Confirm All Sets
+                </button>
+                <button (click)="resetExerciseToDefaults()"
+                        class="px-3 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-semibold text-sm">
+                  <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">refresh</mat-icon>
+                  Reset
+                </button>
+              </div>
+
               <!-- Strength UI (sets/reps/weight) -->
-              <div class="space-y-3">
+              <div class="space-y-1">
                 <div class="grid grid-cols-4 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center mb-2">
                   <span>Set</span>
                   <span>Kg</span>
@@ -236,23 +264,43 @@ import { CardioMapComponent } from './cardio-map.component';
                   <div
                     class="grid grid-cols-4 gap-4 items-center rounded-xl px-2 py-2 transition-colors border"
                     [class.bg-green-50]="set.completed"
-                    [class.border-green-200]="set.completed"
+                    [class.border-green-300]="set.completed"
                     [class.bg-white]="!set.completed"
-                    [class.border-transparent]="!set.completed"
+                    [class.border-2]="!set.completed && set.source === 'plan_target'"
+                    [class.border-blue-200]="!set.completed && set.source === 'plan_target'"
+                    [class.border-dashed]="!set.completed && set.source === 'plan_target'"
+                    [class.border-2]="!set.completed && set.source === 'last_workout'"
+                    [class.border-purple-200]="!set.completed && set.source === 'last_workout'"
+                    [class.border-dashed]="!set.completed && set.source === 'last_workout'"
+                    [class.border]="!set.completed && !set.source"
+                    [class.border-gray-200]="!set.completed && !set.source"
+                    [class.border-transparent]="set.completed"
                   >
-                    <div class="flex justify-center">
+                    <div class="flex justify-center flex-col items-center">
                       <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500">
                         {{ $index + 1 }}
                       </div>
+                      @if (set.source) {
+                        <span class="text-[8px] mt-0.5 uppercase tracking-wider font-semibold"
+                              [class.text-blue-500]="set.source === 'plan_target'"
+                              [class.text-purple-500]="set.source === 'last_workout'">
+                          {{ setSourceLabel(set) }}
+                        </span>
+                      }
                     </div>
-                    <input type="number" [(ngModel)]="set.weight" class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500">
-                    <input type="number" [(ngModel)]="set.reps" class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500">
+                    <input type="number" [(ngModel)]="set.weight" (ngModelChange)="markSetEdited(set)" 
+                           class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500"
+                           [attr.aria-label]="'Weight in kg' + (set.source ? ', ' + setSourceLabel(set) : '')">
+                    <input type="number" [(ngModel)]="set.reps" (ngModelChange)="markSetEdited(set)"
+                           class="bg-gray-50 border-none rounded-xl text-center font-bold text-gray-900 py-2 focus:ring-2 focus:ring-blue-500"
+                           [attr.aria-label]="'Reps' + (set.source ? ', ' + setSourceLabel(set) : '')">
                     <button (click)="toggleSet($index)"
                             [class.bg-green-500]="set.completed"
                             [class.text-white]="set.completed"
                             [class.bg-gray-100]="!set.completed"
                             [class.text-gray-300]="!set.completed"
-                            class="h-10 w-full rounded-xl flex items-center justify-center transition-colors">
+                            class="h-10 w-full rounded-xl flex items-center justify-center transition-colors"
+                            [attr.aria-label]="set.completed ? 'Mark set as incomplete' : 'Mark set as complete'">
                       <mat-icon>check</mat-icon>
                     </button>
                   </div>
@@ -272,6 +320,19 @@ import { CardioMapComponent } from './cardio-map.component';
                   + Add Set
                 </button>
               </div>
+
+              <!-- Undo toast -->
+              @if (undoMessage()) {
+                <div class="fixed bottom-24 left-4 right-4 z-50 flex justify-center pointer-events-none">
+                  <div class="bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-medium flex items-center gap-3 pointer-events-auto">
+                    <span>{{ undoMessage() }}</span>
+                    <button (click)="undoLastAction()" class="text-blue-300 font-bold underline">Undo</button>
+                    <button (click)="dismissUndo()" class="text-gray-400">
+                      <mat-icon class="text-base" style="font-size:16px;width:16px;height:16px;">close</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              }
             </div>
           } @else {
             <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
@@ -418,6 +479,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   workoutService = inject(WorkoutService);
 
   planId = signal<string>('');
+  scheduleId = signal<string | null>(null);
   plan = computed(() => this.workoutService.getPlanById(this.planId()));
   freestyleMode = signal(false);
   freestyleExercises = signal<Exercise[]>([]);
@@ -462,6 +524,13 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   
   // State for the current workout session
   workoutData = signal<Map<string, WorkoutSet[]>>(new Map());
+  missingExercises = signal<string[]>([]);
+  showMissingExercisesBanner = signal(false);
+
+  // Quick-confirm and undo state
+  undoMessage = signal('');
+  private lastSnapshot: { exerciseId: string; sets: WorkoutSet[] } | null = null;
+  private undoTimeout: ReturnType<typeof setTimeout> | undefined;
   
   startTime = new Date();
   elapsedTime = signal(0);
@@ -509,6 +578,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.route.paramMap.subscribe(params => {
       const id = params.get('planId');
       if (!id) return;
+      this.scheduleId.set(this.route.snapshot.queryParamMap.get('scheduleId'));
 
       // If there is an in-progress workout matching this id, resume it
       const inProgress = this.workoutService.inProgress();
@@ -601,28 +671,48 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     const plan = this.plan();
     if (plan) {
       const data = new Map<string, WorkoutSet[]>();
-      
-      // Try to load previous session data for comparison/pre-fill
+      const missing: string[] = [];
+      const planTargets = this.workoutService.getPlanExerciseTargets(plan.id);
       const lastSession = this.workoutService.getLastSessionForPlan(plan.id);
       
-      const exercises = this.isCardioOnlyWorkout() && plan.exercises.length > 0
-        ? [plan.exercises[0]]
-        : plan.exercises;
+      plan.exercises.forEach(ex => {
+        const exerciseExists = !!this.workoutService.getExerciseById(ex.id);
+        if (!exerciseExists) {
+          missing.push(ex.name);
+          return;
+        }
 
-      exercises.forEach(ex => {
-        // Pre-fill with 3 empty sets or last session's sets
-        const previousExerciseData = lastSession?.exercises.find(e => e.exerciseId === ex.id);
-        
-        if (previousExerciseData) {
-           data.set(ex.id, previousExerciseData.sets.map(s => ({ ...s, completed: false })));
-        } else {
-           data.set(ex.id, [
-            { reps: 0, weight: 0, completed: false },
-            { reps: 0, weight: 0, completed: false },
-            { reps: 0, weight: 0, completed: false }
-          ]);
+        // Resolve smart defaults: plan target → last workout → empty
+        const defaults = resolveDefault(ex.id, ex.name, planTargets, lastSession, lastSession?.exercises);
+        const unitWarning = getUnitMismatchMessage(
+          defaults.source,
+          planTargets.find(t => t.exerciseId === ex.id)?.targetWeight,
+          lastSession?.exercises.find(e => e.exerciseId === ex.id)?.sets.slice(-1)[0]?.weight,
+        );
+
+        const initialSet: WorkoutSet = {
+          reps: defaults.reps,
+          weight: defaults.weight,
+          completed: false,
+          source: defaults.source,
+        };
+
+        data.set(ex.id, [
+          { ...initialSet },
+          { ...initialSet },
+          { ...initialSet },
+        ]);
+
+        // Track unit warnings
+        if (unitWarning) {
+          console.debug(`[Workout] Unit mismatch on "${ex.name}": ${unitWarning}`);
         }
       });
+
+      this.missingExercises.set(missing);
+      if (missing.length > 0) {
+        this.showMissingExercisesBanner.set(true);
+      }
       this.workoutData.set(data);
     }
   }
@@ -740,6 +830,86 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
     this.currentExerciseIndex.set(Math.max(0, this.freestyleExercises().length - 1));
     this.showExercisePicker = false;
+  }
+
+  confirmCurrentExercise() {
+    const exId = this.currentExercise()?.id;
+    if (!exId) return;
+
+    const sets = this.workoutData().get(exId);
+    if (!sets || sets.length === 0) return;
+
+    // Snapshot for undo
+    this.lastSnapshot = { exerciseId: exId, sets: sets.map(s => ({ ...s })) };
+
+    const updated = sets.map(s => ({ ...s, completed: true }));
+    this.workoutData.update(m => new Map(m.set(exId, updated)));
+    this.showUndo('All sets confirmed');
+  }
+
+  resetExerciseToDefaults() {
+    const exId = this.currentExercise()?.id;
+    if (!exId) return;
+
+    const plan = this.plan();
+    if (!plan) return;
+
+    const exercise = plan.exercises.find(e => e.id === exId);
+    if (!exercise) return;
+
+    const planTargets = this.workoutService.getPlanExerciseTargets(plan.id);
+    const lastSession = this.workoutService.getLastSessionForPlan(plan.id);
+
+    // Snapshot for undo
+    this.lastSnapshot = { exerciseId: exId, sets: (this.workoutData().get(exId) || []).map(s => ({ ...s })) };
+
+    const defaults = resolveDefault(exId, exercise.name, planTargets, lastSession, lastSession?.exercises);
+    const resetSet: WorkoutSet = { reps: defaults.reps, weight: defaults.weight, completed: false, source: defaults.source };
+    const count = this.workoutData().get(exId)?.length || 3;
+    const resetSets = Array.from({ length: count }, () => ({ ...resetSet }));
+    this.workoutData.update(m => new Map(m.set(exId, resetSets)));
+    this.showUndo('Reset to defaults');
+  }
+
+  private showUndo(message: string) {
+    this.undoMessage.set(message);
+    if (this.undoTimeout !== undefined) {
+      clearTimeout(this.undoTimeout);
+    }
+    this.undoTimeout = setTimeout(() => {
+      this.undoMessage.set('');
+      this.undoTimeout = undefined;
+    }, 5000);
+  }
+
+  undoLastAction() {
+    if (!this.lastSnapshot) return;
+    this.workoutData.update(m => new Map(m.set(this.lastSnapshot!.exerciseId, this.lastSnapshot!.sets)));
+    this.lastSnapshot = null;
+    this.undoMessage.set('');
+    if (this.undoTimeout !== undefined) {
+      clearTimeout(this.undoTimeout);
+      this.undoTimeout = undefined;
+    }
+  }
+
+  dismissUndo() {
+    this.undoMessage.set('');
+    this.lastSnapshot = null;
+    if (this.undoTimeout !== undefined) {
+      clearTimeout(this.undoTimeout);
+      this.undoTimeout = undefined;
+    }
+  }
+
+  markSetEdited(set: WorkoutSet) {
+    if (set.source && set.source !== ('empty' as DefaultSource)) {
+      set.source = undefined;
+    }
+  }
+
+  setSourceLabel(set: WorkoutSet): string {
+    return set.source ? sourceLabel(set.source) : '';
   }
 
   removeSet(index: number) {
@@ -955,6 +1125,12 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     // clear in-progress marker on successful finish
     this.workoutService.clearInProgress();
+
+    // Mark the scheduled workout as completed
+    const schedId = this.scheduleId();
+    if (schedId) {
+      await this.workoutService.updateScheduledWorkoutStatus(schedId, 'completed');
+    }
 
     // Optimistically mark the plan as completed so UI reflects the finished workout
     if (!this.freestyleMode()) {

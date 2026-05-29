@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AuthService } from './auth.service';
-import { CreateExerciseInput, Exercise, InProgressWorkout, WorkoutPlan, WorkoutPlanInvite, WorkoutSession } from '../models/models';
-import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SESSIONS } from '../models/mock-data';
+import { CreateExerciseInput, Exercise, InProgressWorkout, PlanExerciseTarget, ScheduledWorkout, WorkoutPlan, WorkoutPlanInvite, WorkoutSession } from '../models/models';
+import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SCHEDULED_WORKOUTS, MOCK_SESSIONS } from '../models/mock-data';
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
 import { deriveWorkoutPlanType } from '../domain/workout-types';
@@ -18,6 +18,9 @@ export class WorkoutService {
   private sessionsSignal = signal<WorkoutSession[]>(MOCK_SESSIONS);
   private planInvitesSignal = signal<WorkoutPlanInvite[]>([]);
   private loadedUserIdSignal = signal<string | null>(null);
+  private scheduledWorkoutsSignal = signal<ScheduledWorkout[]>(MOCK_SCHEDULED_WORKOUTS);
+  private scheduledWorkoutsLoadError = signal<string | null>(null);
+  private planExerciseTargetsSignal = signal<PlanExerciseTarget[]>([]);
   // In-progress workout saved across route changes so users can continue
   private inProgressSignal = signal<InProgressWorkout | null>(null);
 
@@ -25,9 +28,45 @@ export class WorkoutService {
   plans = computed(() => this.plansSignal());
   sessions = computed(() => this.sessionsSignal());
   planInvites = computed(() => this.planInvitesSignal());
+  scheduledWorkouts = computed(() => this.scheduledWorkoutsSignal());
+  scheduledWorkoutsError = computed(() => this.scheduledWorkoutsLoadError());
+  planExerciseTargets = computed(() => this.planExerciseTargetsSignal());
   loadedUserId = computed(() => this.loadedUserIdSignal());
   
   activePlan = computed(() => this.plansSignal().find(p => p.isActive));
+
+  todayWorkout = computed(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    return this.scheduledWorkoutsSignal()
+      .filter(sw => {
+        const d = new Date(sw.scheduledDate);
+        return d >= todayStart && d < todayEnd && sw.status === 'scheduled';
+      })
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())[0] || null;
+  });
+
+  nearestScheduledWorkout = computed(() => {
+    const now = new Date();
+    return this.scheduledWorkoutsSignal()
+      .filter(sw => new Date(sw.scheduledDate) >= now && sw.status === 'scheduled')
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())[0] || null;
+  });
+
+  upcomingWorkouts = computed(() => {
+    const now = new Date();
+    return this.scheduledWorkoutsSignal()
+      .filter(sw => new Date(sw.scheduledDate) >= now && sw.status === 'scheduled')
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+  });
+
+  missedWorkouts = computed(() => {
+    const now = new Date();
+    return this.scheduledWorkoutsSignal()
+      .filter(sw => new Date(sw.scheduledDate) < now && sw.status === 'scheduled');
+  });
 
   constructor() {
     effect(() => {
@@ -41,6 +80,8 @@ export class WorkoutService {
       }
 
       if (this.loadedUserIdSignal() !== currentUser.id) {
+        this.scheduledWorkoutsSignal.set(MOCK_SCHEDULED_WORKOUTS);
+        this.planExerciseTargetsSignal.set([]);
         void this.refresh();
       }
     });
@@ -84,6 +125,33 @@ export class WorkoutService {
       this.sessionsSignal.set(data.sessions);
       this.planInvitesSignal.set(data.planInvites || []);
       this.loadedUserIdSignal.set(userId);
+
+      // Load scheduled workouts with safe fallback
+      try {
+        const schedData = await this.repository.getScheduledWorkouts(userId);
+        if (schedData) {
+          const mapped: ScheduledWorkout[] = (schedData as Array<{
+            id: string; plan_id: string; scheduled_date: string; status: string;
+          }>).map(row => {
+            const plan = this.getPlanById(row.plan_id);
+            return {
+              id: row.id,
+              planId: row.plan_id,
+              planName: plan?.name || 'Unknown Plan',
+              planExercises: plan?.exercises || [],
+              scheduledDate: new Date(row.scheduled_date),
+              status: (row.status as ScheduledWorkout['status']) || 'scheduled',
+              planCategory: plan?.category,
+            };
+          });
+          this.scheduledWorkoutsSignal.set(mapped);
+          this.scheduledWorkoutsLoadError.set(null);
+        }
+      } catch (err) {
+        console.warn('Failed to load scheduled workouts (using mock data)', err);
+        this.scheduledWorkoutsLoadError.set('Could not load your schedule. Some features may be limited.');
+        this.scheduledWorkoutsSignal.set(MOCK_SCHEDULED_WORKOUTS);
+      }
     } catch (error) {
       console.error('Failed to refresh workout data from Supabase', error);
     }
@@ -338,6 +406,90 @@ export class WorkoutService {
     if (!userId) return null;
 
     return this.repository.uploadExerciseImage(userId, file);
+  }
+
+  // ── Scheduled Workouts ──
+
+  getScheduledWorkoutsForDate(date: Date): ScheduledWorkout[] {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return this.scheduledWorkoutsSignal().filter(sw => {
+      const d = new Date(sw.scheduledDate);
+      return d >= start && d < end;
+    });
+  }
+
+  getTodayScheduledWorkouts(): ScheduledWorkout[] {
+    return this.getScheduledWorkoutsForDate(new Date());
+  }
+
+  getUpcomingScheduledWorkouts(limit = 10): ScheduledWorkout[] {
+    const now = new Date();
+    return this.scheduledWorkoutsSignal()
+      .filter(sw => new Date(sw.scheduledDate) >= now && sw.status === 'scheduled')
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
+      .slice(0, limit);
+  }
+
+  getMissedScheduledWorkouts(): ScheduledWorkout[] {
+    const now = new Date();
+    return this.scheduledWorkoutsSignal()
+      .filter(sw => new Date(sw.scheduledDate) < now && sw.status === 'scheduled');
+  }
+
+  async schedulePlan(planId: string, date: Date): Promise<boolean> {
+    const plan = this.getPlanById(planId);
+    if (!plan) return false;
+
+    const scheduled: ScheduledWorkout = {
+      id: Math.random().toString(36).substr(2, 9),
+      planId,
+      planName: plan.name,
+      planExercises: plan.exercises,
+      scheduledDate: date,
+      status: 'scheduled',
+      planCategory: plan.category,
+    };
+
+    this.scheduledWorkoutsSignal.update(list => [...list, scheduled]);
+    return true;
+  }
+
+  async rescheduleWorkout(scheduleId: string, newDate: Date): Promise<boolean> {
+    this.scheduledWorkoutsSignal.update(list =>
+      list.map(sw => sw.id === scheduleId ? { ...sw, scheduledDate: newDate } : sw)
+    );
+    return true;
+  }
+
+  async updateScheduledWorkoutStatus(scheduleId: string, status: ScheduledWorkout['status']): Promise<boolean> {
+    this.scheduledWorkoutsSignal.update(list =>
+      list.map(sw => sw.id === scheduleId ? { ...sw, status } : sw)
+    );
+    return true;
+  }
+
+  // ── Plan Exercise Targets ──
+
+  getPlanExerciseTargets(planId: string): PlanExerciseTarget[] {
+    return this.planExerciseTargetsSignal().filter(t => t.planId === planId);
+  }
+
+  getExerciseTarget(planId: string, exerciseId: string): PlanExerciseTarget | undefined {
+    return this.planExerciseTargetsSignal().find(t => t.planId === planId && t.exerciseId === exerciseId);
+  }
+
+  async setPlanExerciseTargets(planId: string, targets: Omit<PlanExerciseTarget, 'id' | 'planId'>[]): Promise<boolean> {
+    const existing = this.planExerciseTargetsSignal().filter(t => t.planId !== planId);
+    const newTargets: PlanExerciseTarget[] = targets.map((t, i) => ({
+      ...t,
+      id: `${planId}-${t.exerciseId}-${i}`,
+      planId,
+    }));
+    this.planExerciseTargetsSignal.set([...existing, ...newTargets]);
+    return true;
   }
 
   getLastSessionForPlan(planId: string): WorkoutSession | undefined {

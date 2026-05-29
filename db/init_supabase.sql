@@ -390,6 +390,32 @@ create index if not exists idx_workout_plans_owner on workout_plans (owner_id);
 create index if not exists idx_workout_sessions_owner_created on workout_sessions (owner_id, created_at desc);
 create index if not exists idx_workout_sessions_owner_finished on workout_sessions (owner_id, finished_at desc);
 
+-- Enforce at most one active plan per owner
+do $$
+begin
+  -- Resolve any existing duplicate active plans (keep the most recently updated)
+  with dupes as (
+    select owner_id, id
+    from workout_plans
+    where is_active = true
+      and (owner_id, id) not in (
+        select distinct on (owner_id) owner_id, id
+        from workout_plans
+        where is_active = true
+        order by owner_id, updated_at desc
+      )
+  )
+  update workout_plans
+  set is_active = false
+  from dupes
+  where workout_plans.id = dupes.id;
+end;
+$$;
+
+create unique index if not exists idx_workout_plans_one_active
+  on workout_plans (owner_id)
+  where is_active = true;
+
 create or replace function touch_updated_at()
 returns trigger
 language plpgsql
@@ -798,6 +824,41 @@ begin
 exception
   when others then
     raise exception 'Failed to create workout plan: %', SQLERRM;
+end;
+$$;
+
+create or replace function set_active_plan(
+  p_owner_id uuid,
+  p_plan_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if auth.uid() is distinct from p_owner_id and not is_admin() then
+    raise exception 'Not allowed to set active plan for this user';
+  end if;
+
+  if not exists (
+    select 1 from workout_plans
+    where id = p_plan_id and owner_id = p_owner_id
+  ) then
+    return false;
+  end if;
+
+  update workout_plans
+  set is_active = false
+  where owner_id = p_owner_id
+    and is_active = true;
+
+  update workout_plans
+  set is_active = true
+  where id = p_plan_id and owner_id = p_owner_id;
+
+  return true;
 end;
 $$;
 
@@ -1246,6 +1307,7 @@ grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, tim
 grant execute on function create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer) to authenticated;
 grant execute on function update_workout_plan_tx(uuid, uuid, text, text, text, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
+grant execute on function set_active_plan(uuid, uuid) to authenticated;
 grant execute on function respond_to_workout_plan_share(uuid, boolean) to authenticated;
 
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from public;

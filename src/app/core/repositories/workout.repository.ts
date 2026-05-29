@@ -217,29 +217,16 @@ export class WorkoutRepository {
     return { userId, exercises, plans, sessions, planInvites };
   }
 
-  async setActivePlan(userId: string, planId: string) {
+  async setActivePlan(userId: string, planId: string): Promise<boolean> {
     const client = this.supabase.getClient();
     if (!client) return false;
 
-    // First ensure the requested plan is actually owned and updatable by this user.
-    // If no row is returned, treat activation as failed instead of a false-positive success.
-    const setRes = await client
-      .from('workout_plans')
-      .update({ is_active: true })
-      .eq('owner_id', userId)
-      .eq('id', planId)
-      .select('id');
+    const { data, error } = await client.rpc('set_active_plan', {
+      p_owner_id: userId,
+      p_plan_id: planId,
+    });
 
-    if (setRes.error || !setRes.data?.length) return false;
-
-    const clearRes = await client
-      .from('workout_plans')
-      .update({ is_active: false })
-      .eq('owner_id', userId)
-      .neq('id', planId)
-      .eq('is_active', true);
-
-    return !clearRes.error;
+    return !error && data === true;
   }
 
   async ensureFirstRunSeed(userId: string) {
@@ -291,18 +278,7 @@ export class WorkoutRepository {
       p_target_duration_seconds: cardioTargets?.targetDurationSeconds || null,
     };
 
-    const callCreatePlanRpc = async (fnName: string) => client.rpc(fnName, payload);
-
-    let { data, error } = await callCreatePlanRpc('create_workout_plan_tx');
-    if (error) {
-      const status = (error as { status?: number }).status;
-      const message = (error as { message?: string }).message || '';
-      if (status === 404 || message.includes('create_workout_plan_tx')) {
-        const fallback = await callCreatePlanRpc('create_workout_plan');
-        data = fallback.data;
-        error = fallback.error;
-      }
-    }
+    const { data, error } = await client.rpc('create_workout_plan_tx', payload);
 
     if (error) {
       console.error('[WorkoutRepository] createPlan rpc failed', error);
@@ -640,5 +616,107 @@ export class WorkoutRepository {
 
     const { data } = client.storage.from('exercise-images').getPublicUrl(filePath);
     return data.publicUrl || null;
+  }
+
+  // ── Scheduled Workouts ──
+
+  async getScheduledWorkouts(userId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    const { data, error } = await client
+      .from('workout_schedule')
+      .select('*')
+      .eq('owner_id', userId)
+      .order('scheduled_date', { ascending: true });
+
+    if (error) return null;
+    return data;
+  }
+
+  async insertScheduledWorkout(userId: string, planId: string, scheduledDate: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .insert({ owner_id: userId, plan_id: planId, scheduled_date: scheduledDate, status: 'scheduled' });
+
+    return !error;
+  }
+
+  async updateScheduledWorkoutStatus(scheduleId: string, status: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .update({ status })
+      .eq('id', scheduleId);
+
+    return !error;
+  }
+
+  async rescheduleWorkout(scheduleId: string, newDate: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .update({ scheduled_date: newDate })
+      .eq('id', scheduleId);
+
+    return !error;
+  }
+
+  // ── Plan Exercise Targets ──
+
+  async getPlanExerciseTargets(planId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    const { data, error } = await client
+      .from('plan_exercise_targets')
+      .select('*')
+      .eq('plan_id', planId);
+
+    if (error) return null;
+    return data;
+  }
+
+  async setPlanExerciseTargets(planId: string, targets: Array<{
+    exerciseId: string;
+    targetSets?: number;
+    targetReps?: number;
+    targetWeight?: number;
+    targetDistanceMeters?: number;
+    targetDurationSeconds?: number;
+  }>) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    // Delete existing targets for this plan, then batch insert
+    const { error: delError } = await client
+      .from('plan_exercise_targets')
+      .delete()
+      .eq('plan_id', planId);
+
+    if (delError) return false;
+
+    if (targets.length === 0) return true;
+
+    const { error: insError } = await client
+      .from('plan_exercise_targets')
+      .insert(targets.map(t => ({
+        plan_id: planId,
+        exercise_id: t.exerciseId,
+        target_sets: t.targetSets || null,
+        target_reps: t.targetReps || null,
+        target_weight: t.targetWeight || null,
+        target_distance_meters: t.targetDistanceMeters || null,
+        target_duration_seconds: t.targetDurationSeconds || null,
+      })));
+
+    return !insError;
   }
 }

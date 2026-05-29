@@ -7,14 +7,13 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
-import { ShareDialogComponent } from '../../shared/components/share-dialog.component';
 import { WorkoutPlan } from '../../core/models/models';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plans',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent, ShareDialogComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -22,7 +21,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
         <div class="flex items-center gap-2">
           <button
             type="button"
-            (click)="showSharePanel = true; shareMessage = ''"
+            (click)="showSharePanel.set(true); shareMessage = ''"
             class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
             aria-label="Share plan"
           >
@@ -34,19 +33,53 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
         </div>
       </header>
 
-      <app-share-dialog
-        [visible]="showSharePanel"
-        (visibleChange)="closeSharePanel()"
-        title="Share Plan"
-        itemLabel="plan"
-        [items]="shareablePlans()"
-        [(selectedItemId)]="sharePlanId"
-        [sharing]="sharingPlan"
-        [unsharing]="unsharingPlan"
-        [message]="shareMessage"
-        (share)="onShareDialogShare($event)"
-        (unshare)="onShareDialogUnshare($event)"
-      />
+      @if (showSharePanel()) {
+      <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" (click)="closeSharePanel()">
+        <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4" (click)="$event.stopPropagation()">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-bold text-gray-900">Share Plan</h3>
+            <button type="button" (click)="closeSharePanel()" class="text-gray-400">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+          <div class="grid grid-cols-1 gap-3">
+            <select [(ngModel)]="sharePlanId" class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
+              <option [ngValue]="''">Select your plan</option>
+              @for (plan of myOwnedPlans(); track plan.id) {
+                <option [ngValue]="plan.id">{{ plan.name }}</option>
+              }
+            </select>
+            <input
+              type="email"
+              [(ngModel)]="shareEmail"
+              placeholder="user@example.com"
+              class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            >
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                (click)="sharePlan()"
+                [disabled]="sharingPlan || unsharingPlan"
+                class="flex-1 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+              >
+                {{ sharingPlan ? 'Sharing\u2026' : 'Share' }}
+              </button>
+              <button
+                type="button"
+                (click)="unsharePlan()"
+                [disabled]="sharingPlan || unsharingPlan"
+                class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+              >
+                {{ unsharingPlan ? 'Revoking\u2026' : 'Unshare' }}
+              </button>
+            </div>
+          </div>
+          @if (shareMessage) {
+            <span class="text-xs text-gray-500">{{ shareMessage }}</span>
+          }
+        </div>
+      </div>
+      }
 
       @if (pendingInvites().length) {
         <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
@@ -95,6 +128,17 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
         placeholder="Search workout plans"
       />
 
+      @if (filteredPlans().length === 0) {
+        <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-10 text-center">
+          <mat-icon class="text-4xl text-gray-300 mb-3">fitness_center</mat-icon>
+          <p class="text-gray-500 font-semibold mb-1">No workout plans yet</p>
+          <p class="text-gray-400 text-sm mb-5">Create your first plan to get started.</p>
+          <button routerLink="/plans/create" class="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md">
+            Create Plan
+          </button>
+        </div>
+      }
+
       <div class="space-y-4">
         @for (plan of filteredPlans(); track plan.id) {
           <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
@@ -124,6 +168,12 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
                       Not started yet
                     }
                   </span>
+                  @if (nextScheduledDate(plan.id); as sched) {
+                    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                      <mat-icon class="text-[12px] mr-0.5" style="font-size:12px;width:12px;height:12px;">calendar_today</mat-icon>
+                      {{ sched | date:'MMM d' }}
+                    </span>
+                  }
                 </div>
                 <p class="mt-2 text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
               </div>
@@ -147,6 +197,10 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
               <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
                 Start
               </button>
+              <button (click)="openScheduleDialog(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
+                <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">calendar_today</mat-icon>
+                <span class="hidden sm:inline">Schedule</span>
+              </button>
               @if (isOwnedPlan(plan.id)) {
                 <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
                   Edit
@@ -156,7 +210,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
                 </button>
               }
               @if (!plan.isActive) {
-                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId && activatingPlanId !== plan.id" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
+                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId !== ''" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
                   {{ activatingPlanId === plan.id ? 'Activating…' : 'Activate' }}
                 </button>
               }
@@ -165,6 +219,26 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
         }
       </div>
     </div>
+
+      @if (showScheduleDialog()) {
+        <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
+          <div class="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-900">Schedule Workout</h3>
+              <button type="button" (click)="closeScheduleDialog()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <p class="text-sm text-gray-500">Pick a date for this workout.</p>
+            <input type="date" [(ngModel)]="scheduleDateInput" [min]="minScheduleDate"
+                   class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+            <div class="flex items-center justify-end gap-2">
+              <button type="button" (click)="closeScheduleDialog()" class="px-3 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100">Cancel</button>
+              <button type="button" (click)="confirmSchedule()" class="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600">Schedule</button>
+            </div>
+          </div>
+        </div>
+      }
   `
 })
 export class PlansComponent {
@@ -176,7 +250,7 @@ export class PlansComponent {
   planInvites = this.workoutService.planInvites;
   sharePlanId = '';
   shareEmail = '';
-  showSharePanel = false;
+  showSharePanel = signal(false);
   planSearchQuery = signal('');
   sharingPlan = false;
   unsharingPlan = false;
@@ -184,6 +258,44 @@ export class PlansComponent {
   inviteMessage = '';
   activatingPlanId = '';
   respondingInviteId = '';
+
+  // ── Schedule state ──
+  showScheduleDialog = signal(false);
+  schedulePlanId = signal('');
+  scheduleDateInput = '';
+  minScheduleDate = new Date().toISOString().split('T')[0];
+
+  nextScheduledDate(planId: string): Date | null {
+    const now = new Date();
+    const matches = this.workoutService.scheduledWorkouts()
+      .filter(sw => sw.planId === planId && sw.status === 'scheduled')
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+    return matches.length > 0 ? matches[0].scheduledDate : null;
+  }
+
+  openScheduleDialog(planId: string) {
+    this.schedulePlanId.set(planId);
+    this.scheduleDateInput = new Date().toISOString().split('T')[0];
+    this.showScheduleDialog.set(true);
+  }
+
+  closeScheduleDialog() {
+    this.showScheduleDialog.set(false);
+    this.schedulePlanId.set('');
+    this.scheduleDateInput = '';
+  }
+
+  async confirmSchedule() {
+    const planId = this.schedulePlanId();
+    if (!planId || !this.scheduleDateInput) return;
+    const ok = await this.workoutService.schedulePlan(planId, new Date(this.scheduleDateInput));
+    if (ok) {
+      this.notifications.success('Workout scheduled.');
+    } else {
+      this.notifications.error('Failed to schedule workout.');
+    }
+    this.closeScheduleDialog();
+  }
 
   myOwnedPlans() {
     const currentUserId = this.authService.currentUser()?.id;
@@ -255,18 +367,24 @@ export class PlansComponent {
     this.notifications.success('Plan activated.', 1000);
   }
 
-  shareablePlans() {
-    return this.myOwnedPlans().map(p => ({ id: p.id, name: p.name }));
-  }
-
   closeSharePanel() {
-    this.showSharePanel = false;
+    this.showSharePanel.set(false);
     this.shareMessage = '';
   }
 
-  async onShareDialogShare(event: { itemId: string; email: string }) {
-    const planId = event.itemId;
-    const email = event.email;
+  async sharePlan() {
+    const planId = this.sharePlanId;
+    const email = this.shareEmail.trim();
+
+    if (!planId) {
+      this.shareMessage = 'Please select a plan to share.';
+      return;
+    }
+
+    if (!email) {
+      this.shareMessage = 'Please enter an email address.';
+      return;
+    }
 
     this.sharingPlan = true;
     this.shareMessage = '';
@@ -288,15 +406,26 @@ export class PlansComponent {
     const ok = await this.workoutService.sharePlan(planId, targetUserId);
     this.sharingPlan = false;
     if (ok) {
+      this.shareEmail = '';
       this.closeSharePanel();
     } else {
       this.shareMessage = 'Failed to share plan.';
     }
   }
 
-  async onShareDialogUnshare(event: { itemId: string; email: string }) {
-    const planId = event.itemId;
-    const email = event.email;
+  async unsharePlan() {
+    const planId = this.sharePlanId;
+    const email = this.shareEmail.trim();
+
+    if (!planId) {
+      this.shareMessage = 'Please select a plan to unshare.';
+      return;
+    }
+
+    if (!email) {
+      this.shareMessage = 'Please enter an email address.';
+      return;
+    }
 
     this.unsharingPlan = true;
     this.shareMessage = '';
@@ -311,6 +440,7 @@ export class PlansComponent {
     const ok = await this.workoutService.unsharePlan(planId, targetUserId);
     this.unsharingPlan = false;
     if (ok) {
+      this.shareEmail = '';
       this.closeSharePanel();
     } else {
       this.shareMessage = 'Failed to unshare plan.';

@@ -5,8 +5,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { StatsService } from '../../core/services/stats.service';
-import { WorkoutPlan, WorkoutSession } from '../../core/models/models';
+import { ScheduledWorkout, WorkoutPlan, WorkoutSession } from '../../core/models/models';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workoutTypeIconStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
+import { isToday, isMissed } from '../../core/domain/date-status';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
 @Component({
@@ -57,12 +58,130 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
         </div>
       </section>
 
+      <!-- Scheduled / Planned Workout -->
+      <section>
+        @if (nearestPlannedWorkout(); as planned) {
+          @if (isToday(planned)) {
+            <div class="flex justify-between items-end mb-4">
+              <h2 class="text-lg font-bold text-gray-900">Today's Workout</h2>
+              <a routerLink="/calendar" class="text-blue-600 text-sm font-medium">Calendar</a>
+            </div>
+            <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white p-6 rounded-3xl shadow-xl shadow-blue-200 relative overflow-hidden">
+              <div class="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+              <div class="relative z-10">
+                <div class="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 class="text-xl font-bold mb-1">{{ planned.planName }}</h3>
+                    <div class="flex items-center gap-2">
+                      <span class="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                        <mat-icon class="text-[12px] mr-1" style="font-size:12px;width:12px;height:12px;">schedule</mat-icon>
+                        Due today
+                      </span>
+                      <p class="text-blue-200 text-sm">{{ planned.planExercises.length }} Exercises</p>
+                    </div>
+                  </div>
+                  <div class="bg-white/15 p-2 rounded-xl backdrop-blur-sm">
+                    <mat-icon class="text-white">fitness_center</mat-icon>
+                  </div>
+                </div>
+                <button [routerLink]="['/workout', planned.planId]" [queryParams]="{scheduleId: planned.id}"
+                        class="w-full bg-white text-blue-700 px-5 py-3 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform">
+                  Start Workout
+                </button>
+              </div>
+            </div>
+          } @else if (isMissed(planned)) {
+            <div class="flex justify-between items-end mb-4">
+              <h2 class="text-lg font-bold text-gray-900">Missed Workout</h2>
+              <a routerLink="/plans" class="text-blue-600 text-sm font-medium">Reschedule</a>
+            </div>
+            <div class="bg-red-50 border border-red-200 text-red-900 p-6 rounded-3xl relative overflow-hidden">
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-xl font-bold mb-1">{{ planned.planName }}</h3>
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center rounded-full bg-red-200 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-800">Missed</span>
+                    <p class="text-red-500 text-sm">{{ planned.planExercises.length }} Exercises</p>
+                  </div>
+                  <p class="text-sm text-red-600 mt-2">Scheduled for {{ planned.scheduledDate | date:'EEEE, MMM d' }}</p>
+                </div>
+                <div class="bg-red-100 p-2 rounded-xl">
+                  <mat-icon class="text-red-500">warning</mat-icon>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <button [routerLink]="['/workout', planned.planId]" [queryParams]="{scheduleId: planned.id}"
+                        class="flex-1 bg-red-900 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform">
+                  Start Anyway
+                </button>
+                <button (click)="skipWorkout(planned.id)"
+                        class="flex-1 bg-white text-red-700 px-5 py-2.5 rounded-xl font-semibold text-sm border border-red-200">
+                  Skip
+                </button>
+              </div>
+            </div>
+          } @else {
+            <div class="flex justify-between items-end mb-4">
+              <h2 class="text-lg font-bold text-gray-900">Next Workout</h2>
+              <a routerLink="/calendar" class="text-blue-600 text-sm font-medium">Calendar</a>
+            </div>
+            <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl shadow-gray-200 relative overflow-hidden">
+              <div class="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+              <div class="relative z-10">
+                <div class="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 class="text-xl font-bold mb-1">{{ planned.planName }}</h3>
+                    <div class="flex items-center gap-2">
+                      <span class="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                        <mat-icon class="text-[12px] mr-1" style="font-size:12px;width:12px;height:12px;">calendar_today</mat-icon>
+                        {{ planned.scheduledDate | date:'EEE, MMM d' }}
+                      </span>
+                      <p class="text-gray-400 text-sm">{{ planned.planExercises.length }} Exercises</p>
+                    </div>
+                  </div>
+                  <div class="bg-white/10 p-2 rounded-xl backdrop-blur-sm">
+                    <mat-icon class="text-white">fitness_center</mat-icon>
+                  </div>
+                </div>
+                <button [routerLink]="['/workout', planned.planId]" [queryParams]="{scheduleId: planned.id}"
+                        class="w-full bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg active:scale-95 transition-transform">
+                  Start Workout
+                </button>
+              </div>
+            </div>
+          }
+        } @else if (missedWorkouts().length > 0) {
+          <!-- If there are missed workouts but no upcoming, show the most recent missed -->
+          <div class="flex justify-between items-end mb-4">
+            <h2 class="text-lg font-bold text-gray-900">Missed Workouts</h2>
+            <a routerLink="/plans" class="text-blue-600 text-sm font-medium">Reschedule</a>
+          </div>
+          <div class="space-y-3">
+            @for (missed of missedWorkouts().slice(0, 2); track missed.id) {
+              <div class="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p class="font-semibold text-red-900 text-sm">{{ missed.planName }}</p>
+                  <p class="text-xs text-red-600">Missed {{ missed.scheduledDate | date:'MMM d' }}</p>
+                </div>
+                <button [routerLink]="['/workout', missed.planId]" [queryParams]="{scheduleId: missed.id}"
+                        class="px-3 py-1.5 bg-red-900 text-white rounded-xl text-xs font-semibold">
+                  Start
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
       <!-- Active Plan -->
       <section>
-        <div class="flex justify-between items-end mb-4">
-          <h2 class="text-lg font-bold text-gray-900">Active Plan</h2>
-          <a routerLink="/plans" class="text-blue-600 text-sm font-medium">Change</a>
-        </div>
+        @if (!nearestPlannedWorkout()) {
+          <!-- Only show header if there's no scheduled workout above -->
+          <div class="flex justify-between items-end mb-4">
+            <h2 class="text-lg font-bold text-gray-900">Active Plan</h2>
+            <a routerLink="/plans" class="text-blue-600 text-sm font-medium">Change</a>
+          </div>
+        }
 
         @if (activePlan(); as plan) {
           <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl shadow-gray-200 relative overflow-hidden group">
@@ -102,7 +221,7 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
               </div>
             </div>
           </div>
-        } @else {
+        } @else if (!nearestPlannedWorkout()) {
           <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
             <p class="text-gray-500 mb-4">No active plan selected</p>
             <div class="flex items-center justify-center">
@@ -182,6 +301,8 @@ export class HomeComponent {
   statsService = inject(StatsService);
   router = inject(Router);
   generateInitialsAvatar = generateInitialsAvatar;
+  isToday = isToday;
+  isMissed = isMissed;
 
   showPeriod: 'week' | 'month' = 'week';
 
@@ -191,7 +312,13 @@ export class HomeComponent {
 
   user = this.authService.currentUser;
   activePlan = this.workoutService.activePlan;
+  nearestPlannedWorkout = this.workoutService.nearestScheduledWorkout;
+  missedWorkouts = this.workoutService.missedWorkouts;
   today = new Date();
+
+  async skipWorkout(scheduleId: string) {
+    await this.workoutService.updateScheduledWorkoutStatus(scheduleId, 'skipped');
+  }
 
   onAvatarError(event: Event) {
     const img = event.target as HTMLImageElement;

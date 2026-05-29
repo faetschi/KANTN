@@ -1,6 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
@@ -10,11 +10,11 @@ import { WorkoutSession } from '../../core/models/models';
 @Component({
   selector: 'app-history-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule],
+  imports: [CommonModule, MatIconModule],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex items-center gap-3">
-        <button routerLink="/history" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+        <button (click)="goBack()" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
           <mat-icon>arrow_back</mat-icon>
         </button>
         <div>
@@ -123,7 +123,7 @@ import { WorkoutSession } from '../../core/models/models';
       } @else {
         <section class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center space-y-3">
           <p class="text-gray-500">Workout session not found.</p>
-          <a routerLink="/history" class="text-blue-600 font-semibold">Back to History</a>
+          <a (click)="goBack()" class="text-blue-600 font-semibold cursor-pointer">Back to History</a>
         </section>
       }
     </div>
@@ -133,6 +133,8 @@ export class HistoryDetailComponent {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private workoutService = inject(WorkoutService);
+
+  private isFromCalendar = history.state?.fromCalendar === true;
 
   private sessionId = toSignal(
     this.route.paramMap.pipe(map(params => params.get('sessionId') || '')),
@@ -213,12 +215,16 @@ export class HistoryDetailComponent {
   openPreviousSession() {
     const targetId = this.previousSessionId();
     if (!targetId) return;
-    void this.router.navigate(['/history', targetId]);
+    void this.router.navigate(['/history', targetId], { state: { fromCalendar: this.isFromCalendar } });
   }
 
   openNextSession() {
     const targetId = this.nextSessionId();
     if (!targetId) return;
-    void this.router.navigate(['/history', targetId]);
+    void this.router.navigate(['/history', targetId], { state: { fromCalendar: this.isFromCalendar } });
+  }
+
+  goBack() {
+    void this.router.navigate([this.isFromCalendar ? '/calendar' : '/history']);
   }
 }

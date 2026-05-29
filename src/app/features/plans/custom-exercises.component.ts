@@ -7,12 +7,11 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Exercise } from '../../core/models/models';
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
-import { ShareDialogComponent } from '../../shared/components/share-dialog.component';
 
 @Component({
   selector: 'app-custom-exercises',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatIconModule, ShareDialogComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatIconModule],
   template: `
     <div class="min-h-screen flex flex-col bg-white">
       <header class="px-6 py-4 flex items-center justify-between border-b border-gray-100">
@@ -24,7 +23,7 @@ import { ShareDialogComponent } from '../../shared/components/share-dialog.compo
         </div>
         <button
           type="button"
-          (click)="showSharePanel = true; shareMessage = ''"
+          (click)="showSharePanel.set(true); shareMessage = ''"
           class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
           aria-label="Share custom exercise"
         >
@@ -116,19 +115,53 @@ import { ShareDialogComponent } from '../../shared/components/share-dialog.compo
           {{ toastMessage }}
         </div>
 
-        <app-share-dialog
-          [visible]="showSharePanel"
-          (visibleChange)="closeSharePanel()"
-          title="Share Custom Exercise"
-          itemLabel="exercise"
-          [items]="shareableExercises()"
-          [(selectedItemId)]="shareExerciseId"
-          [sharing]="sharingExercise"
-          [unsharing]="unsharingExercise"
-          [message]="shareMessage"
-          (share)="onShareDialogShare($event)"
-          (unshare)="onShareDialogUnshare($event)"
-        />
+        @if (showSharePanel()) {
+        <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" (click)="closeSharePanel()">
+          <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4" (click)="$event.stopPropagation()">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-900">Share Custom Exercise</h3>
+              <button type="button" (click)="closeSharePanel()" class="text-gray-400">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 gap-3">
+              <select [(ngModel)]="shareExerciseId" class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                <option [ngValue]="''">Select your custom exercise</option>
+                @for (exercise of myCustomExercises(); track exercise.id) {
+                  <option [ngValue]="exercise.id">{{ exercise.name }}</option>
+                }
+              </select>
+              <input
+                type="email"
+                [(ngModel)]="shareEmail"
+                placeholder="user@example.com"
+                class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              >
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  (click)="shareCustomExercise()"
+                  [disabled]="sharingExercise || unsharingExercise"
+                  class="flex-1 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                >
+                  {{ sharingExercise ? 'Sharing\u2026' : 'Share' }}
+                </button>
+                <button
+                  type="button"
+                  (click)="unshareCustomExercise()"
+                  [disabled]="sharingExercise || unsharingExercise"
+                  class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                >
+                  {{ unsharingExercise ? 'Revoking\u2026' : 'Unshare' }}
+                </button>
+              </div>
+            </div>
+            @if (shareMessage) {
+              <span class="text-xs text-gray-500">{{ shareMessage }}</span>
+            }
+          </div>
+        </div>
+        }
 
         <section class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <h3 class="text-sm font-semibold mb-3">Your Custom Exercises</h3>
@@ -171,7 +204,7 @@ export class CustomExercisesComponent {
   customExerciseMessage = '';
   shareMessage = '';
   imageUploadMessage = '';
-  showSharePanel = false;
+  showSharePanel = signal(false);
   shareExerciseId = '';
   shareEmail = '';
   customExercise = {
@@ -302,18 +335,14 @@ export class CustomExercisesComponent {
     this.selectedExerciseId = null;
   }
 
-  shareableExercises() {
-    return this.myCustomExercises().map(e => ({ id: e.id, name: e.name }));
-  }
-
   openShareForExercise(exercise: Exercise) {
     this.shareExerciseId = exercise.id;
     this.shareMessage = '';
-    this.showSharePanel = true;
+    this.showSharePanel.set(true);
   }
 
   closeSharePanel() {
-    this.showSharePanel = false;
+    this.showSharePanel.set(false);
     this.shareMessage = '';
   }
 
@@ -329,9 +358,19 @@ export class CustomExercisesComponent {
     }, 3000);
   }
 
-  async onShareDialogShare(event: { itemId: string; email: string }) {
-    const exerciseId = event.itemId;
-    const email = event.email;
+  async shareCustomExercise() {
+    const exerciseId = this.shareExerciseId;
+    const email = this.shareEmail.trim();
+
+    if (!exerciseId) {
+      this.shareMessage = 'Please select an exercise to share.';
+      return;
+    }
+
+    if (!email) {
+      this.shareMessage = 'Please enter an email address.';
+      return;
+    }
 
     this.sharingExercise = true;
     this.shareMessage = '';
@@ -353,6 +392,7 @@ export class CustomExercisesComponent {
     const ok = await this.workoutService.shareExercise(exerciseId, targetUserId);
     this.sharingExercise = false;
     if (ok) {
+      this.shareEmail = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
       this.closeSharePanel();
@@ -361,9 +401,19 @@ export class CustomExercisesComponent {
     }
   }
 
-  async onShareDialogUnshare(event: { itemId: string; email: string }) {
-    const exerciseId = event.itemId;
-    const email = event.email;
+  async unshareCustomExercise() {
+    const exerciseId = this.shareExerciseId;
+    const email = this.shareEmail.trim();
+
+    if (!exerciseId) {
+      this.shareMessage = 'Please select an exercise to unshare.';
+      return;
+    }
+
+    if (!email) {
+      this.shareMessage = 'Please enter an email address.';
+      return;
+    }
 
     this.unsharingExercise = true;
     this.shareMessage = '';
@@ -378,6 +428,7 @@ export class CustomExercisesComponent {
     const ok = await this.workoutService.unshareExercise(exerciseId, targetUserId);
     this.unsharingExercise = false;
     if (ok) {
+      this.shareEmail = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
       this.closeSharePanel();

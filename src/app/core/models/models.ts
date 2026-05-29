@@ -28,6 +28,7 @@ export interface Set {
   reps: number;
   weight: number;
   completed: boolean;
+  source?: import('../domain/smart-defaults').DefaultSource;
 }
 
 export interface ExerciseSession {
@@ -91,6 +92,29 @@ export interface CardioExerciseData {
   gpsEnabled: boolean;
   gpsCoordinates: Array<{lat: number; lng: number; timestamp: number}>;
   mapSnapshotUrl?: string;
+}
+
+export type ScheduledWorkoutStatus = 'scheduled' | 'completed' | 'missed' | 'skipped';
+
+export interface ScheduledWorkout {
+  id: string;
+  planId: string;
+  planName: string;
+  planExercises: Exercise[];
+  scheduledDate: Date;
+  status: ScheduledWorkoutStatus;
+  planCategory?: WorkoutPlan['category'];
+}
+
+export interface PlanExerciseTarget {
+  id: string;
+  planId: string;
+  exerciseId: string;
+  targetSets?: number;
+  targetReps?: number;
+  targetWeight?: number;
+  targetDistanceMeters?: number;
+  targetDurationSeconds?: number;
 }
 
 export interface InProgressWorkout {

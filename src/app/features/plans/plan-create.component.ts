@@ -125,6 +125,29 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
             </div>
           }
 
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-semibold text-blue-900">Schedule (Optional)</h3>
+                <p class="text-xs text-blue-700">Pick a date to schedule this workout.</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" [(ngModel)]="scheduleEnabled" class="sr-only peer">
+                <div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-300 transition-colors after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+              </label>
+            </div>
+            @if (scheduleEnabled) {
+              <div class="grid grid-cols-1 gap-3">
+                <div>
+                  <span class="block text-xs text-blue-700 mb-1">Date</span>
+                  <input type="date" [(ngModel)]="scheduleDate"
+                         [min]="minScheduleDate"
+                         class="w-full bg-white border border-blue-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+              </div>
+            }
+          </div>
+
           @if (workoutPlanType() === 'strength') {
             <div>
               <div class="block text-sm font-medium text-gray-700 mb-2">Select Exercises</div>
@@ -222,6 +245,10 @@ export class PlanCreateComponent {
   cardioTargetDuration: number | null = null;
 
   workoutPlanType = signal<'strength' | 'cardio' | ''>('');
+
+  scheduleEnabled = false;
+  scheduleDate = '';
+  minScheduleDate = new Date().toISOString().split('T')[0];
 
   strengthCategories = [
     { value: 'upper body', label: 'Upper Body' },
@@ -376,9 +403,21 @@ export class PlanCreateComponent {
     }
 
     this.planSaveMessage = '';
+
+    // Schedule the plan if a date was selected
+    if (this.scheduleEnabled && this.scheduleDate) {
+      const scheduleOk = await this.workoutService.schedulePlan(persistedPlanId, new Date(this.scheduleDate));
+      if (!scheduleOk) {
+        this.planSaveMessage = 'Plan saved but could not be scheduled.';
+        return;
+      }
+    }
+
     this.snackBar.open('Plan created successfully.', 'Close', { duration: 3000 });
     this.cardioTargetDistance = null;
     this.cardioTargetDuration = null;
+    this.scheduleEnabled = false;
+    this.scheduleDate = '';
     this.router.navigate(['/plans']);
   }
 }
