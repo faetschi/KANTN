@@ -43,6 +43,29 @@ flowchart LR
   M4 --> M5
 ```
 
+## Implementation Status Overview
+
+### Epic 1: Persuasive Design & Gamification
+- [ ] Company/team context: not implemented
+- [ ] Company leaderboard: not implemented
+- [ ] Motivational feedback after workouts: not implemented
+- [ ] Privacy and leaderboard visibility controls: not implemented
+- [ ] Social feature UI/placeholders: not implemented
+
+### Epic 2: Frictionless Logging & Smart Defaults
+- [x] Planned workout start from calendar/plan: implemented
+- [x] Workout start opens the existing workout flow with plan prefill: implemented
+- [x] Smart exercise defaults using plan targets and last workout values: implemented
+- [x] Users can override suggested values during workout: implemented
+- [x] Manual logging / freestyle mode remains available: implemented
+- [x] Calendar-aware reminders and planned workout status: implemented
+- [x] Date-status logic for today/upcoming/missed workouts: implemented
+
+### Notes
+- Epic 2 has strong coverage in the current codebase.
+- Epic 1 is largely still open; the current app does not yet expose company/team social features, leaderboard aggregation, or privacy opt-out controls.
+- Existing `visibility` fields are currently used for plan/exercise sharing, not social leaderboard privacy.
+
 # Epics
 
 ## Persuasive Design & Gamification (B2B-Ansatz)
@@ -146,10 +169,10 @@ As a user, I want to start a workout from my plan or calendar, so that I do not 
 - Starting a planned workout opens the existing workout flow with prefilled exercises.
 
 **Implementation Tasks**
-- [ ] Add or reuse a planned-workouts data source.
-- [ ] Build a simple upcoming-workouts list or calendar entry point.
-- [ ] Add a "start workout" action for planned workouts.
-- [ ] Map planned workout exercises into the active workout state.
+- [x] Add or reuse a planned-workouts data source.
+- [x] Build a simple upcoming-workouts list or calendar entry point.
+- [x] Add a "start workout" action for planned workouts.
+- [x] Map planned workout exercises into the active workout state.
 - [ ] Add tests for starting a workout from a plan.
 
 #### Story 2: Smart Exercise Defaults
@@ -162,11 +185,11 @@ As a user, I want exercise values to be prefilled, so that I only need to edit w
 - Users can edit all suggested values before saving.
 
 **Implementation Tasks**
-- [ ] Define priority order for defaults: plan value, last workout value, empty value.
-- [ ] Add service logic for resolving default sets, reps, weight, duration, or distance.
-- [ ] Show suggested values in the workout UI.
-- [ ] Make edited values override suggestions for the current session.
-- [ ] Add unit tests for default priority rules.
+- [x] Define priority order for defaults: plan value, last workout value, empty value.
+- [x] Add service logic for resolving default sets, reps, weight, duration, or distance.
+- [x] Show suggested values in the workout UI.
+- [x] Make edited values override suggestions for the current session.
+- [x] Add unit tests for default priority rules.
 
 #### Story 3: Low-Friction Workout Logging
 
@@ -178,9 +201,9 @@ As a user, I want to complete workout entries with minimal taps, so that logging
 - The UI clearly distinguishes suggested values from confirmed values.
 
 **Implementation Tasks**
-- [ ] Add a quick-confirm action for prefilled workout entries.
-- [ ] Keep manual editing available for every logged value.
-- [ ] Add visual state for suggested, edited, and confirmed values.
+- [x] Add a quick-confirm action for prefilled workout entries.
+- [x] Keep manual editing available for every logged value.
+- [x] Add visual state for suggested, edited, and confirmed values.
 - [ ] Ensure keyboard and mobile interactions stay efficient.
 - [ ] Run a short manual UX pass on the logging flow.
 
@@ -194,7 +217,7 @@ As a user, I want the app to remind me about planned workouts, so that I can sta
 - Reminder behavior works without requiring external calendar integration in the first version.
 
 **Implementation Tasks**
-- [ ] Add date status logic for today, upcoming, and missed workouts.
-- [ ] Surface today's workout on the main workout or dashboard screen.
-- [ ] Add simple labels for planned workout status.
-- [ ] Add tests for date status logic.
+- [x] Add date status logic for today, upcoming, and missed workouts.
+- [x] Surface today's workout on the main workout or dashboard screen.
+- [x] Add simple labels for planned workout status.
+- [x] Add tests for date status logic.
