@@ -65,36 +65,35 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
           </div>
         </div>
         <div class="relative w-full flex items-center justify-center">
-          <div class="flex items-center justify-center gap-0">
-            <span
-              [class.text-gray-400]="activeField !== 'username'"
-              [class.text-gray-900]="activeField === 'username'"
-              class="text-sm transition-all shrink-0"
-            >@</span>
-            <input
-              #usernameInput
-              [(ngModel)]="form.username"
-              (keydown.enter)="applyInlineEdit()"
-              (blur)="onFieldBlur()"
-              (click)="beginInlineEdit('username', usernameInput)"
-              name="inlineUsername"
-              [readonly]="activeField !== 'username'"
-              [class.text-sm]="true"
-              [class.text-gray-500]="activeField !== 'username'"
-              [class.text-gray-900]="activeField === 'username'"
-              [class.font-semibold]="activeField === 'username'"
-              [class.bg-transparent]="activeField !== 'username'"
-              [class.bg-gray-50]="activeField === 'username'"
-              [class.cursor-pointer]="activeField !== 'username'"
-              [class.cursor-text]="activeField === 'username'"
-              class="border-0 p-0 text-center focus:outline-none focus:ring-0 lowercase transition-all"
-              placeholder="username"
-              maxlength="20"
-              autocapitalize="off"
-              autocomplete="off"
-              spellcheck="false"
-            />
+          <div
+            *ngIf="activeField !== 'username'"
+            class="w-full text-center cursor-pointer"
+            (click)="beginInlineEdit('username')"
+            (keydown.enter)="beginInlineEdit('username')"
+            role="button"
+            tabindex="0"
+          >
+            <span class="text-sm text-gray-500 lowercase">@{{ form.username }}</span>
           </div>
+          <span
+            *ngIf="activeField === 'username'"
+            class="text-sm text-gray-900 transition-all"
+          >@</span>
+          <input
+            *ngIf="activeField === 'username'"
+            #usernameInput
+            [(ngModel)]="form.username"
+            (keydown.enter)="applyInlineEdit()"
+            (blur)="onFieldBlur()"
+            name="inlineUsername"
+            class="border-0 p-0 bg-gray-50 text-gray-900 font-semibold cursor-text focus:outline-none focus:ring-0 lowercase transition-all"
+            [size]="(form.username.length || 1)"
+            placeholder="username"
+            maxlength="20"
+            autocapitalize="off"
+            autocomplete="off"
+            spellcheck="false"
+          />
           <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <button *ngIf="activeField === 'username'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
               <mat-icon class="text-sm">check</mat-icon>

@@ -182,6 +182,7 @@ export class WorkoutRepository {
         id: row.id,
         planId: row.plan_id || '',
         date: row.finished_at ? new Date(row.finished_at) : new Date(row.created_at),
+        createdAt: new Date(row.created_at),
         startTime: new Date(row.started_at),
         endTime: row.finished_at ? new Date(row.finished_at) : undefined,
         duration: row.duration_seconds || 0,
@@ -252,6 +253,7 @@ export class WorkoutRepository {
       p_duration_seconds: payload.durationSeconds,
       p_total_calories: payload.totalCalories,
       p_exercises: payload.exercises,
+      p_user_weight_kg: payload.weightKg,
     });
 
     return !error && !!data;

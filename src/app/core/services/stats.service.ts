@@ -2,7 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { WorkoutService } from './workout.service';
 import { AuthService } from './auth.service';
 import { SupabaseService } from './supabase.service';
-import { startOfWeek, startOfMonth, isAfter } from 'date-fns';
+import { startOfWeek, startOfMonth } from 'date-fns';
 
 interface AggregateStats {
   count: number;
@@ -56,7 +56,7 @@ export class StatsService {
   }
 
   private getFallbackStats(fromTs: Date) {
-    const sessions = this.workoutService.sessions().filter(s => isAfter(s.date, fromTs));
+    const sessions = this.workoutService.sessions().filter(s => s.createdAt >= fromTs);
     return {
       count: sessions.length,
       duration: sessions.reduce((acc, session) => acc + (session.duration || 0), 0),
@@ -114,7 +114,7 @@ export class StatsService {
 
   private async refreshStats() {
     const now = new Date();
-    const weekStart = startOfWeek(now);
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const monthStart = startOfMonth(now);
 
     const weeklyFallback = this.getFallbackStats(weekStart);
@@ -123,14 +123,14 @@ export class StatsService {
     const periodStats = await this.fetchPeriodStats();
     if (periodStats?.weekly && periodStats?.monthly) {
       this.weeklyStatsSignal.set({
-        count: periodStats.weekly.count || weeklyFallback.count,
-        duration: periodStats.weekly.duration || weeklyFallback.duration,
-        calories: periodStats.weekly.calories || weeklyFallback.calories,
+        count: periodStats.weekly.count ?? weeklyFallback.count,
+        duration: periodStats.weekly.duration ?? weeklyFallback.duration,
+        calories: periodStats.weekly.calories ?? weeklyFallback.calories,
       });
       this.monthlyStatsSignal.set({
-        count: periodStats.monthly.count || monthlyFallback.count,
-        duration: periodStats.monthly.duration || monthlyFallback.duration,
-        calories: periodStats.monthly.calories || monthlyFallback.calories,
+        count: periodStats.monthly.count ?? monthlyFallback.count,
+        duration: periodStats.monthly.duration ?? monthlyFallback.duration,
+        calories: periodStats.monthly.calories ?? monthlyFallback.calories,
       });
       return;
     }

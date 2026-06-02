@@ -141,7 +141,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
 
       <div class="space-y-4">
         @for (plan of filteredPlans(); track plan.id) {
-          <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
+          <div class="relative bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
                [class.ring-2]="plan.isActive" 
                [class.ring-blue-500]="plan.isActive"
                [class.ring-offset-2]="plan.isActive">
@@ -193,6 +193,15 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
               }
             </div>
 
+            @if (isOwnedPlan(plan.id)) {
+              <button (click)="confirmDeletePlan(plan.id); $event.stopPropagation()"
+                      [disabled]="plan.isActive"
+                      [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''"
+                      class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                ✕
+              </button>
+            }
+
             <div class="flex gap-3">
               <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
                 Start
@@ -204,9 +213,6 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
               @if (isOwnedPlan(plan.id)) {
                 <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
                   Edit
-                </button>
-                <button (click)="confirmDeletePlan(plan.id)" [disabled]="plan.isActive" [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''" class="px-4 py-3 bg-red-50 text-red-600 rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                  Delete
                 </button>
               }
               @if (!plan.isActive) {

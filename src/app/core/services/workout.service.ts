@@ -92,7 +92,14 @@ export class WorkoutService {
   }
 
   private getUserWeightKg() {
-    return this.auth.currentUser()?.weight || 70;
+    const user = this.auth.currentUser();
+    if (user?.weight && user.weight > 0) return user.weight;
+    // Estimate from height using a healthy BMI of 22
+    if (user?.height && user.height > 0) {
+      const heightM = user.height / 100;
+      return Math.round(22 * heightM * heightM);
+    }
+    return 70;
   }
 
   async refresh() {
@@ -462,6 +469,10 @@ export class WorkoutService {
       list.map(sw => sw.id === scheduleId ? { ...sw, scheduledDate: newDate } : sw)
     );
     return true;
+  }
+
+  async removeScheduledWorkout(scheduleId: string): Promise<void> {
+    this.scheduledWorkoutsSignal.update(list => list.filter(sw => sw.id !== scheduleId));
   }
 
   async updateScheduledWorkoutStatus(scheduleId: string, status: ScheduledWorkout['status']): Promise<boolean> {

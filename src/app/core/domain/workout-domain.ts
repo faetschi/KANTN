@@ -29,6 +29,7 @@ export interface PersistedSessionPayload {
   planId: string | null;
   finishedAtDate: Date;
   exercises: PersistedSessionExercise[];
+  weightKg: number;
 }
 
 export function calcCalories(metValue: number, durationSeconds: number, weightKg: number): number {
@@ -121,5 +122,6 @@ export function buildPersistedSessionPayload(
     planId: session.planId || null,
     finishedAtDate,
     exercises: exercisePayload,
+    weightKg: userWeightKg,
   };
 }

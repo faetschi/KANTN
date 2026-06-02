@@ -21,7 +21,7 @@ drop policy if exists "avatars_delete" on storage.objects;
 drop function if exists calc_burned_calories(numeric, numeric, integer);
 drop function if exists get_my_stats(timestamptz, timestamptz);
 drop function if exists get_my_stats_periods();
-drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb);
+drop function if exists create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb, numeric);
 drop function if exists create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb);
 drop function if exists create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer);
 drop function if exists update_workout_plan_tx(uuid, uuid, text, text, text, jsonb);
@@ -324,7 +324,8 @@ alter table workout_sessions
   add column if not exists duration_seconds int not null default 0,
   add column if not exists total_calories numeric(10, 2) not null default 0,
   add column if not exists notes text,
-  add column if not exists created_at timestamptz not null default now();
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists user_weight_kg numeric(5, 1);
 
 create table if not exists workout_session_exercises (
   id uuid primary key default gen_random_uuid(),
@@ -600,7 +601,8 @@ create or replace function create_workout_session_tx(
   p_finished_at timestamptz,
   p_duration_seconds integer,
   p_total_calories numeric,
-  p_exercises jsonb
+  p_exercises jsonb,
+  p_user_weight_kg numeric default null
 )
 returns uuid
 language plpgsql
@@ -625,7 +627,8 @@ begin
     started_at,
     finished_at,
     duration_seconds,
-    total_calories
+    total_calories,
+    user_weight_kg
   )
   values (
     p_owner_id,
@@ -633,7 +636,8 @@ begin
     p_started_at,
     p_finished_at,
     p_duration_seconds,
-    p_total_calories
+    p_total_calories,
+    p_user_weight_kg
   )
   returning id into v_session_id;
 
@@ -1303,7 +1307,7 @@ grant execute on function calc_burned_calories(numeric, numeric, integer) to aut
 grant execute on function get_my_stats(timestamptz, timestamptz) to authenticated;
 grant execute on function get_my_stats_periods() to authenticated;
 grant execute on function get_public_profile_by_username(text) to authenticated;
-grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb) to authenticated;
+grant execute on function create_workout_session_tx(uuid, uuid, timestamptz, timestamptz, integer, numeric, jsonb, numeric) to authenticated;
 grant execute on function create_workout_plan_tx(uuid, text, text, text, text, boolean, jsonb, numeric, integer) to authenticated;
 grant execute on function update_workout_plan_tx(uuid, uuid, text, text, text, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
