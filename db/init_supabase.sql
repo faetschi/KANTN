@@ -220,9 +220,15 @@ alter table workout_plans
 alter table workout_plans
   drop constraint if exists workout_plans_category_check;
 
+-- Clean up any existing rows that would violate the constraint
+update workout_plans
+set category = null
+where category is not null
+  and category not in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking');
+
 alter table workout_plans
   add constraint workout_plans_category_check
-  check (category in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking'));
+  check (category is null or category in ('upper body', 'lower body', 'core', 'mobility', 'full body', 'running', 'cycling', 'swimming', 'hiking'));
 
 create table if not exists workout_plan_shares (
   id uuid primary key default gen_random_uuid(),
@@ -534,6 +540,20 @@ as $$
   );
 $$;
 
+create or replace function is_approved()
+returns boolean
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from profiles p
+    where p.id = auth.uid() and p.approved = true
+  );
+$$;
+
 -- Calories formula: kcal = MET * 3.5 * body_weight_kg / 200 * minutes
 create or replace function calc_burned_calories(weight_kg numeric, met numeric, duration_seconds integer)
 returns numeric
@@ -560,6 +580,7 @@ as $$
     coalesce(sum(ws.total_calories), 0)::numeric as total_calories
   from workout_sessions ws
   where ws.owner_id = auth.uid()
+    and is_approved()
     and ws.created_at >= from_ts
     and ws.created_at < to_ts;
 $$;
@@ -589,6 +610,7 @@ as $$
   from ranges r
   left join workout_sessions ws
     on ws.owner_id = auth.uid()
+    and is_approved()
     and ws.created_at >= r.from_ts
     and ws.created_at < r.to_ts
   group by r.period;
@@ -617,7 +639,7 @@ declare
   ex_item jsonb;
   set_item jsonb;
 begin
-  if auth.uid() is distinct from p_owner_id and not is_admin() then
+  if (auth.uid() is distinct from p_owner_id and not is_admin()) or not is_approved() then
     raise exception 'Not allowed to create workout session for this user';
   end if;
 
@@ -775,7 +797,7 @@ declare
   v_exercise_item jsonb;
   v_position int;
 begin
-  if auth.uid() is distinct from p_owner_id and not is_admin() then
+  if (auth.uid() is distinct from p_owner_id and not is_admin()) or not is_approved() then
     raise exception 'Not allowed to create workout plan for this user';
   end if;
 
@@ -842,7 +864,7 @@ set search_path = public
 set row_security = off
 as $$
 begin
-  if auth.uid() is distinct from p_owner_id and not is_admin() then
+  if (auth.uid() is distinct from p_owner_id and not is_admin()) or not is_approved() then
     raise exception 'Not allowed to set active plan for this user';
   end if;
 
@@ -866,6 +888,29 @@ begin
 end;
 $$;
 
+create or replace function clear_active_plan(
+  p_owner_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if (auth.uid() is distinct from p_owner_id and not is_admin()) or not is_approved() then
+    raise exception 'Not allowed to clear active plan for this user';
+  end if;
+
+  update workout_plans
+  set is_active = false
+  where owner_id = p_owner_id
+    and is_active = true;
+
+  return true;
+end;
+$$;
+
 create or replace function update_workout_plan_tx(
   p_owner_id uuid,
   p_plan_id uuid,
@@ -884,7 +929,7 @@ declare
   v_exercise_item jsonb;
   v_position int;
 begin
-  if auth.uid() is distinct from p_owner_id and not is_admin() then
+  if (auth.uid() is distinct from p_owner_id and not is_admin()) or not is_approved() then
     raise exception 'Not allowed to update workout plan for this user';
   end if;
 
@@ -936,7 +981,7 @@ declare
   v_plan_b_id uuid;
   v_plan_c_id uuid;
 begin
-  if auth.uid() is distinct from p_owner_id and not is_admin() then
+  if (auth.uid() is distinct from p_owner_id and not is_admin()) or not is_approved() then
     raise exception 'Not allowed to seed plans for this user';
   end if;
 
@@ -1213,6 +1258,10 @@ as $$
 declare
   v_updated int;
 begin
+  if not is_approved() then
+    return false;
+  end if;
+
   update workout_plan_shares
   set
     status = case when p_accept then 'accepted' else 'declined' end,
@@ -1312,6 +1361,7 @@ grant execute on function create_workout_plan_tx(uuid, text, text, text, text, b
 grant execute on function update_workout_plan_tx(uuid, uuid, text, text, text, jsonb) to authenticated;
 grant execute on function seed_beginner_plans_for_user(uuid) to authenticated;
 grant execute on function set_active_plan(uuid, uuid) to authenticated;
+grant execute on function clear_active_plan(uuid) to authenticated;
 grant execute on function respond_to_workout_plan_share(uuid, boolean) to authenticated;
 
 revoke execute on function set_user_role_by_email(text, boolean, boolean) from public;
@@ -1351,32 +1401,32 @@ drop policy if exists "exercises_delete" on exercises;
 create policy "exercises_select" on exercises
   for select
   using (
-    visibility = 'default'
-    or created_by = auth.uid()
-    or exists (
+    (visibility = 'default' and is_approved())
+    or (created_by = auth.uid() and is_approved())
+    or (exists (
       select 1
       from exercise_shares es
       where es.exercise_id = exercises.id
         and es.shared_with_user_id = auth.uid()
-    )
+    ) and is_approved())
     or is_admin()
   );
 
 create policy "exercises_insert" on exercises
   for insert
   with check (
-    (visibility in ('private', 'shared') and created_by = auth.uid())
+    (visibility in ('private', 'shared') and created_by = auth.uid() and is_approved())
     or (visibility = 'default' and is_admin())
   );
 
 create policy "exercises_update" on exercises
   for update
   using (
-    (created_by = auth.uid() and visibility in ('private', 'shared'))
+    (created_by = auth.uid() and is_approved() and visibility in ('private', 'shared'))
     or is_admin()
   )
   with check (
-    (created_by = auth.uid() and visibility in ('private', 'shared'))
+    (created_by = auth.uid() and is_approved() and visibility in ('private', 'shared'))
     or (visibility = 'default' and is_admin())
     or is_admin()
   );
@@ -1384,7 +1434,7 @@ create policy "exercises_update" on exercises
 create policy "exercises_delete" on exercises
   for delete
   using (
-    (created_by = auth.uid() and visibility in ('private', 'shared'))
+    (created_by = auth.uid() and is_approved() and visibility in ('private', 'shared'))
     or is_admin()
   );
 
@@ -1395,8 +1445,8 @@ drop policy if exists "exercise_shares_delete" on exercise_shares;
 create policy "exercise_shares_select" on exercise_shares
   for select
   using (
-    created_by = auth.uid()
-    or shared_with_user_id = auth.uid()
+    (created_by = auth.uid() and is_approved())
+    or (shared_with_user_id = auth.uid() and is_approved())
     or is_admin()
   );
 
@@ -1404,17 +1454,18 @@ create policy "exercise_shares_insert" on exercise_shares
   for insert
   with check (
     created_by = auth.uid()
+    and is_approved()
     and exists (
       select 1
       from exercises e
       where e.id = exercise_shares.exercise_id
-        and (e.created_by = auth.uid() or is_admin())
+        and ((e.created_by = auth.uid() and is_approved()) or is_admin())
     )
   );
 
 create policy "exercise_shares_delete" on exercise_shares
   for delete
-  using (created_by = auth.uid() or is_admin());
+  using ((created_by = auth.uid() and is_approved()) or is_admin());
 
 drop policy if exists "plans_select" on workout_plans;
 drop policy if exists "plans_insert" on workout_plans;
@@ -1424,30 +1475,30 @@ drop policy if exists "plans_delete" on workout_plans;
 create policy "plans_select" on workout_plans
   for select
   using (
-    owner_id = auth.uid()
-    or visibility = 'public'
-    or exists (
+    (owner_id = auth.uid() and is_approved())
+    or (visibility = 'public' and is_approved())
+    or (exists (
       select 1
       from workout_plan_shares ps
       where ps.plan_id = workout_plans.id
         and ps.shared_with_user_id = auth.uid()
         and ps.status = 'accepted'
-    )
+    ) and is_approved())
     or is_admin()
   );
 
 create policy "plans_insert" on workout_plans
   for insert
-  with check (owner_id = auth.uid() or is_admin());
+  with check ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 create policy "plans_update" on workout_plans
   for update
-  using (owner_id = auth.uid() or is_admin())
-  with check (owner_id = auth.uid() or is_admin());
+  using ((owner_id = auth.uid() and is_approved()) or is_admin())
+  with check ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 create policy "plans_delete" on workout_plans
   for delete
-  using (owner_id = auth.uid() or is_admin());
+  using ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 drop policy if exists "plan_shares_select" on workout_plan_shares;
 drop policy if exists "plan_shares_insert" on workout_plan_shares;
@@ -1457,8 +1508,8 @@ drop policy if exists "plan_shares_delete" on workout_plan_shares;
 create policy "plan_shares_select" on workout_plan_shares
   for select
   using (
-    created_by = auth.uid()
-    or shared_with_user_id = auth.uid()
+    (created_by = auth.uid() and is_approved())
+    or (shared_with_user_id = auth.uid() and is_approved())
     or is_admin()
   );
 
@@ -1466,23 +1517,24 @@ create policy "plan_shares_insert" on workout_plan_shares
   for insert
   with check (
     created_by = auth.uid()
+    and is_approved()
     and status = 'pending'
     and exists (
       select 1
       from workout_plans p
       where p.id = workout_plan_shares.plan_id
-        and (p.owner_id = auth.uid() or is_admin())
+        and ((p.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
 create policy "plan_shares_update" on workout_plan_shares
   for update
-  using (created_by = auth.uid() or is_admin())
-  with check (created_by = auth.uid() or is_admin());
+  using ((created_by = auth.uid() and is_approved()) or is_admin())
+  with check ((created_by = auth.uid() and is_approved()) or is_admin());
 
 create policy "plan_shares_delete" on workout_plan_shares
   for delete
-  using (created_by = auth.uid() or is_admin());
+  using ((created_by = auth.uid() and is_approved()) or is_admin());
 
 drop policy if exists "plan_exercises_select" on workout_plan_exercises;
 drop policy if exists "plan_exercises_insert" on workout_plan_exercises;
@@ -1497,14 +1549,14 @@ create policy "plan_exercises_select" on workout_plan_exercises
       from workout_plans p
       where p.id = workout_plan_exercises.plan_id
         and (
-          p.owner_id = auth.uid()
-          or p.visibility = 'public'
-          or exists (
+          (p.owner_id = auth.uid() and is_approved())
+          or (p.visibility = 'public' and is_approved())
+          or (exists (
             select 1 from workout_plan_shares s
             where s.plan_id = p.id
               and s.shared_with_user_id = auth.uid()
               and s.status = 'accepted'
-          )
+          ) and is_approved())
           or is_admin()
         )
     )
@@ -1517,7 +1569,7 @@ create policy "plan_exercises_insert" on workout_plan_exercises
       select 1
       from workout_plans p
       where p.id = workout_plan_exercises.plan_id
-        and (p.owner_id = auth.uid() or is_admin())
+        and ((p.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1528,7 +1580,7 @@ create policy "plan_exercises_update" on workout_plan_exercises
       select 1
       from workout_plans p
       where p.id = workout_plan_exercises.plan_id
-        and (p.owner_id = auth.uid() or is_admin())
+        and ((p.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   )
   with check (
@@ -1536,7 +1588,7 @@ create policy "plan_exercises_update" on workout_plan_exercises
       select 1
       from workout_plans p
       where p.id = workout_plan_exercises.plan_id
-        and (p.owner_id = auth.uid() or is_admin())
+        and ((p.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1547,7 +1599,7 @@ create policy "plan_exercises_delete" on workout_plan_exercises
       select 1
       from workout_plans p
       where p.id = workout_plan_exercises.plan_id
-        and (p.owner_id = auth.uid() or is_admin())
+        and ((p.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1558,20 +1610,20 @@ drop policy if exists "sessions_delete" on workout_sessions;
 
 create policy "sessions_select" on workout_sessions
   for select
-  using (owner_id = auth.uid() or is_admin());
+  using ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 create policy "sessions_insert" on workout_sessions
   for insert
-  with check (owner_id = auth.uid() or is_admin());
+  with check ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 create policy "sessions_update" on workout_sessions
   for update
-  using (owner_id = auth.uid() or is_admin())
-  with check (owner_id = auth.uid() or is_admin());
+  using ((owner_id = auth.uid() and is_approved()) or is_admin())
+  with check ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 create policy "sessions_delete" on workout_sessions
   for delete
-  using (owner_id = auth.uid() or is_admin());
+  using ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 drop policy if exists "session_exercises_select" on workout_session_exercises;
 drop policy if exists "session_exercises_insert" on workout_session_exercises;
@@ -1585,7 +1637,7 @@ create policy "session_exercises_select" on workout_session_exercises
       select 1
       from workout_sessions s
       where s.id = workout_session_exercises.session_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1596,7 +1648,7 @@ create policy "session_exercises_insert" on workout_session_exercises
       select 1
       from workout_sessions s
       where s.id = workout_session_exercises.session_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1607,7 +1659,7 @@ create policy "session_exercises_update" on workout_session_exercises
       select 1
       from workout_sessions s
       where s.id = workout_session_exercises.session_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   )
   with check (
@@ -1615,7 +1667,7 @@ create policy "session_exercises_update" on workout_session_exercises
       select 1
       from workout_sessions s
       where s.id = workout_session_exercises.session_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1626,7 +1678,7 @@ create policy "session_exercises_delete" on workout_session_exercises
       select 1
       from workout_sessions s
       where s.id = workout_session_exercises.session_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1643,7 +1695,7 @@ create policy "session_sets_select" on workout_session_sets
       from workout_session_exercises se
       join workout_sessions s on s.id = se.session_id
       where se.id = workout_session_sets.session_exercise_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1655,7 +1707,7 @@ create policy "session_sets_insert" on workout_session_sets
       from workout_session_exercises se
       join workout_sessions s on s.id = se.session_id
       where se.id = workout_session_sets.session_exercise_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1667,7 +1719,7 @@ create policy "session_sets_update" on workout_session_sets
       from workout_session_exercises se
       join workout_sessions s on s.id = se.session_id
       where se.id = workout_session_sets.session_exercise_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   )
   with check (
@@ -1676,7 +1728,7 @@ create policy "session_sets_update" on workout_session_sets
       from workout_session_exercises se
       join workout_sessions s on s.id = se.session_id
       where se.id = workout_session_sets.session_exercise_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1688,7 +1740,7 @@ create policy "session_sets_delete" on workout_session_sets
       from workout_session_exercises se
       join workout_sessions s on s.id = se.session_id
       where se.id = workout_session_sets.session_exercise_id
-        and (s.owner_id = auth.uid() or is_admin())
+        and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
 
@@ -1719,7 +1771,7 @@ create policy "exercise_images_select" on storage.objects
 
 create policy "exercise_images_insert" on storage.objects
   for insert
-  with check (bucket_id = 'exercise-images' and auth.role() = 'authenticated');
+  with check (bucket_id = 'exercise-images' and auth.role() = 'authenticated' and is_approved());
 
 create policy "exercise_images_update" on storage.objects
   for update
@@ -1727,14 +1779,14 @@ create policy "exercise_images_update" on storage.objects
     bucket_id = 'exercise-images'
     and (
       is_admin()
-      or owner = auth.uid()
+      or (owner = auth.uid() and is_approved())
     )
   )
   with check (
     bucket_id = 'exercise-images'
     and (
       is_admin()
-      or owner = auth.uid()
+      or (owner = auth.uid() and is_approved())
     )
   );
 
@@ -1744,7 +1796,7 @@ create policy "exercise_images_delete" on storage.objects
     bucket_id = 'exercise-images'
     and (
       is_admin()
-      or owner = auth.uid()
+      or (owner = auth.uid() and is_approved())
     )
   );
 
@@ -1757,6 +1809,7 @@ create policy "avatars_insert" on storage.objects
   with check (
     bucket_id = 'avatars'
     and auth.role() = 'authenticated'
+    and is_approved()
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
@@ -1765,10 +1818,12 @@ create policy "avatars_update" on storage.objects
   using (
     bucket_id = 'avatars'
     and owner = auth.uid()
+    and is_approved()
   )
   with check (
     bucket_id = 'avatars'
     and owner = auth.uid()
+    and is_approved()
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
@@ -1777,6 +1832,7 @@ create policy "avatars_delete" on storage.objects
   using (
     bucket_id = 'avatars'
     and owner = auth.uid()
+    and is_approved()
   );
 
 -- Example admin user insertion (optional):

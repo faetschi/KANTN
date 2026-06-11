@@ -1,7 +1,9 @@
-import { Component, inject, signal, computed } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, inject, signal, computed, DestroyRef } from '@angular/core';
+import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
+import { filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NotificationOutletComponent } from '../shared/components/notification-outlet.component';
 import { WorkoutService } from '../core/services/workout.service';
 import { ScheduledWorkout } from '../core/models/models';
@@ -31,12 +33,13 @@ import { ScheduledWorkout } from '../core/models/models';
         </div>
       }
 
-      <main class="flex-1 pb-20">
+      <main [class.pb-20]="currentRoute() !== '/pending'" class="flex-1">
         <router-outlet></router-outlet>
       </main>
 
       <app-notification-outlet />
 
+      @if (currentRoute() !== '/pending') {
       <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
         <nav class="px-8 pt-3 pb-3 flex justify-around items-center">
           <a routerLink="/home" routerLinkActive="text-blue-600 active" [routerLinkActiveOptions]="{exact: true}" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
@@ -53,6 +56,7 @@ import { ScheduledWorkout } from '../core/models/models';
           </a>
         </nav>
       </div>
+      }
     </div>
   `,
   styles: [
@@ -62,9 +66,22 @@ import { ScheduledWorkout } from '../core/models/models';
 })
 export class LayoutComponent {
   private workoutService = inject(WorkoutService);
+  private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
   private dismissedKey = 'opencode_reminder_dismissed';
 
+  protected currentRoute = signal('');
+
   showReminder = signal(true);
+
+  constructor() {
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(e => {
+      this.currentRoute.set(e.urlAfterRedirects);
+    });
+  }
 
   reminderWorkout = computed<ScheduledWorkout | null>(() => {
     const nearest = this.workoutService.nearestScheduledWorkout();

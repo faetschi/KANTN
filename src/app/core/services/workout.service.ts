@@ -264,6 +264,30 @@ export class WorkoutService {
     }
   }
 
+  async clearActivePlan(): Promise<boolean> {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const previousActive = this.plansSignal().find(p => p.isActive && p.ownerId === userId)?.id || null;
+    if (!previousActive) return true;
+
+    this.setActiveLocally(null);
+
+    try {
+      const success = await this.repository.clearActivePlan(userId);
+      if (!success) {
+        this.setActiveLocally(previousActive);
+        return false;
+      }
+      await this.refresh();
+      return true;
+    } catch (err) {
+      console.error('[WorkoutService] clearActivePlan error', err);
+      this.setActiveLocally(previousActive);
+      return false;
+    }
+  }
+
   async addSession(session: WorkoutSession, virtualExercises?: Exercise[]) {
     const userId = this.getCurrentUserId();
     if (!userId) return false;

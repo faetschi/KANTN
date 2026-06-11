@@ -1,4 +1,4 @@
-import { Component, inject, effect, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, effect, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
@@ -12,22 +12,25 @@ import { Router } from '@angular/router';
 import { NotificationService } from '../../core/services/notification.service';
 import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-badge.component';
 import { isValidUsername, normalizeUsername } from '../../core/domain/username-utils';
+import { ActivityService } from '../../core/services/activity.service';
+import { intensityColor, buildContributionGrid } from '../../core/domain/activity-utils';
+import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule, RouterLink, UserAvatarBadgeComponent],
+  imports: [CommonModule, MatIconModule, FormsModule, RouterLink, UserAvatarBadgeComponent, PeriodToggleComponent],
   template: `
-    <div class="p-4 sm:p-6 space-y-6 sm:space-y-8">
+    <div class="p-6 space-y-6">
       <header class="flex justify-between items-center">
         <h1 class="text-2xl font-bold text-gray-900">Profile</h1>
         <button (click)="logout()" class="text-red-500 font-medium text-sm">Log Out</button>
       </header>
 
       <!-- Profile Card -->
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
         <app-user-avatar-badge
-          class="mb-3"
+          class="mb-2"
           [avatarUrl]="user()?.avatarUrl || form.avatarUrl"
           [displayName]="user()?.name || 'User'"
           [isOnline]="presenceService.isOnline()"
@@ -46,14 +49,9 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
             (click)="beginInlineEdit('name', nameInput)"
             name="inlineName"
             [readonly]="activeField !== 'name'"
-            [class.text-lg]="activeField !== 'name'"
-            [class.font-bold]="activeField !== 'name'"
-            [class.text-gray-900]="activeField !== 'name'"
-            [class.bg-transparent]="activeField !== 'name'"
             [class.bg-gray-50]="activeField === 'name'"
-            [class.cursor-pointer]="activeField !== 'name'"
             [class.cursor-text]="activeField === 'name'"
-            class="border-0 rounded-xl px-2 py-1 text-center max-w-44 focus:outline-none focus:ring-0 transition-all"
+            class="border-0 rounded-xl px-2 py-0.5 text-center max-w-44 focus:outline-none focus:ring-0 transition-all text-lg font-bold text-gray-900 bg-transparent cursor-pointer"
           />
           <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <button *ngIf="activeField === 'name'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
@@ -104,39 +102,8 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
           </div>
         </div>
 
-        <div class="relative w-full flex items-center justify-center mt-3 mb-3">
-          <div class="flex items-center justify-center gap-0">
-            <mat-icon *ngIf="activeField !== 'funFact' && form.funFact" class="text-sm text-yellow-400 w-auto h-auto">auto_awesome</mat-icon>
-            <input
-              #funFactInput
-              [(ngModel)]="form.funFact"
-              (keydown.enter)="applyInlineEdit()"
-              (blur)="onFieldBlur()"
-              (click)="beginInlineEdit('funFact', funFactInput)"
-              name="inlineFunFact"
-              [readonly]="activeField !== 'funFact'"
-              [class.text-sm]="activeField !== 'funFact'"
-              [class.font-semibold]="activeField !== 'funFact'"
-              [class.text-gray-900]="activeField !== 'funFact'"
-              [class.bg-transparent]="activeField !== 'funFact'"
-              [class.bg-gray-50]="activeField === 'funFact'"
-              [class.cursor-pointer]="activeField !== 'funFact'"
-              [class.cursor-text]="activeField === 'funFact'"
-              class="border-0 rounded-xl px-0.5 py-1 text-center focus:outline-none focus:ring-0 transition-all"
-              placeholder="No fun fact yet"
-            />
-          </div>
-          <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            <button *ngIf="activeField === 'funFact'" type="button" (click)="applyInlineEdit(); $event.stopPropagation()" class="text-blue-600 hover:text-blue-700">
-              <mat-icon class="text-sm">check</mat-icon>
-            </button>
-            <button *ngIf="activeField === 'funFact'" type="button" (mousedown)="cancelInlineEdit(); $event.stopPropagation()" class="text-gray-400 hover:text-gray-600">
-              <mat-icon class="text-sm">close</mat-icon>
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4 w-full border-t border-gray-100 pt-4 mt-3">
+        
+        <div class="grid grid-cols-3 gap-2 w-full border-t border-gray-100 pt-2 mt-1">
           <div>
             <div class="flex items-center justify-center gap-1">
               <input
@@ -168,7 +135,7 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
                 <mat-icon class="text-sm">close</mat-icon>
               </button>
             </div>
-            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1 text-center">Weight</p>
+            <p class="text-xs text-gray-400 uppercase tracking-wider mt-0.5 text-center">Weight</p>
           </div>
           <div>
             <div class="flex items-center justify-center gap-1">
@@ -201,7 +168,7 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
                 <mat-icon class="text-sm">close</mat-icon>
               </button>
             </div>
-            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1 text-center">Height</p>
+            <p class="text-xs text-gray-400 uppercase tracking-wider mt-0.5 text-center">Height</p>
           </div>
           <div>
             <div class="flex items-center justify-center gap-1">
@@ -234,10 +201,95 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
                 <mat-icon class="text-sm">close</mat-icon>
               </button>
             </div>
-            <p class="text-xs text-gray-400 uppercase tracking-wider mt-1 text-center">Age</p>
+            <p class="text-xs text-gray-400 uppercase tracking-wider mt-0.5 text-center">Age</p>
           </div>
         </div>
       </div>
+
+      <!-- Streak Badge -->
+      @if (activityService.overallStreak() > 0) {
+        <div class="flex justify-center">
+          <div class="flex items-center gap-1 px-3 py-1 rounded-full bg-orange-50 text-orange-700">
+            <mat-icon class="text-sm">local_fire_department</mat-icon>
+            <span class="font-bold text-sm">{{ activityService.overallStreak() }} day streak</span>
+          </div>
+        </div>
+      }
+
+      <!-- Period Toggle + Stats -->
+      <section>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-gray-900">Overview</h3>
+        </div>
+        <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl">
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <p class="text-3xl font-bold text-blue-400">{{ currentStats().count }}</p>
+              <p class="text-sm text-gray-400 mt-1">Workouts</p>
+            </div>
+            <div>
+              <p class="text-3xl font-bold text-green-400">{{ (currentStats().calories / 1000).toFixed(1) }}k</p>
+              <p class="text-sm text-gray-400 mt-1">Calories</p>
+            </div>
+            <div class="pt-4 border-t border-gray-800">
+              <p class="text-3xl font-bold text-white">{{ (currentStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
+              <p class="text-sm text-gray-400 mt-1">Total Active Time</p>
+            </div>
+            <div class="pt-4 border-t border-gray-800">
+              <p class="text-3xl font-bold text-orange-400">🔥 {{ activityService.overallStreak() }}</p>
+              <p class="text-sm text-gray-400 mt-1">Day Streak</p>
+            </div>
+          </div>
+          <div class="flex justify-center mt-5 pt-4 border-t border-gray-800">
+            <app-period-toggle
+              [value]="showPeriod"
+              (valueChange)="setPeriod($event)"
+              activeClass="bg-gray-700 text-white"
+              inactiveClass="text-gray-500"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- Activity Heatmap with Month/Year toggle -->
+      <section>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-lg font-bold text-gray-900">Activity</h3>
+          <span class="text-xs text-gray-400">{{ activityService.totalContributions() }} workouts</span>
+        </div>
+        <div (click)="goToActivity()" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer active:bg-gray-50 transition-colors">
+          <div class="flex items-center gap-2 mb-3">
+            <button (click)="$event.stopPropagation(); activityPeriod.set('month')" class="px-3 py-0.5 rounded-full text-xs font-semibold transition-all" [class.bg-gray-100]="activityPeriod() === 'month'" [class.text-gray-900]="activityPeriod() === 'month'" [class.text-gray-400]="activityPeriod() !== 'month'">Month</button>
+            <button (click)="$event.stopPropagation(); activityPeriod.set('year')" class="px-3 py-0.5 rounded-full text-xs font-semibold transition-all" [class.bg-gray-100]="activityPeriod() === 'year'" [class.text-gray-900]="activityPeriod() === 'year'" [class.text-gray-400]="activityPeriod() !== 'year'">Year</button>
+          </div>
+          @if (activityPeriod() === 'month') {
+            <div class="flex gap-[3px] items-end py-1">
+              @for (day of monthlyActivity(); track $index) {
+                <div class="flex-1 aspect-[1/2] rounded-sm" [style.background]="day > 0 ? intensityColor(day, 'blue') : '#e5e7eb'"></div>
+              }
+            </div>
+          } @else {
+            <div class="flex gap-[1.5px]">
+              @for (week of yearlyWeeks; track $index) {
+                <div class="flex flex-col gap-[1.5px] flex-1">
+                  @for (day of week; track $index) {
+                    <div
+                      class="aspect-square rounded-[1px]"
+                      [style.background]="day.intensity > 0 ? intensityColor(day.intensity, 'blue') : '#e5e7eb'"
+                      [title]="day.date.toLocaleDateString() + ': ' + day.count + ' sessions'"
+                    ></div>
+                  }
+                </div>
+              }
+            </div>
+          }
+          @if (activityPeriod() === 'month') {
+            <p class="text-xs text-gray-400 mt-2"><strong>{{ activityService.totalActiveDays() }}</strong> active days in <strong>{{ monthName }}</strong></p>
+          } @else {
+            <p class="text-xs text-gray-400 mt-2"><strong>{{ activityService.totalActiveDays() }}</strong> active days in <strong>{{ currentYear }}</strong></p>
+          }
+        </div>
+      </section>
 
       <div *ngIf="avatarModalOpen" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100">
@@ -263,34 +315,6 @@ import { isValidUsername, normalizeUsername } from '../../core/domain/username-u
           </div>
         </div>
       </div>
-
-      <!-- Period Toggle + Stats -->
-      <section>
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold text-gray-900">Overview</h3>
-          <div class="flex items-center gap-2">
-            <button (click)="setPeriod('month')" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
-            <button (click)="setPeriod('week')" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
-          </div>
-        </div>
-
-        <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl">
-          <div class="grid grid-cols-2 gap-6">
-            <div>
-              <p class="text-3xl font-bold text-blue-400">{{ currentStats().count }}</p>
-              <p class="text-sm text-gray-400 mt-1">Workouts</p>
-            </div>
-            <div>
-              <p class="text-3xl font-bold text-orange-400">{{ (currentStats().calories / 1000).toFixed(1) }}k</p>
-              <p class="text-sm text-gray-400 mt-1">Calories</p>
-            </div>
-            <div class="col-span-2 pt-4 border-t border-gray-800">
-              <p class="text-3xl font-bold text-white">{{ (currentStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
-              <p class="text-sm text-gray-400 mt-1">Total Active Time</p>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- Settings List -->
       <section class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
@@ -342,8 +366,11 @@ export class ProfileComponent {
   notifications = inject(NotificationService);
   router = inject(Router);
   cdr = inject(ChangeDetectorRef);
+  activityService = inject(ActivityService);
+  intensityColor = intensityColor;
+  activityPeriod = signal<'month' | 'year'>('month');
   user = this.authService.currentUser;
-  activeField: 'name' | 'funFact' | 'height' | 'weight' | 'age' | 'username' | null = null;
+  activeField: 'name' | 'height' | 'weight' | 'age' | 'username' | null = null;
   avatarModalOpen = false;
   avatarUploading = false;
   avatarUploadMessage = '';
@@ -351,7 +378,6 @@ export class ProfileComponent {
     name: '',
     username: '',
     avatarUrl: '',
-    funFact: '',
     height: 0,
     weight: 0,
     age: 0,
@@ -365,7 +391,6 @@ export class ProfileComponent {
         name: u.name || '',
         username: u.username || '',
         avatarUrl: u.avatarUrl || '',
-        funFact: u.funFact || '',
         height: u.height || 0,
         weight: u.weight || 0,
         age: u.age || 0,
@@ -388,8 +413,18 @@ export class ProfileComponent {
     return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
   }
 
-  setPeriod(period: 'week' | 'month') {
-    this.showPeriod = period;
+  get monthName() {
+    return new Date().toLocaleDateString('en-US', { month: 'long' });
+  }
+
+  get currentYear() {
+    return new Date().getFullYear();
+  }
+
+  setPeriod(period: string) {
+    if (period === 'week' || period === 'month') {
+      this.showPeriod = period;
+    }
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('profile_stats_period', period);
@@ -399,12 +434,29 @@ export class ProfileComponent {
     }
   }
 
+  goToActivity() {
+    this.router.navigate(['/activity']);
+  }
+
+  monthlyActivity(): number[] {
+    return buildContributionGrid(this.activityService.sessions(), 30).map(d => d.intensity);
+  }
+
+  get yearlyWeeks() {
+    const days = this.activityService.aggregateYearlyActivity();
+    const weeks: typeof days[] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+    return weeks;
+  }
+
   logout() {
     this.authService.logout();
     this.router.navigate(['/login']);
   }
 
-  beginInlineEdit(field: 'name' | 'funFact' | 'height' | 'weight' | 'age' | 'username', inputEl?: HTMLInputElement) {
+  beginInlineEdit(field: 'name' | 'height' | 'weight' | 'age' | 'username', inputEl?: HTMLInputElement) {
     this.activeField = field;
     if (inputEl) {
       setTimeout(() => inputEl.focus());
@@ -478,7 +530,6 @@ export class ProfileComponent {
       name: current.name || '',
       username: current.username || '',
       avatarUrl: current.avatarUrl || '',
-      funFact: current.funFact || '',
       height: current.height || 0,
       weight: current.weight || 0,
       age: current.age || 0,
@@ -584,7 +635,6 @@ export class ProfileComponent {
       display_name: this.form.name || null,
       username: normalizedUsername || null,
       avatar_url: this.form.avatarUrl || null,
-      fun_fact: this.form.funFact || null,
       height: this.form.height || null,
       weight: this.form.weight || null,
       age: this.form.age || null,

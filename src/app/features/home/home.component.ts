@@ -1,7 +1,8 @@
 import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { Router, RouterLink } from '@angular/router';
+import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { StatsService } from '../../core/services/stats.service';
@@ -12,9 +13,9 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule],
+  imports: [CommonModule, RouterLink, MatIconModule, PeriodToggleComponent],
   template: `
-    <div class="p-6 space-y-8">
+    <div class="p-6 space-y-6">
       <!-- Header -->
       <header class="flex justify-between items-center">
         <div>
@@ -29,14 +30,9 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
         </div>
       </header>
 
-      <!-- Weekly/Monthly Stats Toggle -->
       <section class="grid grid-cols-2 gap-4">
         <div class="flex items-center justify-between col-span-2">
-        <div class="flex items-center gap-2">
-          <div class="text-sm text-gray-600">Show:</div>
-          <button (click)="showPeriod='week'" [class.font-semibold]="showPeriod==='week'" class="px-3 py-1 rounded-full bg-gray-100">Week</button>
-          <button (click)="showPeriod='month'" [class.font-semibold]="showPeriod==='month'" class="px-3 py-1 rounded-full bg-gray-100">Month</button>
-        </div>
+          <app-period-toggle [value]="showPeriod" (valueChange)="onPeriodChange($event)" />
         </div>
 
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -172,6 +168,12 @@ export class HomeComponent {
   generateInitialsAvatar = generateInitialsAvatar;
 
   showPeriod: 'week' | 'month' = 'week';
+
+  onPeriodChange(value: string) {
+    if (value === 'week' || value === 'month') {
+      this.showPeriod = value;
+    }
+  }
 
   currentStats() {
     return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();

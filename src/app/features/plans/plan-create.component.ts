@@ -17,14 +17,13 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
   imports: [CommonModule, MatIconModule, MatSnackBarModule, FormsModule, RouterLink, SearchBarComponent],
   template: `
     <div class="min-h-screen flex flex-col bg-white">
-      <header class="sticky top-0 z-10 bg-white px-6 py-4 flex items-center border-b border-gray-100">
-        <button routerLink="/plans" class="mr-4 text-gray-600">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h1 class="text-2xl font-bold text-gray-900">{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h1>
-      </header>
-
       <div class="flex-1 p-6 space-y-6 plan-form-content">
+        <header class="flex items-center gap-3">
+          <button routerLink="/plans" class="text-gray-600">
+            <mat-icon>arrow_back</mat-icon>
+          </button>
+          <h1 class="text-2xl font-bold text-gray-900">{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h1>
+        </header>
         <section class="static bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between">
           <div>
             <h3 class="text-sm font-semibold text-gray-900">Need Custom Exercises?</h3>

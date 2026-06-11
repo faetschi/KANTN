@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { AuthGuard, AuthChildGuard } from './core/guards/auth.guard';
 import { ApprovedGuard } from './core/guards/approved.guard';
 import { AdminGuard } from './core/guards/admin.guard';
+import { PendingGuard } from './core/guards/pending.guard';
 
 export const routes: Routes = [
   {
@@ -17,7 +18,7 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/layout.component').then(m => m.LayoutComponent),
     // Require authentication for layout and all child routes (redirects to /login when not authenticated)
     canActivate: [AuthGuard],
-    canActivateChild: [AuthChildGuard],
+    canActivateChild: [AuthChildGuard, PendingGuard],
     children: [
       {
         path: '',
@@ -79,6 +80,10 @@ export const routes: Routes = [
       {
         path: 'workout/:planId',
         loadComponent: () => import('./features/workout/workout.component').then(m => m.WorkoutComponent)
+      },
+      {
+        path: 'activity',
+        loadComponent: () => import('./features/activity/activity.component').then(m => m.ActivityComponent)
       },
       {
         path: 'profile',

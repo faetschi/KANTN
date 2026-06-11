@@ -2,6 +2,7 @@ import { Component, inject, signal, computed, effect, OnInit } from '@angular/co
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
+import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { WorkoutSession, ScheduledWorkout, WorkoutPlan } from '../../core/models/models';
@@ -29,7 +30,7 @@ interface CalendarDay {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, MatIconModule, RouterLink],
+  imports: [CommonModule, MatIconModule, RouterLink, PeriodToggleComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -45,10 +46,8 @@ interface CalendarDay {
         </div>
       </header>
 
-      <!-- Week/Month Toggle -->
-      <div class="flex items-center gap-2 bg-gray-100 rounded-xl p-1 w-fit">
-        <button (click)="viewMode.set('week'); setAnchorToToday()" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all" [ngClass]="viewMode() === 'week' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'">Week</button>
-        <button (click)="viewMode.set('month'); setAnchorToToday()" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all" [ngClass]="viewMode() === 'month' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'">Month</button>
+      <div class="mb-4">
+        <app-period-toggle [value]="viewMode()" (valueChange)="onViewModeChange($event)" />
       </div>
 
       <!-- Hero Stats: workouts planned + done with visual punch -->
@@ -439,6 +438,11 @@ export class CalendarComponent implements OnInit {
          return d.getTime() === selected.getTime();
      });
   });
+
+  onViewModeChange(mode: string) {
+    this.viewMode.set(mode as 'month' | 'week');
+    this.setAnchorToToday();
+  }
 
   setAnchorToToday() {
     const now = new Date();

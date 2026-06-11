@@ -7,7 +7,6 @@ export interface User {
   weight: number; // kg
   age: number;
   avatarUrl?: string;
-  funFact?: string;
   lastSeen?: string;
 }
 
