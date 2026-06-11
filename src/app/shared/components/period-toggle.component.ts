@@ -6,12 +6,12 @@ import { NgClass } from '@angular/common';
   standalone: true,
   imports: [NgClass],
   template: `
-    <div class="flex items-center gap-1 w-fit">
+    <div class="flex items-center gap-2 bg-gray-100 rounded-xl p-1 w-fit">
       @for (opt of options; track opt.value) {
         <button
           (click)="select(opt.value)"
-          class="px-3 py-1 rounded-lg text-xs font-semibold transition-all"
-          [ngClass]="value === opt.value ? activeClass : inactiveClass"
+          class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
+          [ngClass]="value === opt.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
         >
           {{ opt.label }}
         </button>
@@ -25,8 +25,6 @@ export class PeriodToggleComponent {
     { label: 'Month', value: 'month' },
   ];
   @Input() value: string = 'month';
-  @Input() activeClass = 'bg-white text-gray-900 shadow-sm';
-  @Input() inactiveClass = 'text-gray-500';
   @Output() valueChange = new EventEmitter<string>();
 
   select(val: string) {

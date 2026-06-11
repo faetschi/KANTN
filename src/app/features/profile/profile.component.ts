@@ -14,12 +14,11 @@ import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-ba
 import { isValidUsername, normalizeUsername } from '../../core/domain/username-utils';
 import { ActivityService } from '../../core/services/activity.service';
 import { intensityColor, buildContributionGrid } from '../../core/domain/activity-utils';
-import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, MatIconModule, FormsModule, RouterLink, UserAvatarBadgeComponent, PeriodToggleComponent],
+  imports: [CommonModule, MatIconModule, FormsModule, RouterLink, UserAvatarBadgeComponent],
   template: `
     <div class="p-6 space-y-6">
       <header class="flex justify-between items-center">
@@ -241,12 +240,10 @@ import { PeriodToggleComponent } from '../../shared/components/period-toggle.com
             </div>
           </div>
           <div class="flex justify-center mt-5 pt-4 border-t border-gray-800">
-            <app-period-toggle
-              [value]="showPeriod"
-              (valueChange)="setPeriod($event)"
-              activeClass="bg-gray-700 text-white"
-              inactiveClass="text-gray-500"
-            />
+            <div class="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
+              <button (click)="setPeriod('week')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all" [class.bg-white]="showPeriod === 'week'" [class.text-gray-900]="showPeriod === 'week'" [class.shadow-sm]="showPeriod === 'week'" [class.text-gray-400]="showPeriod !== 'week'">Week</button>
+              <button (click)="setPeriod('month')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all" [class.bg-white]="showPeriod === 'month'" [class.text-gray-900]="showPeriod === 'month'" [class.shadow-sm]="showPeriod === 'month'" [class.text-gray-400]="showPeriod !== 'month'">Month</button>
+            </div>
           </div>
         </div>
       </section>
