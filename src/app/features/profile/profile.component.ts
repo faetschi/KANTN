@@ -235,7 +235,7 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
               <p class="text-sm text-gray-400 mt-1">Total Active Time</p>
             </div>
             <div class="pt-4 border-t border-gray-800">
-              <p class="text-3xl font-bold text-orange-400">🔥 {{ activityService.overallStreak() }}</p>
+              <p class="text-3xl font-bold text-orange-400">{{ activityService.overallStreak() }} 🔥</p>
               <p class="text-sm text-gray-400 mt-1">Day Streak</p>
             </div>
           </div>
