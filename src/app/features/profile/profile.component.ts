@@ -220,7 +220,7 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-bold text-gray-900">Overview</h3>
         </div>
-        <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl">
+        <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl relative">
           <div class="grid grid-cols-2 gap-6">
             <div>
               <p class="text-3xl font-bold text-blue-400">{{ currentStats().count }}</p>
@@ -239,7 +239,7 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
               <p class="text-sm text-gray-400 mt-1">Day Streak</p>
             </div>
           </div>
-          <div class="flex justify-center mt-5 pt-4 border-t border-gray-800">
+          <div class="absolute -bottom-3 right-3">
             <div class="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
               <button (click)="setPeriod('week')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all" [class.bg-white]="showPeriod === 'week'" [class.text-gray-900]="showPeriod === 'week'" [class.shadow-sm]="showPeriod === 'week'" [class.text-gray-400]="showPeriod !== 'week'">Week</button>
               <button (click)="setPeriod('month')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all" [class.bg-white]="showPeriod === 'month'" [class.text-gray-900]="showPeriod === 'month'" [class.shadow-sm]="showPeriod === 'month'" [class.text-gray-400]="showPeriod !== 'month'">Month</button>
@@ -651,3 +651,4 @@ export class ProfileComponent {
     await this.authService.refreshProfile();
   }
 }
+
