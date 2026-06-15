@@ -52,7 +52,6 @@ describe('Critical flow smoke tests', () => {
       name: 'Updated Name',
       username: 'updated_user',
       avatarUrl: 'https://example.com/avatar.png',
-      funFact: 'Loves coding',
       height: 181,
       weight: 76,
       age: 31,

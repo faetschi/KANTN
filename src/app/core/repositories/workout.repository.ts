@@ -105,7 +105,7 @@ export class WorkoutRepository {
 
     const [exercisesRes, plansRes, planExercisesRes, sessionsRes, sessionExercisesRes, sessionSetsRes, planSharesRes] = await Promise.all([
       client.from('exercises').select('*').eq('is_active', true).order('name', { ascending: true }),
-      client.from('workout_plans').select('*').order('created_at', { ascending: false }),
+      client.from('workout_plans').select('*').or(`owner_id.eq.${userId},visibility.eq.public`).order('created_at', { ascending: false }),
       client.from('workout_plan_exercises').select('*').order('position', { ascending: true }),
       client.from('workout_sessions').select('*').eq('owner_id', userId).order('created_at', { ascending: false }),
       client.from('workout_session_exercises').select('*').order('position', { ascending: true }),
@@ -124,6 +124,25 @@ export class WorkoutRepository {
     if (sessionExercisesRes.error) throw sessionExercisesRes.error;
     if (sessionSetsRes.error) throw sessionSetsRes.error;
     if (planSharesRes.error) throw planSharesRes.error;
+
+    // Fetch accepted shared plans not already covered by the owner/public query
+    const acceptedSharePlanIds = ((planSharesRes.data || []) as WorkoutPlanShareRow[])
+      .filter(row => row.status === 'accepted')
+      .map(row => row.plan_id);
+
+    if (acceptedSharePlanIds.length > 0) {
+      const existingIds = new Set((plansRes.data || []).map(p => (p as WorkoutPlanRow).id));
+      const missingIds = acceptedSharePlanIds.filter(id => !existingIds.has(id));
+      if (missingIds.length > 0) {
+        const { data: sharedPlansData, error: sharedPlansError } = await client
+          .from('workout_plans')
+          .select('*')
+          .in('id', missingIds);
+        if (!sharedPlansError && sharedPlansData) {
+          plansRes.data = [...(plansRes.data || []), ...sharedPlansData];
+        }
+      }
+    }
 
     const exercises = ((exercisesRes.data || []) as ExerciseRow[]).map(row => this.mapExercise(row));
     const exerciseById = new Map(exercises.map(e => [e.id, e]));
@@ -182,6 +201,7 @@ export class WorkoutRepository {
         id: row.id,
         planId: row.plan_id || '',
         date: row.finished_at ? new Date(row.finished_at) : new Date(row.created_at),
+        createdAt: new Date(row.created_at),
         startTime: new Date(row.started_at),
         endTime: row.finished_at ? new Date(row.finished_at) : undefined,
         duration: row.duration_seconds || 0,
@@ -229,6 +249,17 @@ export class WorkoutRepository {
     return !error && data === true;
   }
 
+  async clearActivePlan(userId: string): Promise<boolean> {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { data, error } = await client.rpc('clear_active_plan', {
+      p_owner_id: userId,
+    });
+
+    return !error && data === true;
+  }
+
   async ensureFirstRunSeed(userId: string) {
     const client = this.supabase.getClient();
     if (!client) return false;
@@ -252,6 +283,7 @@ export class WorkoutRepository {
       p_duration_seconds: payload.durationSeconds,
       p_total_calories: payload.totalCalories,
       p_exercises: payload.exercises,
+      p_user_weight_kg: payload.weightKg,
     });
 
     return !error && !!data;

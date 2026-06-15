@@ -7,7 +7,6 @@ export interface PublicProfile {
   username: string;
   name: string;
   avatarUrl?: string;
-  funFact?: string;
   height: number;
   weight: number;
   age: number;
@@ -19,7 +18,6 @@ interface ProfileRow {
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  fun_fact: string | null;
   height: number | null;
   weight: number | null;
   age: number | null;
@@ -52,7 +50,6 @@ export class ProfileService {
       username: row.username,
       name: row.display_name || 'User',
       avatarUrl: row.avatar_url || generateInitialsAvatar(row.display_name || row.username),
-      funFact: row.fun_fact || undefined,
       height: row.height ?? 0,
       weight: row.weight ?? 0,
       age: row.age ?? 0,

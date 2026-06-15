@@ -7,7 +7,6 @@ export interface User {
   weight: number; // kg
   age: number;
   avatarUrl?: string;
-  funFact?: string;
   lastSeen?: string;
 }
 
@@ -49,6 +48,7 @@ export interface WorkoutSession {
   id: string;
   planId: string;
   date: Date;
+  createdAt: Date;
   startTime: Date;
   endTime?: Date;
   duration?: number; // seconds

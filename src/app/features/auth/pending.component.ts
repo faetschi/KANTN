@@ -1,6 +1,7 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../core/services/supabase.service';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-pending',
@@ -16,6 +17,7 @@ import { SupabaseService } from '../../core/services/supabase.service';
 })
 export class PendingComponent implements OnInit, OnDestroy {
   private intervalId: any = null;
+  private auth = inject(AuthService);
 
   constructor(private supabase: SupabaseService, private router: Router) {}
 
@@ -45,6 +47,7 @@ export class PendingComponent implements OnInit, OnDestroy {
           clearInterval(this.intervalId);
           this.intervalId = null;
         }
+        await this.auth.refreshProfile();
         this.router.navigate(['/']);
       }
     } catch (err) {

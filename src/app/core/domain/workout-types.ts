@@ -140,6 +140,12 @@ export function getWorkoutPlanType(plan: Pick<WorkoutPlan, 'exercises' | 'workou
   return getWorkoutPlanTypeWithFallback(plan);
 }
 
+export function getScheduledWorkoutType(sw: { planExercises: Exercise[]; planCategory?: string | null } | null | undefined): WorkoutExerciseType {
+  if (!sw) return 'general';
+  if (sw.planExercises.length > 0) return deriveWorkoutPlanType(sw.planExercises);
+  return deriveTypeFromCategory(sw.planCategory);
+}
+
 export function getWorkoutTypeEmoji(type: string | null | undefined): string | null {
   const normalized = (type || '').trim().toLowerCase();
   if (normalized === 'cardio') return '🏃';

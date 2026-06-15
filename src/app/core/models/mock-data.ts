@@ -68,7 +68,7 @@ export const MOCK_PLANS: WorkoutPlan[] = [
     description: 'Focus on chest, back, and shoulders.',
     exercises: [MOCK_EXERCISES[0], MOCK_EXERCISES[2], MOCK_EXERCISES[4]],
     workoutPlanType: deriveWorkoutPlanType([MOCK_EXERCISES[0], MOCK_EXERCISES[2], MOCK_EXERCISES[4]]),
-    isActive: false
+    isActive: true
   }
 ];
 
@@ -129,6 +129,7 @@ export const MOCK_SESSIONS: WorkoutSession[] = [
     id: 's1',
     planId: 'p1',
     date: new Date(Date.now() - 86400000 * 2), // 2 days ago
+    createdAt: new Date(Date.now() - 86400000 * 2),
     startTime: new Date(Date.now() - 86400000 * 2 - 3600000),
     endTime: new Date(Date.now() - 86400000 * 2),
     duration: 3600,
@@ -156,6 +157,7 @@ export const MOCK_SESSIONS: WorkoutSession[] = [
     id: 's2',
     planId: 'p1',
     date: new Date(Date.now() - 86400000 * 5), // 5 days ago
+    createdAt: new Date(Date.now() - 86400000 * 5),
     startTime: new Date(Date.now() - 86400000 * 5 - 3000000),
     endTime: new Date(Date.now() - 86400000 * 5),
     duration: 3000,

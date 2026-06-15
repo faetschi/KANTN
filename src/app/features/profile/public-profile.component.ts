@@ -38,7 +38,6 @@ import { AuthService } from '../../core/services/auth.service';
         ></app-user-avatar-badge>
         <div class="text-lg font-bold text-gray-900">{{ profile.name }}</div>
         <p class="text-gray-500 text-sm">@{{ profile.username }}</p>
-        <p class="text-gray-700 text-sm mt-2" *ngIf="profile.funFact">{{ profile.funFact }}</p>
 
         <div class="grid grid-cols-3 gap-4 w-full border-t border-gray-100 pt-4 mt-4">
           <div>

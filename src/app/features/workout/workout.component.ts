@@ -1106,6 +1106,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       id: Math.random().toString(36).substr(2, 9),
       planId: this.freestyleMode() ? '' : (plan?.id || ''),
       date: new Date(),
+      createdAt: new Date(),
       startTime: this.startTime,
       endTime: new Date(),
       duration: this.elapsedTime(),

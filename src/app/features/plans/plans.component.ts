@@ -1,23 +1,27 @@
 import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
+import { FabButtonComponent } from '../../shared/components/fab-button.component';
 import { WorkoutPlan } from '../../core/models/models';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plans',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent, FabButtonComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-gray-900">Workout Plans</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Workout Plans</h1>
+          <p class="text-gray-500 text-sm">Create your perfect workout</p>
+        </div>
         <div class="flex items-center gap-2">
           <button
             type="button"
@@ -26,9 +30,6 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
             aria-label="Share plan"
           >
             <mat-icon>share</mat-icon>
-          </button>
-          <button routerLink="/plans/create" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600" aria-label="Create plan">
-            <mat-icon>add</mat-icon>
           </button>
         </div>
       </header>
@@ -141,7 +142,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
 
       <div class="space-y-4">
         @for (plan of filteredPlans(); track plan.id) {
-          <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
+          <div class="relative bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
                [class.ring-2]="plan.isActive" 
                [class.ring-blue-500]="plan.isActive"
                [class.ring-offset-2]="plan.isActive">
@@ -178,7 +179,13 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
                 <p class="mt-2 text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
               </div>
               @if (plan.isActive) {
-                <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Active</span>
+                @if (isOwnedPlan(plan.id)) {
+                  <button (click)="deactivateActivePlan()" class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide cursor-pointer hover:bg-blue-200 transition-colors">Active</button>
+                } @else {
+                  <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Active</span>
+                }
+              } @else {
+                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId() !== ''" class="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide cursor-pointer hover:bg-gray-200 transition-colors">{{ activatingPlanId() === plan.id ? 'Activating…' : 'Activate' }}</button>
               }
             </div>
 
@@ -193,6 +200,15 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
               }
             </div>
 
+            @if (isOwnedPlan(plan.id)) {
+              <button (click)="confirmDeletePlan(plan.id); $event.stopPropagation()"
+                      [disabled]="plan.isActive"
+                      [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''"
+                      class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                ✕
+              </button>
+            }
+
             <div class="flex gap-3">
               <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
                 Start
@@ -203,15 +219,8 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
               </button>
               @if (isOwnedPlan(plan.id)) {
                 <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
-                  Edit
-                </button>
-                <button (click)="confirmDeletePlan(plan.id)" [disabled]="plan.isActive" [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''" class="px-4 py-3 bg-red-50 text-red-600 rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                  Delete
-                </button>
-              }
-              @if (!plan.isActive) {
-                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId !== ''" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
-                  {{ activatingPlanId === plan.id ? 'Activating…' : 'Activate' }}
+                  <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">edit</mat-icon>
+                  <span class="hidden sm:inline">Edit</span>
                 </button>
               }
             </div>
@@ -219,6 +228,9 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
         }
       </div>
     </div>
+
+    <!-- FAB -->
+    <app-fab-button (fabClick)="goToCreatePlan()" />
 
       @if (showScheduleDialog()) {
         <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
@@ -245,6 +257,7 @@ export class PlansComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
   notifications = inject(NotificationService);
+  router = inject(Router);
   
   plans = this.workoutService.plans;
   planInvites = this.workoutService.planInvites;
@@ -256,7 +269,7 @@ export class PlansComponent {
   unsharingPlan = false;
   shareMessage = '';
   inviteMessage = '';
-  activatingPlanId = '';
+  activatingPlanId = signal('');
   respondingInviteId = '';
 
   // ── Schedule state ──
@@ -335,7 +348,7 @@ export class PlansComponent {
   pendingInvites = computed(() => this.planInvites().filter(invite => invite.status === 'pending'));
 
   async activatePlan(id: string) {
-    this.activatingPlanId = id;
+    this.activatingPlanId.set(id);
 
     const currentUserId = this.authService.currentUser()?.id;
     const currentActive = this.plans().find(p => p.isActive && !!currentUserId && p.ownerId === currentUserId);
@@ -351,7 +364,7 @@ export class PlansComponent {
       ok = false;
     }
 
-    this.activatingPlanId = '';
+    this.activatingPlanId.set('');
 
     // Log current plans snapshot after activation attempt
     console.debug('[PlansComponent] activatePlan result=' + ok + ' currentPlans=' + JSON.stringify(this.plans().map(p => ({ id: p.id, isActive: p.isActive }))));
@@ -365,6 +378,13 @@ export class PlansComponent {
     }
 
     this.notifications.success('Plan activated.', 1000);
+  }
+
+  async deactivateActivePlan() {
+    const ok = await this.workoutService.clearActivePlan();
+    if (!ok) {
+      this.notifications.error('Failed to deactivate plan.');
+    }
   }
 
   closeSharePanel() {
@@ -465,5 +485,9 @@ export class PlansComponent {
     if (!ok) {
       this.notifications.error('Failed to delete plan.');
     }
+  }
+
+  goToCreatePlan() {
+    this.router.navigate(['/plans/create']);
   }
 }

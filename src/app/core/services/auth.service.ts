@@ -7,7 +7,7 @@ import { generateInitialsAvatar } from '../domain/avatar-utils';
 
 type DevWindow = Window & { __env?: { ENABLE_DEV_AUTH?: string }; __DEV_FAKE_AUTH?: boolean };
 type CryptoWithUUID = Crypto & { randomUUID?: () => string };
-type AuthUser = User & { is_admin?: boolean };
+type AuthUser = User & { is_admin?: boolean; approved?: boolean };
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +18,7 @@ export class AuthService {
   private sessionReadInFlight: Promise<Session | null> | null = null;
 
   currentUser = computed(() => this.currentUserSignal());
+  isApproved = computed(() => this.currentUserSignal()?.approved ?? false);
 
   constructor() {
     this.supabase = inject(SupabaseService);
@@ -137,7 +138,7 @@ export class AuthService {
 
     const { data: profile, error: profileError } = await client
       .from('profiles')
-      .select('id, email, username, display_name, avatar_url, fun_fact, height, weight, age, is_admin, last_seen')
+      .select('id, email, username, display_name, avatar_url, height, weight, age, is_admin, approved, last_seen')
       .eq('id', user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -151,8 +152,8 @@ export class AuthService {
       weight: profile?.weight ?? 0,
       age: profile?.age ?? 0,
       avatarUrl: profile?.avatar_url || generateInitialsAvatar(profile?.display_name || user.user_metadata?.['name'] || user.email || 'User'),
-      funFact: profile?.fun_fact || undefined,
       is_admin: !!profile?.is_admin,
+      approved: profile?.approved ?? undefined,
       lastSeen: profile?.last_seen || undefined,
     };
 
