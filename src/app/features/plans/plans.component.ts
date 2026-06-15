@@ -8,13 +8,14 @@ import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { FabButtonComponent } from '../../shared/components/fab-button.component';
-import { WorkoutPlan } from '../../core/models/models';
+import { TimeSlot, WorkoutPlan } from '../../core/models/models';
+import { TimeSlotPickerComponent, TimeSlotItem } from '../../shared/components/time-slot-picker.component';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 
 @Component({
   selector: 'app-plans',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent, FabButtonComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, FormsModule, SearchBarComponent, FabButtonComponent, TimeSlotPickerComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -141,87 +142,97 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
       }
 
       <div class="space-y-4">
-        @for (plan of filteredPlans(); track plan.id) {
-          <div class="relative bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" 
-               [class.ring-2]="plan.isActive" 
+        @for (plan of filteredPlans(); track plan.id; let i = $index) {
+          <div class="fade-in relative bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all active:scale-[0.98]" [style.animation-delay]="i * 0.06 + 's'"
+               [class.ring-2]="plan.isActive"
                [class.ring-blue-500]="plan.isActive"
                [class.ring-offset-2]="plan.isActive">
-            <div class="flex justify-between items-start mb-3">
-              <div>
-                <h3 class="text-lg font-bold text-gray-900">{{ plan.name }}</h3>
-                <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                  <span
-                    class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                    [ngStyle]="typeBadgeStyle(plan)"
-                  >
-                    <span class="mr-1" aria-hidden="true">{{ typeEmoji(plan) }}</span>
-                    {{ typeLabel(plan) }}
-                  </span>
-                  @if (plan.category) {
-                    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">
-                      {{ plan.category }}
-                    </span>
-                  }
-                  <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                    @if (plan.lastPerformed) {
-                      Last: {{ plan.lastPerformed | date:'MMM d' }}
-                    } @else {
-                      Not started yet
-                    }
-                  </span>
-                  @if (nextScheduledDate(plan.id); as sched) {
-                    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                      <mat-icon class="text-[12px] mr-0.5" style="font-size:12px;width:12px;height:12px;">calendar_today</mat-icon>
-                      {{ sched | date:'MMM d' }}
-                    </span>
-                  }
-                </div>
-                <p class="mt-2 text-gray-500 text-sm line-clamp-2">{{ plan.description }}</p>
+            <!-- Header: Name + Avatars + Activate/Active -->
+            <div class="flex justify-between items-start gap-3 mb-3">
+              <div class="min-w-0 flex-1">
+                <h3 class="text-lg font-bold text-gray-900 truncate">{{ plan.name }}</h3>
               </div>
-              @if (plan.isActive) {
-                @if (isOwnedPlan(plan.id)) {
-                  <button (click)="deactivateActivePlan()" class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide cursor-pointer hover:bg-blue-200 transition-colors">Active</button>
-                } @else {
-                  <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Active</span>
-                }
-              } @else {
-                <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId() !== ''" class="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide cursor-pointer hover:bg-gray-200 transition-colors">{{ activatingPlanId() === plan.id ? 'Activating…' : 'Activate' }}</button>
-              }
-            </div>
-
-            <div class="flex -space-x-2 overflow-hidden mb-4 py-1">
-              @for (exercise of plan.exercises.slice(0, 4); track exercise.id) {
-                <img [src]="exercise.imageUrl" class="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" [alt]="exercise.name">
-              }
-              @if (plan.exercises.length > 4) {
-                <div class="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-bold text-gray-500">
-                  +{{ plan.exercises.length - 4 }}
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <!-- Exercise avatars -->
+                <div class="flex -space-x-2 overflow-hidden">
+                  @for (exercise of plan.exercises.slice(0, 3); track exercise.id) {
+                    <img [src]="exercise.imageUrl" class="inline-block h-7 w-7 rounded-full ring-2 ring-white object-cover" [alt]="exercise.name">
+                  }
+                  @if (plan.exercises.length > 3) {
+                    <div class="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[9px] font-bold text-gray-500">
+                      +{{ plan.exercises.length - 3 }}
+                    </div>
+                  }
                 </div>
+                <!-- Active/Activate badge -->
+                @if (plan.isActive) {
+                  @if (isOwnedPlan(plan.id)) {
+                    <button (click)="deactivateActivePlan()" class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide cursor-pointer hover:bg-blue-200 transition-colors whitespace-nowrap">Active</button>
+                  } @else {
+                    <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide whitespace-nowrap">Active</span>
+                  }
+                } @else {
+                  <button (click)="activatePlan(plan.id)" [disabled]="activatingPlanId() !== ''" class="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide cursor-pointer hover:bg-gray-200 transition-colors whitespace-nowrap">{{ activatingPlanId() === plan.id ? 'Activating…' : 'Activate' }}</button>
+                }
+              </div>
+            </div>
+
+            <!-- Badges: Type + Category -->
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span
+                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+                [ngStyle]="typeBadgeStyle(plan)"
+              >
+                <span class="mr-1" aria-hidden="true">{{ typeEmoji(plan) }}</span>
+                {{ typeLabel(plan) }}
+              </span>
+              @if (plan.category) {
+                <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+                  {{ plan.category }}
+                </span>
               }
             </div>
 
-            @if (isOwnedPlan(plan.id)) {
+            <!-- Description -->
+            @if (plan.description) {
+              <p class="text-gray-500 text-sm line-clamp-2 mb-3">{{ plan.description }}</p>
+            }
+
+            <!-- Delete button (hidden for active plans) -->
+            @if (isOwnedPlan(plan.id) && !plan.isActive) {
               <button (click)="confirmDeletePlan(plan.id); $event.stopPropagation()"
-                      [disabled]="plan.isActive"
-                      [title]="plan.isActive ? 'Deactivate the plan before deleting it' : ''"
-                      class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                      class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold">
                 ✕
               </button>
             }
 
+            <!-- Actions: Start, Schedule (with date), Edit -->
             <div class="flex gap-3">
               <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
                 Start
               </button>
-              <button (click)="openScheduleDialog(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm">
+              <button (click)="openScheduleDialog(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm flex items-center gap-1.5 whitespace-nowrap">
                 <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">calendar_today</mat-icon>
-                <span class="hidden sm:inline">Schedule</span>
+                @if (nextScheduledDate(plan.id); as sched) {
+                  <span>{{ sched | date:'MMM d' }}</span>
+                } @else {
+                  <span>Schedule</span>
+                }
               </button>
               @if (isOwnedPlan(plan.id)) {
-                <button [routerLink]="['/plans/edit', plan.id]" class="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
+                <button [routerLink]="['/plans/edit', plan.id]" class="px-3 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm">
                   <mat-icon class="text-[16px] align-middle" style="font-size:16px;width:16px;height:16px;">edit</mat-icon>
-                  <span class="hidden sm:inline">Edit</span>
+                  <span class="hidden sm:inline ml-1">Edit</span>
                 </button>
+              }
+            </div>
+
+            <!-- Footer: Last performed / Not started (subdued) -->
+            <div class="mt-2.5 flex items-center gap-1.5">
+              @if (plan.lastPerformed) {
+                <span class="text-[11px] text-gray-400">Last performed {{ plan.lastPerformed | date:'MMM d, yyyy' }}</span>
+              } @else {
+                <span class="text-[11px] text-gray-400">Not started yet</span>
               }
             </div>
           </div>
@@ -234,7 +245,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
 
       @if (showScheduleDialog()) {
         <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
-          <div class="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+          <div class="fade-in w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
             <div class="flex items-center justify-between">
               <h3 class="text-base font-bold text-gray-900">Schedule Workout</h3>
               <button type="button" (click)="closeScheduleDialog()" class="text-gray-400">
@@ -251,7 +262,19 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
           </div>
         </div>
       }
-  `
+
+      @if (showTimeSlotPicker()) {
+        <app-time-slot-picker
+          [workouts]="timeSlotItems()"
+          (saved)="onTimeSlotsSaved($event)"
+          (cancelled)="showTimeSlotPicker.set(false)"
+        />
+      }
+  `,
+  styles: [`
+    .fade-in { animation: fadeIn 0.5s ease-out backwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  `]
 })
 export class PlansComponent {
   workoutService = inject(WorkoutService);
@@ -278,6 +301,12 @@ export class PlansComponent {
   scheduleDateInput = '';
   minScheduleDate = new Date().toISOString().split('T')[0];
 
+  // ── Time-slot assignment state ──
+  showTimeSlotPicker = signal(false);
+  timeSlotItems = signal<TimeSlotItem[]>([]);
+  private pendingSchedulePlanId = '';
+  private pendingScheduleDate = '';
+
   nextScheduledDate(planId: string): Date | null {
     const now = new Date();
     const matches = this.workoutService.scheduledWorkouts()
@@ -301,13 +330,54 @@ export class PlansComponent {
   async confirmSchedule() {
     const planId = this.schedulePlanId();
     if (!planId || !this.scheduleDateInput) return;
-    const ok = await this.workoutService.schedulePlan(planId, new Date(this.scheduleDateInput));
-    if (ok) {
-      this.notifications.success('Workout scheduled.');
-    } else {
-      this.notifications.error('Failed to schedule workout.');
+
+    const date = new Date(this.scheduleDateInput);
+    const existing = this.workoutService.getScheduledWorkoutsForDate(date);
+
+    if (existing.length === 0) {
+      const ok = await this.workoutService.schedulePlan(planId, date);
+      if (ok) {
+        this.notifications.success('Workout scheduled.');
+      } else {
+        this.notifications.error('Failed to schedule workout.');
+      }
+      this.closeScheduleDialog();
+      return;
     }
+
+    // Conflict — show time-slot picker
+    const plan = this.workoutService.getPlanById(planId);
+    this.pendingSchedulePlanId = planId;
+    this.pendingScheduleDate = this.scheduleDateInput;
+    this.timeSlotItems.set([
+      ...existing.map(sw => ({ id: sw.id, planName: sw.planName, timeSlot: sw.timeSlot ?? null })),
+      { id: null, planName: plan?.name || 'New Workout', timeSlot: null },
+    ]);
+    this.showTimeSlotPicker.set(true);
     this.closeScheduleDialog();
+  }
+
+  async onTimeSlotsSaved(items: TimeSlotItem[]) {
+    this.showTimeSlotPicker.set(false);
+
+    const newItem = items.find(i => i.id === null);
+    const existingItems = items.filter(i => i.id !== null);
+
+    if (newItem?.timeSlot) {
+      const ok = await this.workoutService.schedulePlan(this.pendingSchedulePlanId, new Date(this.pendingScheduleDate), newItem.timeSlot);
+      if (!ok) {
+        this.notifications.error('Failed to schedule workout.');
+        return;
+      }
+    }
+
+    for (const item of existingItems) {
+      if (item.id && item.timeSlot) {
+        await this.workoutService.updateTimeSlot(item.id, item.timeSlot as TimeSlot);
+      }
+    }
+
+    this.notifications.success('Workouts scheduled.');
   }
 
   myOwnedPlans() {
@@ -488,6 +558,6 @@ export class PlansComponent {
   }
 
   goToCreatePlan() {
-    this.router.navigate(['/plans/create']);
+    setTimeout(() => this.router.navigate(['/plans/create']), 150);
   }
 }

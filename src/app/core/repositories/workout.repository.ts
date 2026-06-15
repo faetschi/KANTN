@@ -666,15 +666,21 @@ export class WorkoutRepository {
     return data;
   }
 
-  async insertScheduledWorkout(userId: string, planId: string, scheduledDate: string) {
+  async insertScheduledWorkout(userId: string, planId: string, scheduledDate: string, timeSlot?: string) {
     const client = this.supabase.getClient();
-    if (!client) return false;
+    if (!client) return null;
 
-    const { error } = await client
+    const payload: Record<string, unknown> = { owner_id: userId, plan_id: planId, scheduled_date: scheduledDate, status: 'scheduled' };
+    if (timeSlot) payload['time_slot'] = timeSlot;
+
+    const { data, error } = await client
       .from('workout_schedule')
-      .insert({ owner_id: userId, plan_id: planId, scheduled_date: scheduledDate, status: 'scheduled' });
+      .insert(payload)
+      .select('id')
+      .single();
 
-    return !error;
+    if (error || !data) return null;
+    return data.id;
   }
 
   async updateScheduledWorkoutStatus(scheduleId: string, status: string) {
@@ -696,6 +702,30 @@ export class WorkoutRepository {
     const { error } = await client
       .from('workout_schedule')
       .update({ scheduled_date: newDate })
+      .eq('id', scheduleId);
+
+    return !error;
+  }
+
+  async deleteScheduledWorkout(scheduleId: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .delete()
+      .eq('id', scheduleId);
+
+    return !error;
+  }
+
+  async updateScheduledWorkoutTimeSlot(scheduleId: string, timeSlot: string) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_schedule')
+      .update({ time_slot: timeSlot })
       .eq('id', scheduleId);
 
     return !error;

@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { CardioExerciseData, Exercise, InProgressWorkout, WorkoutSession, Set as WorkoutSet } from '../../core/models/models';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
-import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType } from '../../core/domain/workout-types';
+import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 import { resolveDefault, resolveCardioDefaults, getUnitMismatchMessage, sourceLabel, DefaultSource } from '../../core/domain/smart-defaults';
 import { computeCardioMetrics, createVirtualCardioExercise } from '../../core/domain/cardio-utils';
 import { CardioMapComponent } from './cardio-map.component';
@@ -44,42 +44,7 @@ import { CardioMapComponent } from './cardio-map.component';
             @if (saveErrorMessage) {
               <div class="mb-3 rounded-xl bg-red-50 text-red-600 text-sm px-4 py-3 border border-red-100 shrink-0">{{ saveErrorMessage }}</div>
             }
-            @if (freestyleMode()) {
-              <div class="mb-3 shrink-0">
-                <div class="flex items-center justify-between">
-                  <button type="button" (click)="toggleExercisePicker()" class="px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold">
-                    {{ showExercisePicker ? 'Hide Exercise Picker' : 'Add Exercise' }}
-                  </button>
-                  <span class="text-xs text-gray-500">{{ freestyleExercises().length }} selected</span>
-                </div>
-                @if (showExercisePicker) {
-                  <div class="mt-3 p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
-                    <app-search-bar
-                      [value]="exerciseSearchQuery"
-                      (valueChange)="exerciseSearchQuery = $event"
-                      placeholder="Search exercises"
-                    />
-                    <div class="mt-3 max-h-40 overflow-y-auto space-y-2">
-                      @for (ex of filteredExerciseOptions(); track ex.id) {
-                        <button
-                          type="button"
-                          (click)="addFreestyleExercise(ex)"
-                          class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-gray-200 text-left"
-                        >
-                          <span class="text-sm text-gray-900">{{ ex.name }}</span>
-                          <span
-                            class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                            [ngStyle]="typeBadgeStyle(ex.exerciseType)"
-                          >
-                            {{ typeLabel(ex.exerciseType) }}
-                          </span>
-                        </button>
-                      }
-                    </div>
-                  </div>
-                }
-              </div>
-            }
+
             @if (currentCardioData()?.gpsEnabled) {
               <div class="flex-none h-[50vh] max-h-[50vh] min-h-[240px] w-full">
                 <app-cardio-map
@@ -182,45 +147,10 @@ import { CardioMapComponent } from './cardio-map.component';
             </div>
           }
 
-          @if (freestyleMode()) {
-            <div class="sticky top-0 z-10 -mx-6 px-6 py-3 mb-4 bg-white/95 backdrop-blur border-b border-gray-100" #freestyleListAnchor>
-              <div class="flex items-center justify-between">
-                <button type="button" (click)="toggleExercisePicker()" class="px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold">
-                  {{ showExercisePicker ? 'Hide Exercise Picker' : 'Add Exercise' }}
-                </button>
-                <span class="text-xs text-gray-500">{{ freestyleExercises().length }} selected</span>
-              </div>
-            </div>
 
-            @if (showExercisePicker) {
-              <div class="mb-4 p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
-                <app-search-bar
-                  [value]="exerciseSearchQuery"
-                  (valueChange)="exerciseSearchQuery = $event"
-                  placeholder="Search exercises"
-                />
-                <div class="mt-5 max-h-52 overflow-y-auto space-y-2">
-                  @for (ex of filteredExerciseOptions(); track ex.id) {
-                    <button
-                      type="button"
-                      (click)="addFreestyleExercise(ex)"
-                      class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-gray-200 text-left"
-                    >
-                      <span class="text-sm text-gray-900">{{ ex.name }}</span>
-                      <span
-                        class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                        [ngStyle]="typeBadgeStyle(ex.exerciseType)"
-                      >
-                        {{ typeLabel(ex.exerciseType) }}
-                      </span>
-                    </button>
-                  }
-                </div>
-              </div>
-            }
-          }
 
           @if (currentExercise(); as exercise) {
+            @if (!showFreestylePicker()) {
             <div class="mb-8 animate-fade-in">
               <div class="aspect-video rounded-2xl overflow-hidden mb-6 shadow-sm bg-gray-100">
                 <img [src]="exercise.imageUrl" [alt]="exercise.name" class="w-full h-full object-cover">
@@ -334,22 +264,33 @@ import { CardioMapComponent } from './cardio-map.component';
                 </div>
               }
             </div>
+            }
           } @else {
             <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-              <p class="text-gray-600 text-sm">
-                {{ freestyleMode() ? 'No freestyle exercise selected yet.' : 'No exercises in this workout plan.' }}
-              </p>
+              <p class="text-gray-600 text-sm">{{ freestyleMode() ? 'No freestyle exercise selected yet.' : 'No exercises in this workout plan.' }}</p>
             </div>
           }
         </div>
       }
 
       <!-- Footer Navigation -->
-      <div class="fixed left-0 right-0 bottom-[-1px] z-[60] bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+1px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-20 after:bg-transparent workout-action-bar">
+      <div class="fixed left-0 right-0 bottom-[-1px] z-[60] bg-white border-t border-gray-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,1rem)+12px)] after:content-[''] after:absolute after:top-full after:left-0 after:right-0 after:h-24 after:bg-transparent workout-action-bar" [style.padding-bottom]="freestyleMode() ? 'calc(env(safe-area-inset-bottom, 1rem) + 20px)' : 'calc(env(safe-area-inset-bottom, 1rem) + 12px)'">
         <div class="flex justify-between items-center max-w-screen-xl mx-auto">
-          <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
-            <mat-icon>arrow_back</mat-icon>
-          </button>
+          @if (freestyleMode()) {
+            <div class="flex items-center gap-1.5">
+              <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+                <mat-icon>arrow_back</mat-icon>
+              </button>
+              <button type="button" (click)="showFreestylePicker.set(true); freestylePickerClosable.set(true)" class="flex items-center gap-1 px-3 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold">
+                <mat-icon style="font-size:18px;width:18px;height:18px;">add</mat-icon>
+                <span>Add</span>
+              </button>
+            </div>
+          } @else {
+            <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+          }
           
           <button type="button" (click)="openExerciseListModal()" class="text-sm font-medium text-gray-500">
             {{ currentExercise() ? effectiveExerciseIndex() + 1 : 0 }} / {{ totalExercisesCount() }}
@@ -454,11 +395,124 @@ import { CardioMapComponent } from './cardio-map.component';
           </div>
         </div>
       }
+
+      @if (showFreestylePicker()) {
+        <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
+          <div class="animate-fade-in w-full max-w-lg bg-white rounded-2xl p-4 shadow-xl border border-gray-100 space-y-3" style="max-height: calc(100vh - (72px + env(safe-area-inset-bottom, 20px)) - 32px); overflow:auto;">
+            @if (!freestyleWorkoutType()) {
+              <!-- Workout Type Picker -->
+              <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-gray-900">What kind of workout?</h3>
+                <button type="button" (click)="showFreestylePicker.set(false)" class="text-gray-400 hover:text-gray-600 transition-colors">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 mt-2">
+                <button type="button" (click)="selectFreestyleWorkoutType('strength')"
+                        class="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all active:scale-95"
+                        [class.border-red-300]="true"
+                        [class.bg-red-50]="true">
+                  <span class="text-3xl">{{ workoutTypeEmoji('strength') }}</span>
+                  <span class="text-base font-bold text-gray-900">Strength</span>
+                  <span class="text-xs text-gray-500">Weightlifting, resistance training</span>
+                </button>
+                <button type="button" (click)="selectFreestyleWorkoutType('cardio')"
+                        class="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all active:scale-95"
+                        [class.border-green-300]="true"
+                        [class.bg-green-50]="true">
+                  <span class="text-3xl">{{ workoutTypeEmoji('cardio') }}</span>
+                  <span class="text-base font-bold text-gray-900">Cardio</span>
+                  <span class="text-xs text-gray-500">Running, cycling, hiking</span>
+                </button>
+              </div>
+            } @else {
+              <!-- Exercise Picker -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <button type="button" (click)="freestyleWorkoutType.set(null)" class="text-gray-400 hover:text-gray-600 transition-colors flex items-center">
+                    <mat-icon>arrow_back</mat-icon>
+                  </button>
+                  <h3 class="text-base font-bold text-gray-900">Add Exercise</h3>
+                  <span
+                    class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    [ngStyle]="typeBadgeStyle(freestyleWorkoutType())"
+                  >
+                    {{ typeLabel(freestyleWorkoutType()) }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500">{{ freestyleExercises().length }} selected</span>
+                  @if (freestylePickerClosable()) {
+                    <button type="button" (click)="showFreestylePicker.set(false)" class="text-gray-400">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <app-search-bar
+                [value]="exerciseSearchQuery"
+                (valueChange)="exerciseSearchQuery = $event"
+                placeholder="Search exercises"
+              />
+
+              <div class="max-h-64 overflow-y-auto space-y-2 mt-5">
+                @for (ex of filteredExerciseOptions(); track ex.id) {
+                  <button
+                    type="button"
+                    (click)="addFreestyleExercise(ex)"
+                    [disabled]="isExerciseLocked(ex)"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg border text-left transition-colors"
+                    [class.bg-orange-50]="isExerciseCurrent(ex)"
+                    [class.border-orange-300]="isExerciseCurrent(ex)"
+                    [class.bg-blue-50]="isExerciseSelected(ex) && !isExerciseCurrent(ex) && !isExerciseLocked(ex)"
+                    [class.border-blue-300]="isExerciseSelected(ex) && !isExerciseCurrent(ex) && !isExerciseLocked(ex)"
+                    [class.bg-white]="!isExerciseSelected(ex) || isExerciseLocked(ex)"
+                    [class.border-gray-200]="!isExerciseSelected(ex) || isExerciseLocked(ex)"
+                    [class.hover:bg-gray-50]="!isExerciseSelected(ex) && !isExerciseLocked(ex)"
+                    [class.opacity-50]="isExerciseLocked(ex)"
+                    [class.cursor-not-allowed]="isExerciseLocked(ex)"
+                  >
+                    <span class="flex items-center gap-1">
+                      <span class="text-sm truncate" [class.text-gray-900]="!isExerciseLocked(ex)" [class.text-gray-400]="isExerciseLocked(ex)">{{ ex.name }}</span>
+                      @if (isExerciseCurrent(ex)) {
+                        <span class="text-[10px] font-semibold text-orange-600 shrink-0 leading-[18px]">(current)</span>
+                      }
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                      @if (isExerciseLocked(ex)) {
+                        <mat-icon style="font-size:14px;width:14px;height:14px;" class="text-gray-400">lock</mat-icon>
+                      }
+                      <span
+                        class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        [ngStyle]="typeBadgeStyle(ex.exerciseType)"
+                      >
+                        {{ typeLabel(ex.exerciseType) }}
+                      </span>
+                    </span>
+                  </button>
+                }
+                @if (filteredExerciseOptions().length === 0) {
+                  <p class="text-center text-gray-400 text-sm py-8">No exercises found</p>
+                }
+              </div>
+
+              @if (freestyleExercises().length > 0) {
+                <button type="button" (click)="startFreestyleWorkout()"
+                        class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 active:scale-95 transition-transform">
+                  {{ freestylePickerClosable() ? 'Continue' : 'Start Workout' }} ({{ freestyleExercises().length }} exercises)
+                </button>
+              }
+            }
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
     .workout-content {
-      padding-bottom: calc(72px + env(safe-area-inset-bottom, 20px) + 12px);
+      padding-bottom: calc(72px + env(safe-area-inset-bottom, 20px) + 24px);
     }
     .workout-action-bar {
       bottom: 0;
@@ -483,6 +537,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   plan = computed(() => this.workoutService.getPlanById(this.planId()));
   freestyleMode = signal(false);
   freestyleExercises = signal<Exercise[]>([]);
+  freestyleWorkoutType = signal<'strength' | 'cardio' | null>(null);
   workoutTitle = computed(() => this.freestyleMode() ? 'Freestyle Workout' : (this.plan()?.name || 'Workout'));
 
   virtualExercise = computed<Exercise | null>(() => {
@@ -541,6 +596,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   @ViewChild('freestyleListAnchor', { static: false }) freestyleListAnchorEl?: ElementRef<HTMLElement>;
   showInfo = false;
   showExercisePicker = false;
+  showFreestylePicker = signal(false);
+  freestylePickerClosable = signal(false);
+  freestyleStarted = signal(false);
   showExerciseListModal = signal(false);
   exerciseSearchQuery = '';
   showExitOptionsModal = signal(false);
@@ -620,7 +678,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.freestyleMode.set(id === 'freestyle');
       if (id === 'freestyle') {
         this.freestyleExercises.set([]);
-        this.showExercisePicker = true;
+        this.freestylePickerClosable.set(false);
+        this.showFreestylePicker.set(true);
       }
       this.startTime = new Date();
       this.elapsedTime.set(0);
@@ -631,7 +690,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         this.timerInterval = undefined;
       }
       this.initializeWorkoutData();
-      this.startTimer();
+      if (!this.freestyleMode()) {
+        this.startTimer();
+      }
 
       // Optimistically mark the plan as started so UI shows it as started
       if (!this.freestyleMode()) {
@@ -770,22 +831,32 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   filteredExerciseOptions() {
     const query = this.exerciseSearchQuery.trim().toLowerCase();
-    const selectedIds = new Set(this.freestyleExercises().map(ex => ex.id));
-    const all = this.workoutService.exercises().filter(ex => !selectedIds.has(ex.id));
-    if (!query) return all;
+    const all = this.workoutService.exercises();
+    const selectedType = this.freestyleWorkoutType();
+    let filtered = all;
 
-    return all.filter(exercise => {
+    if (selectedType) {
+      filtered = filtered.filter(ex => ex.exerciseType === selectedType);
+    }
+
+    if (!query) return filtered;
+
+    return filtered.filter(exercise => {
       const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
   }
 
-  typeLabel(type?: string) {
+  typeLabel(type: string | null | undefined) {
     return getWorkoutTypeVisual(type).label;
   }
 
-  typeBadgeStyle(type?: string) {
+  typeBadgeStyle(type: string | null | undefined) {
     return workoutTypeBadgeStyle(type);
+  }
+
+  workoutTypeEmoji(type: string | null | undefined) {
+    return getWorkoutTypeEmoji(type);
   }
 
   toggleExercisePicker() {
@@ -803,6 +874,30 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   }
 
   addFreestyleExercise(exercise: Exercise) {
+    if (this.isExerciseLocked(exercise)) return;
+
+    if (this.isExerciseSelected(exercise)) {
+      this.freestyleExercises.update(current => current.filter(ex => ex.id !== exercise.id));
+      this.workoutData.update(current => {
+        const next = new Map(current);
+        next.delete(exercise.id);
+        return next;
+      });
+      if (exercise.exerciseType === 'cardio') {
+        this.stopGPSTracking(exercise.id);
+        this.cardioExerciseData.update(map => {
+          const next = new Map(map);
+          next.delete(exercise.id);
+          return next;
+        });
+      }
+      if (this.currentExercise()?.id === exercise.id) {
+        const remaining = this.freestyleExercises();
+        this.currentExerciseIndex.set(remaining.length > 0 ? 0 : 0);
+      }
+      return;
+    }
+
     if (exercise.exerciseType === 'cardio') {
       const existingCardio = this.freestyleExercises().find(ex => ex.exerciseType === 'cardio');
       if (existingCardio) {
@@ -828,8 +923,42 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     if (exercise.exerciseType === 'cardio') {
       this.initCardioExercise(exercise.id);
     }
-    this.currentExerciseIndex.set(Math.max(0, this.freestyleExercises().length - 1));
+    const wasEmpty = this.freestyleExercises().length <= 1;
+    if (wasEmpty) {
+      this.currentExerciseIndex.set(0);
+    }
     this.showExercisePicker = false;
+  }
+
+  selectFreestyleWorkoutType(type: 'strength' | 'cardio') {
+    this.freestyleWorkoutType.set(type);
+  }
+
+  startFreestyleWorkout() {
+    this.showFreestylePicker.set(false);
+    this.freestylePickerClosable.set(false);
+    if (!this.freestyleStarted()) {
+      this.currentExerciseIndex.set(0);
+      this.freestyleStarted.set(true);
+      this.startTime = new Date();
+      this.elapsedTime.set(0);
+      this.startTimer();
+      this.persistInProgress();
+    }
+  }
+
+  isExerciseSelected(exercise: Exercise): boolean {
+    return this.freestyleExercises().some(ex => ex.id === exercise.id);
+  }
+
+  isExerciseCurrent(exercise: Exercise): boolean {
+    return this.currentExercise()?.id === exercise.id;
+  }
+
+  isExerciseLocked(exercise: Exercise): boolean {
+    if (!this.freestyleStarted()) return false;
+    const idx = this.freestyleExercises().findIndex(ex => ex.id === exercise.id);
+    return idx !== -1 && idx < this.currentExerciseIndex();
   }
 
   confirmCurrentExercise() {

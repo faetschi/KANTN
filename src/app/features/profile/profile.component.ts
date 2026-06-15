@@ -26,6 +26,7 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
         <button (click)="logout()" class="text-red-500 font-medium text-sm">Log Out</button>
       </header>
 
+      <div class="fade-in space-y-6">
       <!-- Profile Card -->
       <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
         <app-user-avatar-badge
@@ -349,8 +350,13 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
           <mat-icon class="text-gray-300">chevron_right</mat-icon>
         </div>
       </section>
+      </div>
     </div>
-  `
+  `,
+  styles: [`
+    .fade-in { animation: fadeIn 0.4s ease-out backwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  `]
 })
 export class ProfileComponent {
   authService = inject(AuthService);
