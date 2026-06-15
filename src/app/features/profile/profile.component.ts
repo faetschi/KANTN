@@ -217,9 +217,6 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
 
       <!-- Period Toggle + Stats -->
       <section>
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold text-gray-900">Overview</h3>
-        </div>
         <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl relative">
           <div class="grid grid-cols-2 gap-6">
             <div>
