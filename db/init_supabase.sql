@@ -388,6 +388,27 @@ alter table workout_session_sets
   add column if not exists completed boolean not null default false,
   add column if not exists created_at timestamptz not null default now();
 
+-- Scheduled workouts (persistent calendar scheduling)
+create table if not exists workout_schedule (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references profiles(id) on delete cascade,
+  plan_id uuid not null references workout_plans(id) on delete cascade,
+  scheduled_date date not null,
+  status text not null default 'scheduled' check (status in ('scheduled', 'completed', 'missed', 'skipped')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Forward-safe migrations for workout_schedule
+alter table workout_schedule
+  add column if not exists owner_id uuid,
+  add column if not exists plan_id uuid,
+  add column if not exists scheduled_date date,
+  add column if not exists status text not null default 'scheduled',
+  add column if not exists time_slot text check (time_slot in ('morning', 'afternoon', 'evening')),
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
 create unique index if not exists idx_profiles_username_unique on profiles (lower(username));
 create index if not exists idx_profiles_approved on profiles (approved);
 create index if not exists idx_profiles_admin on profiles (is_admin);
@@ -418,6 +439,8 @@ begin
   where workout_plans.id = dupes.id;
 end;
 $$;
+
+create index if not exists idx_workout_schedule_owner on workout_schedule (owner_id, scheduled_date desc);
 
 create unique index if not exists idx_workout_plans_one_active
   on workout_plans (owner_id)
@@ -1743,6 +1766,28 @@ create policy "session_sets_delete" on workout_session_sets
         and ((s.owner_id = auth.uid() and is_approved()) or is_admin())
     )
   );
+
+drop policy if exists "workout_schedule_select" on workout_schedule;
+drop policy if exists "workout_schedule_insert" on workout_schedule;
+drop policy if exists "workout_schedule_update" on workout_schedule;
+drop policy if exists "workout_schedule_delete" on workout_schedule;
+
+create policy "workout_schedule_select" on workout_schedule
+  for select
+  using ((owner_id = auth.uid() and is_approved()) or is_admin());
+
+create policy "workout_schedule_insert" on workout_schedule
+  for insert
+  with check ((owner_id = auth.uid() and is_approved()) or is_admin());
+
+create policy "workout_schedule_update" on workout_schedule
+  for update
+  using ((owner_id = auth.uid() and is_approved()) or is_admin())
+  with check ((owner_id = auth.uid() and is_approved()) or is_admin());
+
+create policy "workout_schedule_delete" on workout_schedule
+  for delete
+  using ((owner_id = auth.uid() and is_approved()) or is_admin());
 
 -- Exercise image storage (admins manage default image library)
 insert into storage.buckets (id, name, public)

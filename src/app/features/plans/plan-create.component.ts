@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ViewChild, ElementRef, afterNextRender } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
@@ -6,7 +6,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
-import { Exercise, WorkoutPlan } from '../../core/models/models';
+import { Exercise, TimeSlot, WorkoutPlan } from '../../core/models/models';
+import { TimeSlotPickerComponent, TimeSlotItem } from '../../shared/components/time-slot-picker.component';
 import { AuthService } from '../../core/services/auth.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutPlanTypeWithFallback } from '../../core/domain/workout-types';
@@ -14,7 +15,7 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
 @Component({
   selector: 'app-plan-create',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatSnackBarModule, FormsModule, RouterLink, SearchBarComponent],
+  imports: [CommonModule, MatIconModule, MatSnackBarModule, FormsModule, RouterLink, SearchBarComponent, TimeSlotPickerComponent],
   template: `
     <div class="min-h-screen flex flex-col bg-white">
       <div class="flex-1 p-6 space-y-6 plan-form-content">
@@ -24,12 +25,12 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
           </button>
           <h1 class="text-2xl font-bold text-gray-900">{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h1>
         </header>
-        <section class="static bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between">
+        <section class="cloud-outline p-4 flex items-center justify-between">
           <div>
             <h3 class="text-sm font-semibold text-gray-900">Need Custom Exercises?</h3>
             <p class="text-xs text-gray-500">Create and share them in the dedicated exercises page.</p>
           </div>
-          <button routerLink="/plans/exercises" type="button" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">
+          <button routerLink="/plans/custom-exercises" type="button" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">
             Manage
           </button>
         </section>
@@ -104,10 +105,10 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
           </div>
 
           @if (workoutPlanType() === 'cardio') {
-            <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3">
-              <h3 class="text-sm font-semibold text-orange-900">Cardio Target (Optional)</h3>
-              <p class="text-xs text-orange-600">Cardio plans have no exercises — the activity category above defines the workout.</p>
-              <div class="grid grid-cols-2 gap-3">
+            <div #cardioTarget class="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3" [class.fade-in]="cardioTargetVisible()">
+              <h3 class="text-sm font-semibold text-orange-900 fade-in-item" [style.animation-delay]="'0ms'">Cardio Target (Optional)</h3>
+              <p class="text-xs text-orange-600 fade-in-item" [style.animation-delay]="'80ms'">Cardio plans have no exercises — the activity category above defines the workout.</p>
+              <div class="grid grid-cols-2 gap-3 fade-in-item" [style.animation-delay]="'160ms'">
                 <div>
                   <span class="block text-xs text-orange-700 mb-1">Target Distance (km)</span>
                   <input type="number" [(ngModel)]="cardioTargetDistance"
@@ -155,10 +156,11 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
                 (valueChange)="exerciseSearchQuery = $event"
                 placeholder="Search exercises"
               />
-              <div class="mt-5 space-y-3">
+              <div #exerciseList class="mt-5 space-y-3" [class.fade-in]="exerciseListVisible()">
                 @for (exercise of filteredAvailableExercises(); track exercise.id) {
                   <button type="button" (click)="toggleExercise(exercise)" 
-                       class="w-full flex items-center p-3 rounded-xl border transition-all cursor-pointer"
+                       class="w-full flex items-center p-3 rounded-xl border transition-all cursor-pointer fade-in-item"
+                       [style.animation-delay]="$index * 50 + 'ms'"
                        [class.border-blue-500]="isSelected(exercise)"
                        [class.bg-blue-50]="isSelected(exercise)"
                        [class.border-gray-200]="!isSelected(exercise)">
@@ -206,6 +208,14 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
         }
       </div>
     </div>
+
+    @if (showTimeSlotPicker()) {
+      <app-time-slot-picker
+        [workouts]="timeSlotItems()"
+        (saved)="onTimeSlotsSaved($event)"
+        (cancelled)="showTimeSlotPicker.set(false)"
+      />
+    }
   `,
   styles: [`
     .safe-area-pb {
@@ -221,6 +231,28 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
     }
     .plan-form-content {
       padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+    }
+    .cloud-outline {
+      background: #f9fafb;
+      border: 2px dotted #d1d5db;
+      border-radius: 1rem;
+    }
+    .fade-in-item {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    .fade-in .fade-in-item {
+      animation: fadeInUp 0.5s ease-out forwards;
+    }
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   `]
 })
@@ -238,6 +270,10 @@ export class PlanCreateComponent {
   editingPlanId: string | null = null;
   planSaveMessage = '';
   exerciseSearchQuery = '';
+  @ViewChild('exerciseList') exerciseListEl?: ElementRef<HTMLElement>;
+  exerciseListVisible = signal(false);
+  @ViewChild('cardioTarget') cardioTargetEl?: ElementRef<HTMLElement>;
+  cardioTargetVisible = signal(false);
   selectedExercises = signal<Exercise[]>([]);
   availableExercises = this.workoutService.exercises;
   cardioTargetDistance: number | null = null;
@@ -248,6 +284,11 @@ export class PlanCreateComponent {
   scheduleEnabled = false;
   scheduleDate = '';
   minScheduleDate = new Date().toISOString().split('T')[0];
+
+  // ── Time-slot assignment state ──
+  showTimeSlotPicker = signal(false);
+  timeSlotItems = signal<TimeSlotItem[]>([]);
+  private pendingCreatedPlanId = '';
 
   strengthCategories = [
     { value: 'upper body', label: 'Upper Body' },
@@ -265,6 +306,80 @@ export class PlanCreateComponent {
 
   constructor() {
     this.initializeEditMode();
+    afterNextRender(() => {
+      this.monitorExerciseList();
+      this.monitorCardioTarget();
+    });
+  }
+
+  private monitorExerciseList() {
+    let observer: IntersectionObserver | null = null;
+    const poll = () => {
+      const type = this.workoutPlanType();
+      if (type !== 'strength') {
+        observer?.disconnect();
+        observer = null;
+        this.exerciseListVisible.set(false);
+        setTimeout(poll, 150);
+        return;
+      }
+      if (this.exerciseListVisible()) {
+        setTimeout(poll, 300);
+        return;
+      }
+      const el = this.exerciseListEl?.nativeElement;
+      if (!el) {
+        setTimeout(poll, 50);
+        return;
+      }
+      if (!observer) {
+        observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            this.exerciseListVisible.set(true);
+            observer?.disconnect();
+            observer = null;
+          }
+        }, { threshold: 0.05 });
+        observer.observe(el);
+      }
+      setTimeout(poll, 300);
+    };
+    poll();
+  }
+
+  private monitorCardioTarget() {
+    let observer: IntersectionObserver | null = null;
+    const poll = () => {
+      const type = this.workoutPlanType();
+      if (type !== 'cardio') {
+        observer?.disconnect();
+        observer = null;
+        this.cardioTargetVisible.set(false);
+        setTimeout(poll, 150);
+        return;
+      }
+      if (this.cardioTargetVisible()) {
+        setTimeout(poll, 300);
+        return;
+      }
+      const el = this.cardioTargetEl?.nativeElement;
+      if (!el) {
+        setTimeout(poll, 50);
+        return;
+      }
+      if (!observer) {
+        observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            this.cardioTargetVisible.set(true);
+            observer?.disconnect();
+            observer = null;
+          }
+        }, { threshold: 0.05 });
+        observer.observe(el);
+      }
+      setTimeout(poll, 300);
+    };
+    poll();
   }
 
   private initializeEditMode() {
@@ -405,18 +520,57 @@ export class PlanCreateComponent {
 
     // Schedule the plan if a date was selected
     if (this.scheduleEnabled && this.scheduleDate) {
-      const scheduleOk = await this.workoutService.schedulePlan(persistedPlanId, new Date(this.scheduleDate));
-      if (!scheduleOk) {
-        this.planSaveMessage = 'Plan saved but could not be scheduled.';
+      const scheduleDate = new Date(this.scheduleDate);
+      const existing = this.workoutService.getScheduledWorkoutsForDate(scheduleDate);
+
+      if (existing.length === 0) {
+        const scheduleOk = await this.workoutService.schedulePlan(persistedPlanId, scheduleDate);
+        if (!scheduleOk) {
+          this.planSaveMessage = 'Plan saved but could not be scheduled.';
+          return;
+        }
+        this.finishCreatePlan();
         return;
       }
+
+      // Conflict — show time-slot picker
+      this.pendingCreatedPlanId = persistedPlanId;
+      this.timeSlotItems.set([
+        ...existing.map(sw => ({ id: sw.id, planName: sw.planName, timeSlot: sw.timeSlot ?? null })),
+        { id: null, planName: newPlan.name, timeSlot: null },
+      ]);
+      this.showTimeSlotPicker.set(true);
+      return;
     }
 
+    this.finishCreatePlan();
+  }
+
+  private finishCreatePlan() {
     this.snackBar.open('Plan created successfully.', 'Close', { duration: 3000 });
     this.cardioTargetDistance = null;
     this.cardioTargetDuration = null;
     this.scheduleEnabled = false;
     this.scheduleDate = '';
     this.router.navigate(['/plans']);
+  }
+
+  async onTimeSlotsSaved(items: TimeSlotItem[]) {
+    this.showTimeSlotPicker.set(false);
+
+    const newItem = items.find(i => i.id === null);
+    const existingItems = items.filter(i => i.id !== null);
+
+    if (newItem?.timeSlot && this.pendingCreatedPlanId) {
+      await this.workoutService.schedulePlan(this.pendingCreatedPlanId, new Date(this.scheduleDate || ''), newItem.timeSlot);
+    }
+
+    for (const item of existingItems) {
+      if (item.id && item.timeSlot) {
+        await this.workoutService.updateTimeSlot(item.id, item.timeSlot as TimeSlot);
+      }
+    }
+
+    this.finishCreatePlan();
   }
 }

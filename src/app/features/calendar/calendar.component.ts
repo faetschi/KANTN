@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
+import { FabButtonComponent } from '../../shared/components/fab-button.component';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
-import { WorkoutSession, ScheduledWorkout, WorkoutPlan } from '../../core/models/models';
+import { TimeSlot, WorkoutSession, ScheduledWorkout, WorkoutPlan } from '../../core/models/models';
+import { TimeSlotPickerComponent, TimeSlotItem } from '../../shared/components/time-slot-picker.component';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 import {
   deriveWorkoutPlanType,
@@ -30,7 +32,7 @@ interface CalendarDay {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, MatIconModule, RouterLink, PeriodToggleComponent],
+  imports: [CommonModule, MatIconModule, RouterLink, PeriodToggleComponent, FabButtonComponent, TimeSlotPickerComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -116,6 +118,7 @@ interface CalendarDay {
         </div>
       </div>
 
+      <div class="fade-in space-y-6">
       <!-- Calendar Grid -->
       <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
         <div class="grid grid-cols-7 mb-2">
@@ -163,23 +166,111 @@ interface CalendarDay {
         </div>
       </div>
 
-      <!-- Selected Day: Scheduled + Completed Workouts + Schedule Picker -->
+      <!-- Selected Day: Scheduled + Completed Workouts -->
       <section *ngIf="selectedDate()" class="space-y-3">
-        <h3 class="text-sm font-bold text-gray-900 px-1">{{ selectedDate() | date:'MMMM d' }}</h3>
+        <h3 class="text-sm font-bold text-gray-900 px-1 mt-6">{{ selectedDate() | date:'MMMM d' }}</h3>
 
-        <!-- Schedule Workout button + inline plan picker -->
-        <div class="pt-1">
-          <div class="rounded-2xl border-2 border-dashed border-gray-200 overflow-hidden transition-colors" [class.border-gray-300]="showSchedulePicker()">
-            <button (click)="showSchedulePicker.set(!showSchedulePicker())" class="w-full flex items-center justify-center gap-2 p-3 text-gray-500 text-sm font-semibold hover:bg-gray-50 active:bg-gray-50 transition-colors">
-              <mat-icon class="text-lg">add</mat-icon>
-<span class="text-base">Schedule Workout</span>
-              <mat-icon class="text-lg transition-transform" [class.rotate-180]="showSchedulePicker()">expand_more</mat-icon>
-            </button>
-            <div *ngIf="showSchedulePicker()" class="border-t border-dashed border-gray-200 px-2 pb-2 pt-1 space-y-1">
+        <!-- Scheduled workouts -->
+        <div *ngFor="let sw of selectedDayScheduled()" class="relative bg-blue-50/60 p-3 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
+          <button (click)="removeScheduled(sw.id); $event.stopPropagation()" class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold">
+            ✕
+          </button>
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+              <mat-icon class="text-lg">event</mat-icon>
+            </div>
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-900 text-sm truncate">{{ sw.planName }}</div>
+              <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 uppercase tracking-wide">{{ sw.timeSlot ? timeSlotLabel(sw.timeSlot) : 'Planned' }}</span>
+            </div>
+          </div>
+          <button (click)="startScheduledWorkout(sw)" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg active:scale-95 transition-transform whitespace-nowrap shrink-0 ml-2">Start</button>
+        </div>
+
+        <!-- Completed/logged workouts -->
+        <div *ngFor="let session of selectedDayWorkouts()" 
+             (click)="openSession(session.id)"
+             class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 text-emerald-600">
+              <mat-icon>check_circle</mat-icon>
+            </div>
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-900 text-sm truncate">{{ getPlanName(session.planId) }}</div>
+              <div class="mt-1 flex items-center gap-2">
+                <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" [ngStyle]="sessionBadgeStyle(session)">
+                  {{ sessionTypeLabel(session) }}
+                </span>
+                <span class="text-xs text-gray-500">{{ session.date | date:'h:mm a' }} • {{ ((session.duration || 0) / 60) | number:'1.0-0' }} min</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right shrink-0 ml-2">
+            <div class="font-bold text-gray-900 text-sm">{{ session.caloriesBurned || 0 }}</div>
+            <div class="text-[10px] text-gray-400 uppercase font-medium">Kcal</div>
+          </div>
+        </div>
+
+        <div *ngIf="selectedDayWorkouts().length === 0 && selectedDayScheduled().length === 0" class="text-center py-8 text-gray-400 text-sm">
+          {{ isTodaySelected() ? 'No workouts today.' : 'No workouts for this day.' }}
+        </div>
+      </section>
+
+      <!-- FAB Button -->
+      <app-fab-button
+        (fabClick)="openScheduleModal()"
+        icon="add"
+        color="bg-blue-600 hover:bg-blue-700 text-white"
+      />
+
+      <!-- Schedule Workout Modal -->
+      <div *ngIf="showScheduleModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeScheduleModal()">
+        <div class="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden" (click)="$event.stopPropagation()">
+          <ng-container *ngIf="!scheduleWorkoutType(); else planList">
+            <!-- Workout Type Picker -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 class="text-lg font-bold text-gray-900">What kind of workout?</h3>
+              <button (click)="closeScheduleModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                <mat-icon class="text-xl">close</mat-icon>
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-3 p-4">
+              <button type="button" (click)="selectScheduleWorkoutType('strength')"
+                      class="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all active:scale-95"
+                      [class.border-red-300]="true" [class.bg-red-50]="true">
+                <span class="text-3xl">{{ workoutTypeEmoji('strength') }}</span>
+                <span class="text-base font-bold text-gray-900">Strength</span>
+                <span class="text-xs text-gray-500">Weightlifting, resistance training</span>
+              </button>
+              <button type="button" (click)="selectScheduleWorkoutType('cardio')"
+                      class="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all active:scale-95"
+                      [class.border-green-300]="true" [class.bg-green-50]="true">
+                <span class="text-3xl">{{ workoutTypeEmoji('cardio') }}</span>
+                <span class="text-base font-bold text-gray-900">Cardio</span>
+                <span class="text-xs text-gray-500">Running, cycling, hiking</span>
+              </button>
+            </div>
+          </ng-container>
+          <ng-template #planList>
+            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+              <div class="flex items-center gap-2">
+                <button type="button" (click)="scheduleWorkoutType.set(null)" class="text-gray-400 hover:text-gray-600 p-1 flex items-center">
+                  <mat-icon class="text-xl">arrow_back</mat-icon>
+                </button>
+                <h3 class="text-lg font-bold text-gray-900">Schedule Workout</h3>
+                <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" [ngStyle]="typeBadgeStyle(scheduleWorkoutType())">
+                  {{ typeLabel(scheduleWorkoutType()) }}
+                </span>
+              </div>
+              <button (click)="closeScheduleModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                <mat-icon class="text-xl">close</mat-icon>
+              </button>
+            </div>
+            <div class="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
               <div *ngFor="let plan of availablePlans()" 
-                   (click)="scheduleWorkout(plan.id)"
-                   class="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors"
-                   [ngClass]="scheduledPlanIds().has(plan.id) ? 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-80' : 'bg-white border-gray-200 hover:border-gray-300 active:bg-gray-50'">
+                   (click)="scheduleWorkout(plan.id); closeScheduleModal()"
+                   class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
+                   [ngClass]="scheduledPlanIds().has(plan.id) ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'">
                 <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" [ngStyle]="planIconStyle(plan)">
                   <mat-icon class="text-lg" [style.color]="planIconTextColor(plan)">fitness_center</mat-icon>
                 </div>
@@ -199,54 +290,16 @@ interface CalendarDay {
                 All plans already scheduled for this day.
               </div>
             </div>
-          </div>
+          </ng-template>
         </div>
+      </div>
 
-        <!-- Scheduled workouts -->
-        <div *ngFor="let sw of selectedDayScheduled()" class="relative bg-blue-50/60 p-3 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
-          <button (click)="removeScheduled(sw.id); $event.stopPropagation()" class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold">
-            ✕
-          </button>
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-              <mat-icon class="text-lg">event</mat-icon>
-            </div>
-            <div class="min-w-0">
-              <div class="font-semibold text-gray-900 text-sm truncate">{{ sw.planName }}</div>
-              <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Planned</span>
-            </div>
-          </div>
-          <button (click)="startScheduledWorkout(sw)" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg active:scale-95 transition-transform whitespace-nowrap shrink-0 ml-2">Start</button>
-        </div>
-
-        <!-- Completed/logged workouts -->
-        <div *ngFor="let session of selectedDayWorkouts()" 
-             (click)="openSession(session.id)"
-             class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" [ngStyle]="sessionIconStyle(session)">
-              <mat-icon>fitness_center</mat-icon>
-            </div>
-            <div class="min-w-0">
-              <div class="font-semibold text-gray-900 text-sm truncate">{{ getPlanName(session.planId) }}</div>
-              <span class="mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" [ngStyle]="sessionBadgeStyle(session)">
-                {{ sessionTypeLabel(session) }}
-              </span>
-              <div class="text-xs text-gray-500">{{ session.date | date:'h:mm a' }} • {{ ((session.duration || 0) / 60) | number:'1.0-0' }} min</div>
-            </div>
-          </div>
-          <div class="text-right shrink-0 ml-2">
-            <div class="font-bold text-gray-900 text-sm">{{ session.caloriesBurned || 0 }}</div>
-            <div class="text-[10px] text-gray-400 uppercase font-medium">Kcal</div>
-          </div>
-        </div>
-
-        <div *ngIf="selectedDayWorkouts().length === 0 && selectedDayScheduled().length === 0 && !showSchedulePicker()" class="text-center py-8 text-gray-400 text-sm">
-          No workouts for this day.
-        </div>
-      </section>
-
-    </div>
+      <!-- Time-slot picker for multi-workout days -->
+      <app-time-slot-picker *ngIf="showTimeSlotPicker()"
+        [workouts]="timeSlotItems()"
+        (saved)="onTimeSlotsSaved($event)"
+        (cancelled)="showTimeSlotPicker.set(false)"
+      />
   `,
   styles: [`
     :host { display: block; }
@@ -275,14 +328,28 @@ export class CalendarComponent implements OnInit {
   weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   viewMode = signal<'month' | 'week'>('month');
   showCategoryDetails = signal(false);
-  showSchedulePicker = signal(false);
+  isTodaySelected = computed(() => {
+    const d = this.selectedDate();
+    if (!d) return false;
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  });
+  showScheduleModal = signal(false);
+  scheduleWorkoutType = signal<'strength' | 'cardio' | null>(null);
+
+  // ── Time-slot assignment state ──
+  showTimeSlotPicker = signal(false);
+  timeSlotItems = signal<TimeSlotItem[]>([]);
+  private pendingScheduledPlanId = '';
+  private pendingScheduledDate: Date | null = null;
 
   constructor() {
     effect(() => {
       const ids = this.scheduledPlanIds();
       const all = this.availablePlans();
-      if (this.showSchedulePicker() && all.length > 0 && all.every(p => ids.has(p.id))) {
-        this.showSchedulePicker.set(false);
+      if (this.showScheduleModal() && all.length > 0 && all.every(p => ids.has(p.id))) {
+        this.scheduleWorkoutType.set(null);
+        this.showScheduleModal.set(false);
       }
     });
   }
@@ -520,17 +587,78 @@ export class CalendarComponent implements OnInit {
   }
 
   availablePlans = computed(() => {
-    return this.workoutService.plans();
+    const type = this.scheduleWorkoutType();
+    const plans = this.workoutService.plans();
+    if (!type) return plans;
+    return plans.filter(plan => getWorkoutPlanType(plan) === type);
   });
 
   isPlanScheduled(planId: string) {
     return this.scheduledPlanIds().has(planId);
   }
 
+  openScheduleModal() {
+    this.scheduleWorkoutType.set(null);
+    this.showScheduleModal.set(true);
+  }
+
+  closeScheduleModal() {
+    this.scheduleWorkoutType.set(null);
+    this.showScheduleModal.set(false);
+  }
+
+  selectScheduleWorkoutType(type: 'strength' | 'cardio') {
+    this.scheduleWorkoutType.set(type);
+  }
+
+  workoutTypeEmoji(type: string | null | undefined) {
+    return getWorkoutTypeEmoji(type);
+  }
+
+  typeLabel(type: string | null | undefined) {
+    return getWorkoutTypeVisual(type).label;
+  }
+
+  typeBadgeStyle(type: string | null | undefined) {
+    return workoutTypeBadgeStyle(type);
+  }
+
   async scheduleWorkout(planId: string) {
     const selected = this.selectedDate();
     if (!selected) return;
-    await this.workoutService.schedulePlan(planId, selected);
+
+    const existing = this.workoutService.getScheduledWorkoutsForDate(selected);
+    if (existing.length === 0) {
+      await this.workoutService.schedulePlan(planId, selected);
+      return;
+    }
+
+    // Conflict — show time-slot picker
+    const plan = this.workoutService.getPlanById(planId);
+    this.pendingScheduledPlanId = planId;
+    this.pendingScheduledDate = selected;
+    this.timeSlotItems.set([
+      ...existing.map(sw => ({ id: sw.id, planName: sw.planName, timeSlot: sw.timeSlot ?? null })),
+      { id: null, planName: plan?.name || 'New Workout', timeSlot: null },
+    ]);
+    this.showTimeSlotPicker.set(true);
+  }
+
+  async onTimeSlotsSaved(items: TimeSlotItem[]) {
+    this.showTimeSlotPicker.set(false);
+
+    const newItem = items.find(i => i.id === null);
+    const existingItems = items.filter(i => i.id !== null);
+
+    if (newItem?.timeSlot && this.pendingScheduledDate) {
+      await this.workoutService.schedulePlan(this.pendingScheduledPlanId, this.pendingScheduledDate, newItem.timeSlot);
+    }
+
+    for (const item of existingItems) {
+      if (item.id && item.timeSlot) {
+        await this.workoutService.updateTimeSlot(item.id, item.timeSlot as TimeSlot);
+      }
+    }
   }
 
   getSessionWorkoutType(session: WorkoutSession) {
@@ -562,6 +690,10 @@ export class CalendarComponent implements OnInit {
 
   typeColor(type: string) {
     return getWorkoutTypeVisual(type).color;
+  }
+
+  timeSlotLabel(slot: TimeSlot): string {
+    return slot === 'morning' ? '🌅 Morning' : slot === 'afternoon' ? '☀️ Afternoon' : '🌙 Evening';
   }
 
   planTypeLabel(plan: WorkoutPlan) {

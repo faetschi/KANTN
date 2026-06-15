@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal, afterNextRender, viewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
@@ -10,6 +10,13 @@ import { ScheduledWorkout, WorkoutSession } from '../../core/models/models';
 import { getScheduledWorkoutType, getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, workoutTypeIconStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
+interface ButtonSpark {
+  style: Record<string, string>;
+  behind: boolean;
+}
+
+const BUTTON_SPARKS: ButtonSpark[] = [];
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -18,9 +25,27 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
     <div class="p-6 space-y-6">
       <!-- Header -->
       <header class="flex justify-between items-center">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">Today</h1>
-          <p class="text-gray-500 text-sm">{{ today | date:'EEEE, d MMMM' }}</p>
+        <div class="flex items-center gap-3">
+          <svg viewBox="0 0 100 100" class="w-8 h-8 shrink-0 drop-shadow-sm">
+            <defs>
+              <linearGradient id="homeLogoGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+            <rect width="100" height="100" rx="20" fill="url(#homeLogoGrad)"/>
+            <g fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round">
+              <rect x="6" y="28" width="12" height="44" rx="3" fill="#fff" stroke="none"/>
+              <rect x="14" y="22" width="8" height="56" rx="3" fill="#fff" stroke="none"/>
+              <rect x="82" y="28" width="12" height="44" rx="3" fill="#fff" stroke="none"/>
+              <rect x="78" y="22" width="8" height="56" rx="3" fill="#fff" stroke="none"/>
+              <line x1="20" y1="50" x2="80" y2="50"/>
+            </g>
+          </svg>
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Today</h1>
+            <p class="text-gray-500 text-sm">{{ today | date:'EEEE, d MMMM' }}</p>
+          </div>
         </div>
         <div class="flex items-center gap-3">
           <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
@@ -57,35 +82,47 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
       <section>
         <div class="flex justify-between items-end mb-4">
           <h2 class="text-lg font-bold text-gray-900">Today's Workout</h2>
-          <a routerLink="/calendar" class="text-blue-600 text-sm font-medium">Calendar</a>
         </div>
 
         @if (todayWorkout(); as workout) {
-          <div class="bg-gradient-to-br from-blue-700 to-blue-900 text-white p-6 rounded-3xl shadow-xl shadow-blue-900/20 relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+          <div class="bg-gradient-to-br from-blue-700 to-indigo-800 text-white p-6 rounded-3xl shadow-lg shadow-indigo-900/30 relative overflow-hidden">
+            <!-- Apple-minimal decorative rings -->
+            <div class="absolute -top-8 -right-8 w-40 h-40 border border-white/15 rounded-full"></div>
+            <div class="absolute top-10 -right-3 w-24 h-24 border border-white/5 rounded-full"></div>
+            <div class="absolute -bottom-16 -left-16 w-56 h-56 border border-white/5 rounded-full"></div>
+            <div class="absolute bottom-6 left-8 w-2 h-2 bg-white/20 rounded-full"></div>
+            <div class="absolute top-1/2 right-12 w-1.5 h-1.5 bg-white/15 rounded-full"></div>
+            <!-- Blur depth -->
+            <div class="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+            <div class="absolute bottom-0 left-0 w-32 h-32 bg-blue-400/10 rounded-full -mb-16 -ml-16 blur-2xl"></div>
             <div class="relative z-10">
-              <div class="flex justify-between items-start mb-4">
+              <div class="flex justify-between items-start mb-5">
                 <div>
                   <h3 class="text-xl font-bold mb-1">{{ workout.planName }}</h3>
                   <div class="flex items-center gap-2">
-                    <span
-                      class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                      [ngStyle]="scheduledTypeBadgeStyle(workout)"
-                    >
+                    <span class="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white border border-white/10">
                       <span class="mr-1" aria-hidden="true">{{ scheduledTypeEmoji(workout) }}</span>
                       {{ scheduledTypeLabel(workout) }}
                     </span>
-                    <p class="text-blue-300 text-sm">{{ workout.planExercises.length }} Exercises</p>
+                    <p class="text-blue-200 text-sm">{{ workout.planExercises.length }} Exercises</p>
                   </div>
                 </div>
-                <div class="bg-white/10 p-2 rounded-xl backdrop-blur-sm">
+                <div class="bg-white/10 p-2.5 rounded-full backdrop-blur-sm">
                   <mat-icon class="text-white">fitness_center</mat-icon>
                 </div>
               </div>
-              <button [routerLink]="['/workout', workout.planId]" [queryParams]="{scheduleId: workout.id}"
-                      class="w-full bg-white text-slate-800 px-5 py-3 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform">
-                Start Workout
-              </button>
+              <div class="relative">
+                <!-- Fire-like glow aura around the button -->
+                <div class="absolute inset-0 bg-gradient-to-b from-orange-400/15 via-amber-400/10 to-orange-400/15 blur-xl rounded-xl"></div>
+                <div class="absolute -inset-2.5 bg-gradient-to-r from-orange-400/10 via-amber-300/15 to-yellow-400/10 blur-2xl rounded-full"></div>
+                @for (spark of buttonSparks; track $index) {
+                  <div class="absolute rounded-full" [class.-z-10]="spark.behind" [ngStyle]="spark.style"></div>
+                }
+                <button [routerLink]="['/workout', workout.planId]" [queryParams]="{scheduleId: workout.id}"
+                        class="relative w-full bg-white text-blue-600 px-5 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-150">
+                  Start Workout
+                </button>
+              </div>
             </div>
           </div>
         } @else {
@@ -98,29 +135,32 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
       </section>
 
       <!-- Freestyle -->
-      <div class="bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 text-white p-4 rounded-2xl shadow-lg shadow-gray-200 border border-gray-600/50 relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-24 h-24 bg-blue-400/10 rounded-full -mr-8 -mt-8 blur-2xl"></div>
-        <div class="relative z-10 flex items-start justify-between gap-3">
+      <div class="max-w-[350px] mx-auto bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 text-white p-3 rounded-2xl shadow-lg shadow-gray-200 border border-gray-600/50 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-16 h-16 bg-blue-400/10 rounded-full -mr-6 -mt-6 blur-2xl"></div>
+        <div class="relative z-10 flex items-start justify-between gap-2">
           <div>
-            <p class="font-semibold text-sm">Freestyle</p>
-            <p class="text-xs text-gray-300 mt-1">Free workout mode without a selected plan.</p>
-            <div class="mt-3">
-              <button [routerLink]="['/workout', 'freestyle']" class="inline-flex items-center justify-center rounded-lg bg-white text-gray-900 px-3 py-1.5 text-xs font-semibold shadow-sm whitespace-nowrap active:scale-95 transition-transform">
-                Start Freestyle Workout
+            <p class="font-semibold text-xs">Freestyle</p>
+            <p class="text-[11px] text-gray-300 mt-0.5 leading-tight">Free workout mode without a selected plan.</p>
+            <div class="mt-2">
+              <button [routerLink]="['/workout', 'freestyle']" class="inline-flex items-center justify-center rounded-lg bg-white text-gray-900 px-2.5 py-1 text-[11px] font-semibold shadow-sm whitespace-nowrap active:scale-95 transition-transform">
+                Start Freestyle
               </button>
             </div>
           </div>
-          <div class="bg-white/15 p-2 rounded-lg backdrop-blur-sm">
-            <mat-icon class="text-white text-[20px]">fitness_center</mat-icon>
+          <div class="bg-white/15 p-1.5 rounded-lg backdrop-blur-sm">
+            <mat-icon class="text-white text-[16px]" style="font-size:16px;width:16px;height:16px;">fitness_center</mat-icon>
           </div>
         </div>
       </div>
 
       <!-- Recent Activity -->
-      <section>
+      <section #recentActivity
+        [class.opacity-0]="!recentActivityVisible()"
+        [class.opacity-100]="recentActivityVisible()"
+        class="transition-opacity duration-150">
         <div class="flex justify-between items-end mb-4">
           <h2 class="text-lg font-bold text-gray-900">Recent Activity</h2>
-          <a routerLink="/history" class="text-blue-600 text-sm font-medium">View All</a>
+          <a routerLink="/history" class="text-blue-600 text-sm font-medium">View History</a>
         </div>
         <div class="space-y-4">
           @for (session of recentSessions(); track session.id) {
@@ -168,6 +208,32 @@ export class HomeComponent {
   generateInitialsAvatar = generateInitialsAvatar;
 
   showPeriod: 'week' | 'month' = 'week';
+
+  buttonSparks = BUTTON_SPARKS;
+
+  recentActivityVisible = signal(false);
+  private recentActivityEl = viewChild<ElementRef>('recentActivity');
+
+  constructor() {
+    afterNextRender(() => {
+      const el = this.recentActivityEl();
+      if (!el) return;
+
+      if (window.innerWidth >= 768) {
+        this.recentActivityVisible.set(true);
+        return;
+      }
+
+      const observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) {
+          this.recentActivityVisible.set(true);
+          observer.disconnect();
+        }
+      }, { threshold: 0.05 });
+
+      observer.observe(el.nativeElement);
+    });
+  }
 
   onPeriodChange(value: string) {
     if (value === 'week' || value === 'month') {

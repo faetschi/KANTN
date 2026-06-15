@@ -52,7 +52,7 @@ import { ContributionGridComponent } from './contribution-grid.component';
                 [class.border]="!day.isActive"
                 [class.border-gray-200]="!day.isActive"
                 [style.background]="day.isActive ? dayColor : 'transparent'"
-                (click)="onCellClick(plan.id, day)"
+                [style.touch-action]="'manipulation'"
                 (pointerdown)="onPointerDown(plan.id, day, $event)"
                 (pointerup)="onPointerUp()"
                 (pointerleave)="onPointerUp()"
@@ -95,6 +95,7 @@ export class PracticeCardComponent {
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
   private pressedPlanId: string | null = null;
   private pressedDate: Date | null = null;
+  private pressedDay: WeekDayEntry | null = null;
 
   get schemeColor(): string {
     const hexPalettes: Record<string, string[]> = {
@@ -138,16 +139,12 @@ export class PracticeCardComponent {
     return getWorkoutTypeEmoji(this.workoutType) || '';
   }
 
-  onCellClick(planId: string, day: WeekDayEntry) {
-    if (day.isActive) {
-      this.cellClick.emit({ planId, date: new Date() });
-    }
-  }
-
   onPointerDown(planId: string, day: WeekDayEntry, event: PointerEvent) {
     if (!day.isActive) return;
+    event.preventDefault();
     this.pressedPlanId = planId;
     this.pressedDate = new Date();
+    this.pressedDay = day;
     this.pressTimer = setTimeout(() => {
       if (this.pressedPlanId && this.pressedDate) {
         this.cellLongPress.emit({ planId: this.pressedPlanId, date: this.pressedDate! });
@@ -160,9 +157,13 @@ export class PracticeCardComponent {
     if (this.pressTimer) {
       clearTimeout(this.pressTimer);
       this.pressTimer = null;
+      if (this.pressedPlanId && this.pressedDay?.isActive) {
+        this.cellClick.emit({ planId: this.pressedPlanId, date: this.pressedDate ?? new Date() });
+      }
     }
     this.pressedPlanId = null;
     this.pressedDate = null;
+    this.pressedDay = null;
   }
 
   onGridCellClick(planId: string, event: { date: Date; count: number }) {

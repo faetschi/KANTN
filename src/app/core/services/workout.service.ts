@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AuthService } from './auth.service';
-import { CreateExerciseInput, Exercise, InProgressWorkout, PlanExerciseTarget, ScheduledWorkout, WorkoutPlan, WorkoutPlanInvite, WorkoutSession } from '../models/models';
+import { CreateExerciseInput, Exercise, InProgressWorkout, PlanExerciseTarget, ScheduledWorkout, TimeSlot, WorkoutPlan, WorkoutPlanInvite, WorkoutSession } from '../models/models';
 import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SCHEDULED_WORKOUTS, MOCK_SESSIONS } from '../models/mock-data';
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
@@ -35,17 +35,31 @@ export class WorkoutService {
   
   activePlan = computed(() => this.plansSignal().find(p => p.isActive));
 
+  private static getCurrentTimeSlot(): TimeSlot {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
+  }
+
   todayWorkout = computed(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
-    return this.scheduledWorkoutsSignal()
+
+    const todayWorkouts = this.scheduledWorkoutsSignal()
       .filter(sw => {
         const d = new Date(sw.scheduledDate);
         return d >= todayStart && d < todayEnd && sw.status === 'scheduled';
-      })
-      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())[0] || null;
+      });
+
+    if (todayWorkouts.length === 0) return null;
+    if (todayWorkouts.length === 1) return todayWorkouts[0];
+
+    const currentSlot = WorkoutService.getCurrentTimeSlot();
+    const matching = todayWorkouts.find(sw => sw.timeSlot === currentSlot);
+    return matching || todayWorkouts[0];
   });
 
   nearestScheduledWorkout = computed(() => {
@@ -138,7 +152,7 @@ export class WorkoutService {
         const schedData = await this.repository.getScheduledWorkouts(userId);
         if (schedData) {
           const mapped: ScheduledWorkout[] = (schedData as Array<{
-            id: string; plan_id: string; scheduled_date: string; status: string;
+            id: string; plan_id: string; scheduled_date: string; status: string; time_slot: string | null;
           }>).map(row => {
             const plan = this.getPlanById(row.plan_id);
             return {
@@ -149,6 +163,7 @@ export class WorkoutService {
               scheduledDate: new Date(row.scheduled_date),
               status: (row.status as ScheduledWorkout['status']) || 'scheduled',
               planCategory: plan?.category,
+              timeSlot: (row.time_slot as TimeSlot) || undefined,
             };
           });
           this.scheduledWorkoutsSignal.set(mapped);
@@ -470,18 +485,26 @@ export class WorkoutService {
       .filter(sw => new Date(sw.scheduledDate) < now && sw.status === 'scheduled');
   }
 
-  async schedulePlan(planId: string, date: Date): Promise<boolean> {
+  async schedulePlan(planId: string, date: Date, timeSlot?: TimeSlot): Promise<boolean> {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
     const plan = this.getPlanById(planId);
     if (!plan) return false;
 
+    const dateStr = date.toISOString().split('T')[0];
+    const insertedId = await this.repository.insertScheduledWorkout(userId, planId, dateStr, timeSlot);
+    if (!insertedId) return false;
+
     const scheduled: ScheduledWorkout = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: insertedId,
       planId,
       planName: plan.name,
       planExercises: plan.exercises,
       scheduledDate: date,
       status: 'scheduled',
       planCategory: plan.category,
+      timeSlot,
     };
 
     this.scheduledWorkoutsSignal.update(list => [...list, scheduled]);
@@ -489,6 +512,10 @@ export class WorkoutService {
   }
 
   async rescheduleWorkout(scheduleId: string, newDate: Date): Promise<boolean> {
+    const dateStr = newDate.toISOString().split('T')[0];
+    const success = await this.repository.rescheduleWorkout(scheduleId, dateStr);
+    if (!success) return false;
+
     this.scheduledWorkoutsSignal.update(list =>
       list.map(sw => sw.id === scheduleId ? { ...sw, scheduledDate: newDate } : sw)
     );
@@ -496,12 +523,26 @@ export class WorkoutService {
   }
 
   async removeScheduledWorkout(scheduleId: string): Promise<void> {
+    await this.repository.deleteScheduledWorkout(scheduleId);
     this.scheduledWorkoutsSignal.update(list => list.filter(sw => sw.id !== scheduleId));
   }
 
   async updateScheduledWorkoutStatus(scheduleId: string, status: ScheduledWorkout['status']): Promise<boolean> {
+    const success = await this.repository.updateScheduledWorkoutStatus(scheduleId, status);
+    if (!success) return false;
+
     this.scheduledWorkoutsSignal.update(list =>
       list.map(sw => sw.id === scheduleId ? { ...sw, status } : sw)
+    );
+    return true;
+  }
+
+  async updateTimeSlot(scheduleId: string, timeSlot: TimeSlot): Promise<boolean> {
+    const success = await this.repository.updateScheduledWorkoutTimeSlot(scheduleId, timeSlot);
+    if (!success) return false;
+
+    this.scheduledWorkoutsSignal.update(list =>
+      list.map(sw => sw.id === scheduleId ? { ...sw, timeSlot } : sw)
     );
     return true;
   }

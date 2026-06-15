@@ -95,6 +95,7 @@ export interface CardioExerciseData {
 }
 
 export type ScheduledWorkoutStatus = 'scheduled' | 'completed' | 'missed' | 'skipped';
+export type TimeSlot = 'morning' | 'afternoon' | 'evening';
 
 export interface ScheduledWorkout {
   id: string;
@@ -104,6 +105,7 @@ export interface ScheduledWorkout {
   scheduledDate: Date;
   status: ScheduledWorkoutStatus;
   planCategory?: WorkoutPlan['category'];
+  timeSlot?: TimeSlot;
 }
 
 export interface PlanExerciseTarget {
