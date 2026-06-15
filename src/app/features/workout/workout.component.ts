@@ -403,7 +403,7 @@ import { CardioMapComponent } from './cardio-map.component';
               <!-- Workout Type Picker -->
               <div class="flex items-center justify-between">
                 <h3 class="text-base font-bold text-gray-900">What kind of workout?</h3>
-                <button type="button" (click)="showFreestylePicker.set(false)" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <button type="button" (click)="closeFreestylePicker()" class="text-gray-400 hover:text-gray-600 transition-colors">
                   <mat-icon>close</mat-icon>
                 </button>
               </div>
@@ -934,9 +934,17 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.freestyleWorkoutType.set(type);
   }
 
+  closeFreestylePicker() {
+    if (this.freestyleMode()) {
+      this.router.navigate(['/home']);
+    } else {
+      this.showFreestylePicker.set(false);
+    }
+  }
+
+  
+
   startFreestyleWorkout() {
-    this.showFreestylePicker.set(false);
-    this.freestylePickerClosable.set(false);
     if (!this.freestyleStarted()) {
       this.currentExerciseIndex.set(0);
       this.freestyleStarted.set(true);
