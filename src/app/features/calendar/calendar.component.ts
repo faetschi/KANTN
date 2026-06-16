@@ -334,7 +334,7 @@ interface CalendarDay {
               <mat-icon>self_improvement</mat-icon>
             </div>
             <h3 class="text-lg font-bold text-gray-900">Skip this workout?</h3>
-            <p class="text-sm text-gray-500 mt-1">{{ skipTarget()?.planName }} — that's completely okay. Rest is part of training. 💙</p>
+            <p class="text-sm text-gray-500 mt-1">{{ skipTarget()?.planName }}</p>
           </div>
           <div class="px-5 pb-2">
             <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Reason (optional)</p>
