@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
-import { FabButtonComponent } from '../../shared/components/fab-button.component';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { TimeSlot, WorkoutSession, ScheduledWorkout, WorkoutPlan } from '../../core/models/models';
@@ -32,7 +31,7 @@ interface CalendarDay {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, MatIconModule, RouterLink, PeriodToggleComponent, FabButtonComponent, TimeSlotPickerComponent],
+  imports: [CommonModule, MatIconModule, RouterLink, PeriodToggleComponent, TimeSlotPickerComponent],
   template: `
     <div class="p-6 pb-24 space-y-6">
       <header class="flex justify-between items-center">
@@ -239,16 +238,18 @@ interface CalendarDay {
           {{ isTodaySelected() ? 'No workouts today.' : 'No workouts for this day.' }}
         </div>
       </section>
+    </div>
 
-      <!-- FAB Button -->
-      <app-fab-button
-        (fabClick)="openScheduleModal()"
-        icon="add"
-        color="bg-blue-600 hover:bg-blue-700 text-white"
-      />
+    <!-- FAB Button -->
+    <button
+      (click)="openScheduleModal()"
+      class="fixed bottom-24 right-6 bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-full shadow flex items-center justify-center z-40 hover:shadow-lg active:scale-95 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+    >
+      <mat-icon>add</mat-icon>
+    </button>
 
-      <!-- Schedule Workout Modal -->
-      <div *ngIf="showScheduleModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-backdrop" (click)="closeScheduleModal()">
+    <!-- Schedule Workout Modal -->
+    <div *ngIf="showScheduleModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-backdrop" (click)="closeScheduleModal()">
         <div class="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden animate-scale-in" (click)="$event.stopPropagation()">
           <ng-container *ngIf="!scheduleWorkoutType(); else planList">
             <!-- Workout Type Picker -->
