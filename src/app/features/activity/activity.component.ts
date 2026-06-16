@@ -26,7 +26,10 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
   template: `
     <div class="p-6 pb-28 space-y-6">
       <header class="flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-gray-900">Activity</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Activity</h1>
+          <p class="text-gray-500 text-sm">Keep your streak alive</p>
+        </div>
         <div class="flex items-center gap-3">
           <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
           <a [routerLink]="['/profile']" class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer block">
@@ -36,18 +39,33 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
       </header>
 
       <!-- Stats Summary -->
-      <div class="grid grid-cols-3 gap-3">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-          <p class="text-lg font-bold text-gray-900">{{ activityService.totalContributions() }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">Total Workouts</p>
+      <div class="grid grid-cols-3 gap-3 stagger">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <mat-icon class="text-lg">done_all</mat-icon>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-gray-900 leading-none">{{ activityService.totalContributions() }}</p>
+            <p class="text-[11px] text-gray-400 mt-1">Total Workouts</p>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-          <p class="text-lg font-bold text-blue-600">{{ activityService.strengthSessionCount() }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">Strength</p>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
+          <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <mat-icon class="text-lg">fitness_center</mat-icon>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-blue-600 leading-none">{{ activityService.strengthSessionCount() }}</p>
+            <p class="text-[11px] text-gray-400 mt-1">Strength</p>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-          <p class="text-lg font-bold text-orange-600">{{ activityService.cardioSessionCount() }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">Cardio</p>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
+          <div class="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+            <mat-icon class="text-lg">directions_run</mat-icon>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-orange-600 leading-none">{{ activityService.cardioSessionCount() }}</p>
+            <p class="text-[11px] text-gray-400 mt-1">Cardio</p>
+          </div>
         </div>
       </div>
 
@@ -80,9 +98,14 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
         </button>
       </div>
 
-      <p class="text-xs text-gray-400 text-center">Tap to log · Long-press for detail</p>
+      <div class="flex justify-center">
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-gray-400 bg-gray-100 rounded-full px-3 py-1">
+          <mat-icon class="text-[13px]" style="font-size:13px;width:13px;height:13px;">touch_app</mat-icon>
+          Tap to log · Long-press for detail
+        </span>
+      </div>
 
-      <div class="view-container" [class.fade-in]="animateView">
+      <div class="view-container pt-2" [class.fade-in]="animateView">
         @switch (viewMode()) {
           @case ('weekly') {
             <app-weekly-view
@@ -109,11 +132,11 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
     <!-- Long-press Modal -->
     @if (modalData(); as m) {
       <div
-        class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-backdrop"
         (click)="closeModal()"
       >
         <div
-          class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100"
+          class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100 animate-scale-in"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-center justify-between mb-4">
@@ -209,8 +232,8 @@ export class ActivityComponent {
   }
 
   onCellClick(event: { planId: string; date: Date }) {
-    const dateStr = event.date.toISOString().slice(0, 10);
-    this.router.navigate(['/history'], { queryParams: { date: dateStr } });
+    // Tap to log: start the workout flow for this plan
+    this.router.navigate(['/workout', event.planId]);
   }
 
   onCellLongPress(event: { planId: string; date: Date }) {

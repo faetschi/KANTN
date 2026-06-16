@@ -46,11 +46,12 @@ import { ContributionGridComponent } from './contribution-grid.component';
             <div class="flex flex-col items-center gap-1">
               <span class="text-[10px] font-bold text-gray-400 uppercase">{{ day.dayLabel }}</span>
               <div
-                class="w-full aspect-square rounded-lg flex items-center justify-center text-xs font-bold cursor-pointer select-none"
+                class="w-full aspect-square rounded-lg flex items-center justify-center text-xs font-bold cursor-pointer select-none transition-transform duration-150 active:scale-90"
                 [class.text-white]="day.isActive"
                 [class.text-gray-300]="!day.isActive"
                 [class.border]="!day.isActive"
                 [class.border-gray-200]="!day.isActive"
+                [class.shadow-sm]="day.isActive"
                 [style.background]="day.isActive ? dayColor : 'transparent'"
                 [style.touch-action]="'manipulation'"
                 (pointerdown)="onPointerDown(plan.id, day, $event)"
@@ -80,6 +81,7 @@ import { ContributionGridComponent } from './contribution-grid.component';
       }
     </div>
   `,
+  host: { class: 'block' },
 })
 export class PracticeCardComponent {
   @Input() plan!: WorkoutPlan;
@@ -95,7 +97,6 @@ export class PracticeCardComponent {
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
   private pressedPlanId: string | null = null;
   private pressedDate: Date | null = null;
-  private pressedDay: WeekDayEntry | null = null;
 
   get schemeColor(): string {
     const hexPalettes: Record<string, string[]> = {
@@ -140,14 +141,12 @@ export class PracticeCardComponent {
   }
 
   onPointerDown(planId: string, day: WeekDayEntry, event: PointerEvent) {
-    if (!day.isActive) return;
     event.preventDefault();
     this.pressedPlanId = planId;
-    this.pressedDate = new Date();
-    this.pressedDay = day;
+    this.pressedDate = day.date;
     this.pressTimer = setTimeout(() => {
       if (this.pressedPlanId && this.pressedDate) {
-        this.cellLongPress.emit({ planId: this.pressedPlanId, date: this.pressedDate! });
+        this.cellLongPress.emit({ planId: this.pressedPlanId, date: this.pressedDate });
       }
       this.pressTimer = null;
     }, 500);
@@ -157,13 +156,12 @@ export class PracticeCardComponent {
     if (this.pressTimer) {
       clearTimeout(this.pressTimer);
       this.pressTimer = null;
-      if (this.pressedPlanId && this.pressedDay?.isActive) {
-        this.cellClick.emit({ planId: this.pressedPlanId, date: this.pressedDate ?? new Date() });
+      if (this.pressedPlanId && this.pressedDate) {
+        this.cellClick.emit({ planId: this.pressedPlanId, date: this.pressedDate });
       }
     }
     this.pressedPlanId = null;
     this.pressedDate = null;
-    this.pressedDay = null;
   }
 
   onGridCellClick(planId: string, event: { date: Date; count: number }) {

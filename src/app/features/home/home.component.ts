@@ -78,6 +78,42 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
         </div>
       </section>
 
+      <!-- Missed Workouts Reminder -->
+      @if (missedWorkouts().length > 0) {
+        <section>
+          <div class="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="bg-amber-100 text-amber-600 p-1.5 rounded-full">
+                <mat-icon class="text-[18px]" style="font-size:18px;width:18px;height:18px;">notifications_active</mat-icon>
+              </div>
+              <h2 class="text-sm font-bold text-amber-900">
+                {{ missedWorkouts().length === 1 ? '1 missed workout' : missedWorkouts().length + ' missed workouts' }}
+              </h2>
+            </div>
+            <div class="space-y-3">
+              @for (workout of missedWorkouts(); track workout.id) {
+                <div class="bg-white rounded-2xl p-3 border border-amber-100 flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="font-semibold text-gray-900 text-sm truncate">{{ workout.planName }}</p>
+                    <p class="text-xs text-amber-600">Scheduled {{ workout.scheduledDate | date:'EEE, MMM d' }}</p>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <button (click)="skipMissed(workout)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-100 active:scale-95 transition-all">
+                      Skip
+                    </button>
+                    <button (click)="rescheduleMissedToToday(workout)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all whitespace-nowrap">
+                      Reschedule to today
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+      }
+
       <!-- Today's Scheduled Workout -->
       <section>
         <div class="flex justify-between items-end mb-4">
@@ -247,7 +283,16 @@ export class HomeComponent {
 
   user = this.authService.currentUser;
   todayWorkout = this.workoutService.todayWorkout;
+  missedWorkouts = this.workoutService.missedWorkouts;
   today = new Date();
+
+  async rescheduleMissedToToday(workout: ScheduledWorkout) {
+    await this.workoutService.rescheduleWorkout(workout.id, new Date());
+  }
+
+  async skipMissed(workout: ScheduledWorkout) {
+    await this.workoutService.updateScheduledWorkoutStatus(workout.id, 'skipped');
+  }
 
   onAvatarError(event: Event) {
     const img = event.target as HTMLImageElement;

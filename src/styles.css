@@ -35,3 +35,58 @@ body {
 .safe-area-pb {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* ── Motion / micro-interaction utilities ──
+   Shared entrance + feedback animations used across activity, calendar
+   and the workout logging flow. Keep durations short and easing snappy. */
+@keyframes kf-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes kf-slide-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes kf-scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes kf-backdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes kf-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.fade-in,
+.animate-fade-in { animation: kf-fade-in 0.3s ease-out both; }
+.animate-slide-up { animation: kf-slide-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-scale-in { animation: kf-scale-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-backdrop { animation: kf-backdrop 0.2s ease-out both; }
+.animate-pop { animation: kf-pop 0.32s ease-out; }
+
+/* Staggered entrance for lists/grids: just add `stagger` to the parent. */
+.stagger > * { animation: kf-fade-in 0.34s ease-out both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(n+8) { animation-delay: 0.30s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-backdrop,
+  .animate-pop,
+  .stagger > * {
+    animation: none !important;
+  }
+}

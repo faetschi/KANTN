@@ -28,8 +28,8 @@ function getOppositeSlot(slot: TimeSlot): TimeSlot {
   standalone: true,
   imports: [CommonModule, FormsModule, MatIconModule],
   template: `
-    <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
-      <div class="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4">
+    <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4 animate-backdrop">
+      <div class="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4 animate-scale-in">
 
         @if (workouts().length === 2) {
           <div class="flex items-center justify-between">

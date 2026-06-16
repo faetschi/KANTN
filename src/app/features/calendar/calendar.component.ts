@@ -129,7 +129,7 @@ interface CalendarDay {
           <div
             *ngFor="let day of calendarDays()"
             (click)="selectDay(day)"
-            class="aspect-square flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer relative"
+            class="aspect-square flex flex-col items-center justify-center rounded-xl transition-all duration-150 cursor-pointer relative active:scale-90"
             [ngClass]="{
               'bg-blue-50 text-blue-600 font-bold': day.isToday,
               'text-gray-900': day.isCurrentMonth && !day.isToday,
@@ -167,24 +167,48 @@ interface CalendarDay {
       </div>
 
       <!-- Selected Day: Scheduled + Completed Workouts -->
-      <section *ngIf="selectedDate()" class="space-y-3">
+      <section *ngIf="selectedDate()" class="space-y-3 stagger">
         <h3 class="text-sm font-bold text-gray-900 px-1 mt-6">{{ selectedDate() | date:'MMMM d' }}</h3>
 
         <!-- Scheduled workouts -->
-        <div *ngFor="let sw of selectedDayScheduled()" class="relative bg-blue-50/60 p-3 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
+        <div *ngFor="let sw of selectedDayScheduled()" class="relative p-3 rounded-2xl shadow-sm border flex items-center justify-between transition-colors"
+             [ngClass]="scheduledCardClass(sw)">
           <button (click)="removeScheduled(sw.id); $event.stopPropagation()" class="absolute -top-1 -right-1 w-5 h-5 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-400 hover:text-gray-700 transition-colors z-10 text-xs leading-none font-bold">
             ✕
           </button>
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-              <mat-icon class="text-lg">event</mat-icon>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" [ngClass]="scheduledIconClass(sw)">
+              <mat-icon class="text-lg">{{ scheduledIcon(sw) }}</mat-icon>
             </div>
             <div class="min-w-0">
-              <div class="font-semibold text-gray-900 text-sm truncate">{{ sw.planName }}</div>
-              <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 uppercase tracking-wide">{{ sw.timeSlot ? timeSlotLabel(sw.timeSlot) : 'Planned' }}</span>
+              <div class="font-semibold text-sm truncate" [ngClass]="sw.status === 'skipped' ? 'text-gray-400 line-through' : 'text-gray-900'">{{ sw.planName }}</div>
+              @switch (sw.status) {
+                @case ('completed') {
+                  <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Done</span>
+                }
+                @case ('skipped') {
+                  <span class="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Skipped</span>
+                }
+                @default {
+                  <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 uppercase tracking-wide">{{ sw.timeSlot ? timeSlotLabel(sw.timeSlot) : 'Planned' }}</span>
+                }
+              }
             </div>
           </div>
-          <button (click)="startScheduledWorkout(sw)" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg active:scale-95 transition-transform whitespace-nowrap shrink-0 ml-2">Start</button>
+          @switch (sw.status) {
+            @case ('completed') {
+              <mat-icon class="text-emerald-500 shrink-0 ml-2">check_circle</mat-icon>
+            }
+            @case ('skipped') {
+              <button (click)="unskipWorkout(sw)" class="px-3 py-1.5 text-xs font-semibold text-blue-600 rounded-lg hover:bg-blue-50 active:scale-95 transition-all whitespace-nowrap shrink-0 ml-2">Undo</button>
+            }
+            @default {
+              <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                <button (click)="openSkipModal(sw)" class="px-3 py-1.5 text-xs font-semibold text-gray-500 rounded-lg hover:bg-gray-100 active:scale-95 transition-all whitespace-nowrap">Skip</button>
+                <button (click)="startScheduledWorkout(sw)" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg active:scale-95 transition-transform whitespace-nowrap">Start</button>
+              </div>
+            }
+          }
         </div>
 
         <!-- Completed/logged workouts -->
@@ -224,8 +248,8 @@ interface CalendarDay {
       />
 
       <!-- Schedule Workout Modal -->
-      <div *ngIf="showScheduleModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeScheduleModal()">
-        <div class="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="showScheduleModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-backdrop" (click)="closeScheduleModal()">
+        <div class="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden animate-scale-in" (click)="$event.stopPropagation()">
           <ng-container *ngIf="!scheduleWorkoutType(); else planList">
             <!-- Workout Type Picker -->
             <div class="flex items-center justify-between p-4 border-b border-gray-100">
@@ -266,8 +290,8 @@ interface CalendarDay {
                 <mat-icon class="text-xl">close</mat-icon>
               </button>
             </div>
-            <div class="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-              <div *ngFor="let plan of availablePlans()" 
+            <div class="p-4 space-y-2 max-h-[60vh] overflow-y-auto animate-fade-in">
+              <div *ngFor="let plan of availablePlans()"
                    (click)="scheduleWorkout(plan.id); closeScheduleModal()"
                    class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
                    [ngClass]="scheduledPlanIds().has(plan.id) ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'">
@@ -300,6 +324,33 @@ interface CalendarDay {
         (saved)="onTimeSlotsSaved($event)"
         (cancelled)="showTimeSlotPicker.set(false)"
       />
+
+      <!-- Gentle skip confirmation -->
+      <div *ngIf="showSkipModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-backdrop" (click)="closeSkipModal()">
+        <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full overflow-hidden animate-scale-in" (click)="$event.stopPropagation()">
+          <div class="p-5 text-center">
+            <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mb-3">
+              <mat-icon>self_improvement</mat-icon>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900">Skip this workout?</h3>
+            <p class="text-sm text-gray-500 mt-1">{{ skipTarget()?.planName }} — that's completely okay. Rest is part of training. 💙</p>
+          </div>
+          <div class="px-5 pb-2">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Reason (optional)</p>
+            <div class="flex flex-wrap gap-2">
+              <button *ngFor="let reason of skipReasons" type="button" (click)="toggleSkipReason(reason)"
+                      class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95"
+                      [ngClass]="skipReason() === reason ? 'bg-amber-500 text-white border-amber-500' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'">
+                {{ reason }}
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 p-4">
+            <button (click)="closeSkipModal()" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all">Keep it</button>
+            <button (click)="confirmSkip()" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all">Skip workout</button>
+          </div>
+        </div>
+      </div>
   `,
   styles: [`
     :host { display: block; }
@@ -584,6 +635,56 @@ export class CalendarComponent implements OnInit {
 
   startScheduledWorkout(sw: ScheduledWorkout) {
     void this.router.navigate(['/workout', sw.planId], { queryParams: { scheduleId: sw.id } });
+  }
+
+  // ── Skip workout (gentle) ──
+  showSkipModal = signal(false);
+  skipTarget = signal<ScheduledWorkout | null>(null);
+  skipReason = signal<string | null>(null);
+  skipReasons = ['Rest day', 'Feeling tired', 'No time today', 'Injured / sore'];
+
+  openSkipModal(sw: ScheduledWorkout) {
+    this.skipTarget.set(sw);
+    this.skipReason.set(null);
+    this.showSkipModal.set(true);
+  }
+
+  closeSkipModal() {
+    this.showSkipModal.set(false);
+    this.skipTarget.set(null);
+  }
+
+  toggleSkipReason(reason: string) {
+    this.skipReason.update(current => current === reason ? null : reason);
+  }
+
+  async confirmSkip() {
+    const target = this.skipTarget();
+    if (!target) return;
+    await this.workoutService.updateScheduledWorkoutStatus(target.id, 'skipped');
+    this.closeSkipModal();
+  }
+
+  async unskipWorkout(sw: ScheduledWorkout) {
+    await this.workoutService.updateScheduledWorkoutStatus(sw.id, 'scheduled');
+  }
+
+  scheduledCardClass(sw: ScheduledWorkout): string {
+    if (sw.status === 'completed') return 'bg-emerald-50/60 border-emerald-100';
+    if (sw.status === 'skipped') return 'bg-gray-50 border-gray-100';
+    return 'bg-blue-50/60 border-blue-100';
+  }
+
+  scheduledIconClass(sw: ScheduledWorkout): string {
+    if (sw.status === 'completed') return 'bg-emerald-100 text-emerald-600';
+    if (sw.status === 'skipped') return 'bg-gray-200 text-gray-400';
+    return 'bg-blue-100 text-blue-600';
+  }
+
+  scheduledIcon(sw: ScheduledWorkout): string {
+    if (sw.status === 'completed') return 'check_circle';
+    if (sw.status === 'skipped') return 'skip_next';
+    return 'event';
   }
 
   availablePlans = computed(() => {

@@ -5,6 +5,7 @@ export interface ContributionDay {
 }
 
 export interface WeekDayEntry {
+  date: Date;
   dayLabel: string;
   value: string | number;
   isActive: boolean;

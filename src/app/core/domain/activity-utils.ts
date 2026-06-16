@@ -153,6 +153,7 @@ export function buildWeekData(sessions: WorkoutSession[], weekStart: Date, planI
     const totalCount = daySessions.reduce((sum, s) => sum + s.exercises.length, 0);
 
     weekDays.push({
+      date: new Date(date),
       dayLabel: getDayLabel(date),
       value: isActive ? (totalCount > 0 ? totalCount : '✓') : '',
       isActive,

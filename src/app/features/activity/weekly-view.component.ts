@@ -12,7 +12,7 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
   standalone: true,
   imports: [CommonModule, MatIconModule, RouterLink, PracticeCardComponent],
   template: `
-    <div class="space-y-4">
+    <div class="space-y-4 stagger">
       @if (plans.length === 0) {
         <div class="text-center py-12">
           <p class="text-gray-500 font-medium">No practices yet. Create a workout plan to start tracking.</p>

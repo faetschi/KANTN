@@ -219,6 +219,7 @@ describe('Cardio Unit Tests', () => {
         id: 'test-1',
         planId: 'plan-1',
         date: new Date('2026-01-15T10:00:00Z'),
+        createdAt: new Date('2026-01-15T10:00:00Z'),
         startTime: new Date('2026-01-15T10:00:00Z'),
         endTime: new Date('2026-01-15T10:30:00Z'),
         duration: 1800,
@@ -247,6 +248,7 @@ describe('Cardio Unit Tests', () => {
         id: 'test-2',
         planId: 'plan-1',
         date: new Date('2026-01-15T10:00:00Z'),
+        createdAt: new Date('2026-01-15T10:00:00Z'),
         startTime: new Date('2026-01-15T10:00:00Z'),
         endTime: new Date('2026-01-15T10:30:00Z'),
         duration: 1800,
@@ -269,6 +271,7 @@ describe('Cardio Unit Tests', () => {
         id: 'test-3',
         planId: 'plan-1',
         date: new Date('2026-01-15T10:00:00Z'),
+        createdAt: new Date('2026-01-15T10:00:00Z'),
         startTime: new Date('2026-01-15T10:00:00Z'),
         endTime: new Date('2026-01-15T10:30:00Z'),
         duration: 1800,
@@ -291,6 +294,7 @@ describe('Cardio Unit Tests', () => {
         id: 'test-4',
         planId: 'plan-1',
         date: new Date('2026-01-15T10:00:00Z'),
+        createdAt: new Date('2026-01-15T10:00:00Z'),
         startTime: new Date('2026-01-15T10:00:00Z'),
         endTime: new Date('2026-01-15T10:30:00Z'),
         duration: 1800,
@@ -348,6 +352,7 @@ describe('Cardio Unit Tests', () => {
         id: 'test-mixed-1',
         planId: 'plan-1',
         date: new Date('2026-01-15T10:00:00Z'),
+        createdAt: new Date('2026-01-15T10:00:00Z'),
         startTime: new Date('2026-01-15T10:00:00Z'),
         endTime: new Date('2026-01-15T11:00:00Z'),
         duration: 3600,
@@ -383,6 +388,7 @@ describe('Cardio Unit Tests', () => {
         id: 'test-mixed-2',
         planId: 'plan-1',
         date: new Date('2026-01-15T10:00:00Z'),
+        createdAt: new Date('2026-01-15T10:00:00Z'),
         startTime: new Date('2026-01-15T10:00:00Z'),
         endTime: new Date('2026-01-15T11:00:00Z'),
         duration: 3600,
@@ -480,6 +486,7 @@ describe('Cardio Integration Tests', () => {
             useValue: {
               getPlanById: vi.fn().mockReturnValue(plan),
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+              getPlanExerciseTargets: vi.fn().mockReturnValue([]),
               addSession,
               getExerciseById,
               inProgress,
@@ -582,6 +589,7 @@ describe('Cardio Integration Tests', () => {
             useValue: {
               getPlanById: vi.fn().mockReturnValue(plan),
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+              getPlanExerciseTargets: vi.fn().mockReturnValue([]),
               addSession,
               getExerciseById,
               inProgress,
@@ -676,6 +684,7 @@ describe('Cardio Integration Tests', () => {
             useValue: {
               getPlanById: vi.fn().mockReturnValue(plan),
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+              getPlanExerciseTargets: vi.fn().mockReturnValue([]),
               addSession,
               getExerciseById: vi.fn().mockReturnValue(cardioExercise),
                 inProgress: inProgressFn,
@@ -817,6 +826,7 @@ describe('Exercise Type Detection Logic', () => {
           { provide: WorkoutService, useValue: {
             getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession: vi.fn(),
             getExerciseById: vi.fn(),
             inProgress,
@@ -860,6 +870,7 @@ describe('Exercise Type Detection Logic', () => {
           { provide: WorkoutService, useValue: {
             getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession: vi.fn(),
             getExerciseById: vi.fn(),
             inProgress,
@@ -901,6 +912,7 @@ describe('Exercise Type Detection Logic', () => {
           { provide: WorkoutService, useValue: {
             getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession: vi.fn(),
             getExerciseById: vi.fn(),
             inProgress,
@@ -948,6 +960,7 @@ describe('Exercise Type Detection Logic', () => {
           { provide: WorkoutService, useValue: {
             getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession: vi.fn(),
             getExerciseById: vi.fn(),
             inProgress,
@@ -1079,6 +1092,7 @@ describe('Exercise Type Detection Logic', () => {
             useValue: {
               getPlanById: vi.fn().mockReturnValue(plan),
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+              getPlanExerciseTargets: vi.fn().mockReturnValue([]),
               addSession,
               getExerciseById: vi.fn().mockReturnValue(exercise),
               inProgress,
@@ -1149,6 +1163,7 @@ describe('Exercise Type Detection Logic', () => {
             { provide: WorkoutService, useValue: {
               getPlanById: vi.fn().mockReturnValue(plan),
               getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+              getPlanExerciseTargets: vi.fn().mockReturnValue([]),
               addSession: vi.fn(), getExerciseById: vi.fn().mockReturnValue(ex),
               inProgress: vi.fn().mockReturnValue(null), setInProgress: vi.fn(),
               clearInProgress: vi.fn(), markPlanStartedLocally: vi.fn(), markPlanCompletedLocally: vi.fn(),
@@ -1203,6 +1218,7 @@ describe('Exercise Type Detection Logic', () => {
           { provide: WorkoutService, useValue: {
             getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(undefined),
+            getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession: vi.fn(),
             getExerciseById: vi.fn().mockReturnValue(exercise),
             inProgress,
