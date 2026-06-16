@@ -1,8 +1,8 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { WorkoutService } from '../../core/services/workout.service';
 
 @Component({
@@ -20,7 +20,8 @@ import { WorkoutService } from '../../core/services/workout.service';
         <label for="month-filter" class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Month</label>
         <select
           id="month-filter"
-          [(ngModel)]="selectedMonth"
+          [ngModel]="selectedMonth()"
+          (ngModelChange)="onMonthChange($event)"
           class="w-full bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All months</option>
@@ -89,11 +90,24 @@ import { WorkoutService } from '../../core/services/workout.service';
     </div>
   `
 })
-export class HistoryComponent {
+export class HistoryComponent implements OnInit {
   private workoutService = inject(WorkoutService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
-  selectedMonth = 'all';
+  selectedDate = signal<string | null>(null);
+  selectedMonth = signal('all');
+
+  ngOnInit() {
+    const dateParam = this.route.snapshot.queryParams['date'];
+    if (dateParam) {
+      this.selectedDate.set(dateParam);
+      const d = new Date(dateParam + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        this.selectedMonth.set(this.toMonthKey(d));
+      }
+    }
+  }
 
   inProgress = computed(() => this.workoutService.inProgress());
 
@@ -117,15 +131,34 @@ export class HistoryComponent {
   });
 
   filteredSessions = computed(() => {
-    const selected = this.selectedMonth;
-    if (selected === 'all') return this.sortedSessions();
-    return this.sortedSessions().filter(session => this.toMonthKey(session.date) === selected);
+    let sessions = this.sortedSessions();
+    const dateFilter = this.selectedDate();
+    if (dateFilter) {
+      sessions = sessions.filter(s => {
+        const d = new Date(s.date);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}` === dateFilter;
+      });
+    } else {
+      const selected = this.selectedMonth();
+      if (selected !== 'all') {
+        sessions = sessions.filter(session => this.toMonthKey(session.date) === selected);
+      }
+    }
+    return sessions;
   });
 
   // planId als optionalen Typ akzeptieren, um TS-Fehler zu vermeiden
   getPlanName(planId: string | null | undefined) {
     if (!planId) return 'Workout Session';
     return this.workoutService.getPlanById(planId)?.name || 'Workout Session';
+  }
+
+  onMonthChange(value: string) {
+    this.selectedMonth.set(value);
+    this.selectedDate.set(null);
   }
 
   openSession(sessionId: string) {

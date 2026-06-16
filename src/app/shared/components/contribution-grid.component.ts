@@ -1,51 +1,60 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ContributionDay } from '../../core/models/activity-models';
-import { intensityColor, getMonthLabels } from '../../core/domain/activity-utils';
+import { intensityColor } from '../../core/domain/activity-utils';
 
 @Component({
   selector: 'app-contribution-grid',
   standalone: true,
   imports: [CommonModule],
+  styles: `
+    .active-cell { cursor: pointer; }
+    .active-cell:hover { opacity: 0.8; }
+  `,
   template: `
-    <div class="contribution-grid">
-      <div class="flex text-[10px] text-gray-400 font-semibold mb-1 gap-0" style="padding-left: 0;">
-        @for (ml of monthLabels; track ml.index) {
-          <span class="text-center" [style.minWidth.px]="compact ? 6 : 14">{{ ml.label }}</span>
+    <div class="contribution-grid w-full">
+      <div
+        class="grid gap-[2px] w-full"
+        [style.gridTemplateColumns]="'repeat(' + numColumns + ', 1fr)'"
+      >
+        @for (day of paddedData; track $index) {
+          <div
+            class="rounded-sm transition-opacity aspect-square"
+            [class.active-cell]="day.count > 0"
+            [style.backgroundColor]="intensityColor(day.intensity, 'green')"
+            [title]="day.count > 0 ? (day.date.toLocaleDateString() + ': ' + day.count + ' sessions') : ''"
+            (click)="day.count > 0 && onCellClick(day)"
+          ></div>
         }
-      </div>
-      <div class="overflow-x-auto no-scrollbar">
-        <div class="grid gap-[2px]" [style.gridTemplateColumns]="'repeat(' + numWeeks + ', 1fr)'" [style.minWidth.px]="compact ? numWeeks * 8 : numWeeks * 16">
-          @for (day of data; track day.date.toISOString()) {
-            <div
-              class="rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
-              [style.aspectRatio]="'1/1'"
-              [style.backgroundColor]="intensityColor(day.intensity, colorScheme)"
-              [title]="day.date.toLocaleDateString() + ': ' + day.count + ' sessions'"
-              (click)="onCellClick(day)"
-            ></div>
-          }
-        </div>
       </div>
     </div>
   `,
 })
 export class ContributionGridComponent {
   @Input() data: ContributionDay[] = [];
-  @Input() colorScheme: string = 'blue';
   @Input() compact: boolean = false;
   @Output() cellClick = new EventEmitter<{ date: Date; count: number }>();
 
   intensityColor = intensityColor;
 
-  get monthLabels() {
-    if (this.data.length === 0) return [];
-    const year = this.data[0].date.getFullYear();
-    return getMonthLabels(year);
+  private get emptyDay(): ContributionDay {
+    return { date: new Date(), count: 0, intensity: 0 };
   }
 
-  get numWeeks(): number {
-    return Math.ceil(this.data.length / 7);
+  get paddedData(): ContributionDay[] {
+    if (this.data.length === 0) return [];
+
+    const firstDay = this.data[0].date.getDay();
+    const padDays = firstDay === 0 ? 6 : firstDay - 1;
+    const padding: ContributionDay[] = [];
+    for (let i = 0; i < padDays; i++) {
+      padding.push(this.emptyDay);
+    }
+    return [...padding, ...this.data];
+  }
+
+  get numColumns(): number {
+    return Math.ceil(this.paddedData.length / 7);
   }
 
   onCellClick(day: ContributionDay) {

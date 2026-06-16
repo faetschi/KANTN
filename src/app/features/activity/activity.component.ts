@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ActivityService } from '../../core/services/activity.service';
-import { getWeekStart, formatPeriodLabel } from '../../core/domain/activity-utils';
+import { getWeekStart, formatPeriodLabel, buildContributionGrid, computePlanStreak, countUniqueDays } from '../../core/domain/activity-utils';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 import { WeeklyViewComponent } from './weekly-view.component';
 import { YearlyViewComponent } from './yearly-view.component';
@@ -77,7 +77,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
           [class.text-gray-900]="viewMode() === 'weekly'"
           [class.shadow-sm]="viewMode() === 'weekly'"
           [class.text-gray-500]="viewMode() !== 'weekly'"
-        >Weekly</button>
+        >Week</button>
         <button
           (click)="onViewModeChange('yearly')"
           class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
@@ -85,7 +85,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
           [class.text-gray-900]="viewMode() === 'yearly'"
           [class.shadow-sm]="viewMode() === 'yearly'"
           [class.text-gray-500]="viewMode() !== 'yearly'"
-        >Yearly</button>
+        >Year</button>
       </div>
 
       <div class="flex items-center justify-center gap-3">
@@ -104,13 +104,14 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
             <app-weekly-view
               [plans]="activityService.plans()"
               [weekData]="weeklyViewData()"
+              (cellClick)="onCellClick($event)"
               (cellLongPress)="onCellLongPress($event)"
             />
           }
           @case ('yearly') {
             <app-yearly-view
               [plans]="activityService.plans()"
-              [yearData]="activityService.yearlyData()"
+              [yearData]="yearlyViewData()"
             />
           }
         }
@@ -141,10 +142,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
             <div class="space-y-2">
               @for (s of m.sessions; track s.id) {
                 <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div class="flex items-center gap-2">
-                    <mat-icon class="text-sm text-gray-400">fitness_center</mat-icon>
-                    <span class="text-sm font-medium text-gray-700">{{ s.exercises.length }} exercises</span>
-                  </div>
+                  <span class="text-sm font-semibold text-gray-700">{{ s.exercises.length }} exercises</span>
                   <span class="text-xs text-gray-400">{{ s.duration ? (s.duration / 60 | number:'1.0-0') + ' min' : '' }}</span>
                 </div>
               }
@@ -194,6 +192,21 @@ export class ActivityComponent {
     return this.activityService.buildWeeklyData(weekStart);
   });
 
+  yearlyViewData = computed(() => {
+    const year = this.periodAnchor().getFullYear();
+    const now = new Date();
+    const endDate = (year === now.getFullYear()) ? now : new Date(year, 11, 31);
+    const sessions = this.activityService.sessions();
+    return this.activityService.plans()
+      .filter(p => sessions.some(s => s.planId === p.id))
+      .map(plan => ({
+        planId: plan.id,
+        contributions: buildContributionGrid(sessions, 365, plan.id, endDate),
+        streak: computePlanStreak(sessions, plan.id),
+        totalActiveDays: countUniqueDays(sessions, plan.id),
+      }));
+  });
+
   previousPeriod() {
     const d = this.periodAnchor();
     if (this.viewMode() === 'yearly') {
@@ -218,16 +231,30 @@ export class ActivityComponent {
 
   onViewModeChange(mode: 'weekly' | 'yearly') {
     this.viewMode.set(mode);
+    if (mode === 'weekly') {
+      this.periodAnchor.set(new Date());
+    }
     this.animateView = true;
     setTimeout(() => this.animateView = false, 300);
   }
 
+  private formatLocalDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  onCellClick(event: { planId: string; date: Date }) {
+    this.onCellLongPress(event);
+  }
+
   onCellLongPress(event: { planId: string; date: Date }) {
-    const dateStr = event.date.toISOString().slice(0, 10);
+    const dateStr = this.formatLocalDate(event.date);
     const plan = this.activityService.getPlanById(event.planId);
     const sessions = this.activityService.sessions().filter(s => {
       const d = new Date(s.date);
-      return d.toISOString().slice(0, 10) === dateStr && s.planId === event.planId;
+      return this.formatLocalDate(d) === dateStr && s.planId === event.planId;
     });
     this.modalData.set({
       date: dateStr,

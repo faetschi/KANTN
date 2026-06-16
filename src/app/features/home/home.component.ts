@@ -22,11 +22,32 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
   standalone: true,
   imports: [CommonModule, RouterLink, MatIconModule, PeriodToggleComponent],
   template: `
+    <!-- Missed Workouts - Top Notification Overlay -->
+    @if (missedWorkouts().length > 0 && !missedBannerDismissed() && missedVisitCount >= 5) {
+      <div class="fixed top-0 inset-x-0 z-50 animate-slideDown"
+           (click)="showMissedPopup.set(true); dismissMissedBanner()">
+        <div class="bg-amber-50 rounded-b-2xl shadow-xl shadow-amber-900/15 px-4 pb-1.75 pt-2 mx-4 cursor-pointer active:scale-[0.99] transition-transform">
+          <div class="flex items-center gap-3">
+            <div class="bg-amber-100 text-amber-600 p-1.5 rounded-xl shrink-0 leading-none">
+              <mat-icon class="text-[18px]" style="font-size:18px;width:18px;height:18px;">notifications_active</mat-icon>
+            </div>
+            <span class="text-sm text-amber-900 flex-1">
+              <strong>{{ missedWorkouts().length }}</strong> missed workout{{ missedWorkouts().length === 1 ? '' : 's' }}
+            </span>
+            <div (click)="$event.stopPropagation(); dismissMissedBanner()"
+                 class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 shrink-0">
+              <mat-icon class="text-[18px]" style="font-size:18px;width:18px;height:18px;">close</mat-icon>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
     <div class="p-6 space-y-6">
       <!-- Header -->
       <header class="flex justify-between items-center">
         <div class="flex items-center gap-3">
-          <svg viewBox="0 0 100 100" class="w-8 h-8 shrink-0 drop-shadow-sm">
+          <svg viewBox="0 0 100 100" class="w-11 h-11 shrink-0 drop-shadow-sm">
             <defs>
               <linearGradient id="homeLogoGrad" x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0%" stop-color="#6366f1"/>
@@ -43,7 +64,7 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
             </g>
           </svg>
           <div>
-            <h1 class="text-2xl font-bold text-gray-900">Today</h1>
+            <h1 class="text-2xl font-bold text-gray-900">KANTN</h1>
             <p class="text-gray-500 text-sm">{{ today | date:'EEEE, d MMMM' }}</p>
           </div>
         </div>
@@ -78,32 +99,43 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
         </div>
       </section>
 
-      <!-- Missed Workouts Reminder -->
-      @if (missedWorkouts().length > 0) {
-        <section>
-          <div class="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="bg-amber-100 text-amber-600 p-1.5 rounded-full">
+      <!-- Missed Workouts Popup -->
+      @if (showMissedPopup()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-backdrop"
+             (click)="showMissedPopup.set(false)">
+          <div class="bg-white rounded-3xl w-full max-w-md max-h-[70vh] overflow-y-auto p-5 shadow-xl animate-scale-in mx-4"
+               (click)="$event.stopPropagation()">
+            <div class="flex items-center gap-2 mb-4">
+              <div class="bg-amber-100 text-amber-600 px-1.5 py-1 rounded-xl shrink-0">
                 <mat-icon class="text-[18px]" style="font-size:18px;width:18px;height:18px;">notifications_active</mat-icon>
               </div>
-              <h2 class="text-sm font-bold text-amber-900">
-                {{ missedWorkouts().length === 1 ? '1 missed workout' : missedWorkouts().length + ' missed workouts' }}
-              </h2>
+              <h2 class="text-lg font-bold text-gray-900">Missed Workouts</h2>
+              <button (click)="showMissedPopup.set(false)" class="text-gray-400 hover:text-gray-600 p-1 ml-auto">
+                <mat-icon class="text-[20px]" style="font-size:20px;width:20px;height:20px;">close</mat-icon>
+              </button>
             </div>
             <div class="space-y-3">
               @for (workout of missedWorkouts(); track workout.id) {
-                <div class="bg-white rounded-2xl p-3 border border-amber-100 flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="font-semibold text-gray-900 text-sm truncate">{{ workout.planName }}</p>
-                    <p class="text-xs text-amber-600">Scheduled {{ workout.scheduledDate | date:'EEE, MMM d' }}</p>
+                <div class="bg-white rounded-2xl p-3.5 shadow-md ring-2 ring-amber-300 ring-offset-0">
+                  <p class="font-semibold text-gray-900 text-base">{{ workout.planName }}</p>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                          [ngStyle]="scheduledTypeBadgeStyle(workout)">
+                      <span class="mr-0.5" aria-hidden="true">{{ scheduledTypeEmoji(workout) }}</span>
+                      {{ scheduledTypeLabel(workout) }}
+                    </span>
+                    <span class="text-xs text-gray-500">
+                      <mat-icon class="text-[12px] align-text-bottom text-amber-500" style="font-size:12px;width:12px;height:12px;">calendar_today</mat-icon>
+                      {{ workout.scheduledDate | date:'dd.MM.yyyy' }}
+                    </span>
                   </div>
-                  <div class="flex items-center gap-2 shrink-0">
+                  <div class="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-gray-100">
                     <button (click)="skipMissed(workout)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-100 active:scale-95 transition-all">
+                            class="px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-100 active:scale-95 transition-all">
                       Skip
                     </button>
                     <button (click)="rescheduleMissedToToday(workout)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all whitespace-nowrap">
+                            class="px-2.5 py-1 rounded-lg text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all whitespace-nowrap">
                       Reschedule to today
                     </button>
                   </div>
@@ -111,7 +143,7 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
               }
             </div>
           </div>
-        </section>
+        </div>
       }
 
       <!-- Today's Scheduled Workout -->
@@ -247,10 +279,17 @@ export class HomeComponent {
 
   buttonSparks = BUTTON_SPARKS;
 
+  showMissedPopup = signal(false);
+  missedBannerDismissed = signal(false);
+  missedVisitCount = 0;
   recentActivityVisible = signal(false);
   private recentActivityEl = viewChild<ElementRef>('recentActivity');
 
   constructor() {
+    const visits = parseInt(sessionStorage.getItem('missedVisits') || '0', 10) + 1;
+    sessionStorage.setItem('missedVisits', visits.toString());
+    this.missedVisitCount = visits;
+
     afterNextRender(() => {
       const el = this.recentActivityEl();
       if (!el) return;
@@ -297,6 +336,11 @@ export class HomeComponent {
   onAvatarError(event: Event) {
     const img = event.target as HTMLImageElement;
     img.src = generateInitialsAvatar(this.user()?.name || 'User');
+  }
+
+  dismissMissedBanner() {
+    this.missedBannerDismissed.set(true);
+    sessionStorage.setItem('missedVisits', '0');
   }
 
   inProgress = computed(() => this.workoutService.inProgress());

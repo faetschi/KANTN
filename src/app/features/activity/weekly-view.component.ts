@@ -29,9 +29,9 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
           [plan]="plan"
           viewMode="weekly"
           [weeklyData]="getWeekData(plan.id)"
-          [colorScheme]="getPlanColor(plan.id)"
           [streak]="getStreak(plan.id)"
           [totalActiveDays]="getTotalActiveDays(plan.id)"
+          (cellClick)="cellClick.emit($event)"
           (cellLongPress)="cellLongPress.emit($event)"
         />
       }
@@ -41,6 +41,7 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
 export class WeeklyViewComponent {
   @Input() plans: WorkoutPlan[] = [];
   @Input() weekData: PlanWeekData[] = [];
+  @Output() cellClick = new EventEmitter<{ planId: string; date: Date }>();
   @Output() cellLongPress = new EventEmitter<{ planId: string; date: Date }>();
 
   get hasNoActivity(): boolean {

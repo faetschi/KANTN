@@ -29,7 +29,6 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
           [plan]="plan"
           viewMode="yearly"
           [yearlyData]="getYearData(plan.id)"
-          [colorScheme]="getPlanColor(plan.id)"
           [streak]="getStreak(plan.id)"
           [totalActiveDays]="getTotalActiveDays(plan.id)"
         />

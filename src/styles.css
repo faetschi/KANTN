@@ -55,6 +55,10 @@ body {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+@keyframes kf-slide-down {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes kf-pop {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.22); }
@@ -64,6 +68,7 @@ body {
 .fade-in,
 .animate-fade-in { animation: kf-fade-in 0.3s ease-out both; }
 .animate-slide-up { animation: kf-slide-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-slideDown { animation: kf-slide-down 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-scale-in { animation: kf-scale-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-backdrop { animation: kf-backdrop 0.2s ease-out both; }
 .animate-pop { animation: kf-pop 0.32s ease-out; }
@@ -83,6 +88,7 @@ body {
   .fade-in,
   .animate-fade-in,
   .animate-slide-up,
+  .animate-slideDown,
   .animate-scale-in,
   .animate-backdrop,
   .animate-pop,
