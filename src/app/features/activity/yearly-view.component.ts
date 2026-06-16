@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
@@ -32,7 +32,6 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
           [colorScheme]="getPlanColor(plan.id)"
           [streak]="getStreak(plan.id)"
           [totalActiveDays]="getTotalActiveDays(plan.id)"
-          (cellClick)="cellClick.emit($event)"
         />
       }
     </div>
@@ -41,8 +40,6 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
 export class YearlyViewComponent {
   @Input() plans: WorkoutPlan[] = [];
   @Input() yearData: PlanYearData[] = [];
-  @Output() cellClick = new EventEmitter<{ planId: string; date: Date }>();
-
   get hasNoActivity(): boolean {
     return this.yearData.every(yd => yd.totalActiveDays === 0);
   }

@@ -98,20 +98,12 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
         </button>
       </div>
 
-      <div class="flex justify-center">
-        <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-gray-400 bg-gray-100 rounded-full px-3 py-1">
-          <mat-icon class="text-[13px]" style="font-size:13px;width:13px;height:13px;">touch_app</mat-icon>
-          Tap to log · Long-press for detail
-        </span>
-      </div>
-
       <div class="view-container pt-2" [class.fade-in]="animateView">
         @switch (viewMode()) {
           @case ('weekly') {
             <app-weekly-view
               [plans]="activityService.plans()"
               [weekData]="weeklyViewData()"
-              (cellClick)="onCellClick($event)"
               (cellLongPress)="onCellLongPress($event)"
             />
           }
@@ -119,7 +111,6 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
             <app-yearly-view
               [plans]="activityService.plans()"
               [yearData]="activityService.yearlyData()"
-              (cellClick)="onCellClick($event)"
             />
           }
         }
@@ -229,11 +220,6 @@ export class ActivityComponent {
     this.viewMode.set(mode);
     this.animateView = true;
     setTimeout(() => this.animateView = false, 300);
-  }
-
-  onCellClick(event: { planId: string; date: Date }) {
-    // Tap to log: start the workout flow for this plan
-    this.router.navigate(['/workout', event.planId]);
   }
 
   onCellLongPress(event: { planId: string; date: Date }) {

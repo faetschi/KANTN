@@ -1,7 +1,7 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { WorkoutPlan } from '../../core/models/models';
 import { PlanWeekData } from '../../core/models/activity-models';
 import { planColor } from '../../core/domain/activity-utils';
@@ -32,7 +32,6 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
           [colorScheme]="getPlanColor(plan.id)"
           [streak]="getStreak(plan.id)"
           [totalActiveDays]="getTotalActiveDays(plan.id)"
-          (cellClick)="cellClick.emit($event)"
           (cellLongPress)="cellLongPress.emit($event)"
         />
       }
@@ -42,10 +41,7 @@ import { PracticeCardComponent } from '../../shared/components/practice-card.com
 export class WeeklyViewComponent {
   @Input() plans: WorkoutPlan[] = [];
   @Input() weekData: PlanWeekData[] = [];
-  @Output() cellClick = new EventEmitter<{ planId: string; date: Date }>();
   @Output() cellLongPress = new EventEmitter<{ planId: string; date: Date }>();
-
-  private router = inject(Router);
 
   get hasNoActivity(): boolean {
     return this.weekData.every(wd => wd.totalActiveDays === 0);

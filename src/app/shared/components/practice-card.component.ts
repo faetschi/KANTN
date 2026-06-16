@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { WorkoutPlan } from '../../core/models/models';
 import { ContributionDay, WeekDayEntry } from '../../core/models/activity-models';
-import { planColor, intensityColor } from '../../core/domain/activity-utils';
+import { planColor } from '../../core/domain/activity-utils';
 import { getWorkoutPlanType, getWorkoutTypeVisual, getWorkoutTypeEmoji, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 import { ContributionGridComponent } from './contribution-grid.component';
 
@@ -71,7 +71,7 @@ import { ContributionGridComponent } from './contribution-grid.component';
             [data]="yearlyData"
             [colorScheme]="schemeName"
             [compact]="false"
-            (cellClick)="onGridCellClick(plan.id, $event)"
+            
           />
           <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
             <span>{{ streak }} day streak</span>
@@ -91,7 +91,6 @@ export class PracticeCardComponent {
   @Input() colorScheme: string = 'blue';
   @Input() streak: number = 0;
   @Input() totalActiveDays: number = 0;
-  @Output() cellClick = new EventEmitter<{ planId: string; date: Date }>();
   @Output() cellLongPress = new EventEmitter<{ planId: string; date: Date }>();
 
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -156,15 +155,8 @@ export class PracticeCardComponent {
     if (this.pressTimer) {
       clearTimeout(this.pressTimer);
       this.pressTimer = null;
-      if (this.pressedPlanId && this.pressedDate) {
-        this.cellClick.emit({ planId: this.pressedPlanId, date: this.pressedDate });
-      }
     }
     this.pressedPlanId = null;
     this.pressedDate = null;
-  }
-
-  onGridCellClick(planId: string, event: { date: Date; count: number }) {
-    this.cellClick.emit({ planId, date: event.date });
   }
 }
