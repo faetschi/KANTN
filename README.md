@@ -11,6 +11,10 @@ KANTN is a modern workout platform designed to make fitness simple, structured, 
 - 📊 **Workout history & details**: Review completed sessions and performance trends.
 - 👤 **Personal profile**: Keep your account and fitness journey organized in one place.
 
+<br>
+
+<img src="docs/images/home.png" width="390" height="840" /> <img src="docs/images/calendar.png" width="390" height="840" />  <img src="docs/images/workout plans.png" width="390" height="840" />
+
 ## Quick Start (Dev)
 
 1. Install dependencies:
