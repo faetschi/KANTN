@@ -18,15 +18,15 @@ Milestone 2: Technische Basis implementiert
 - Bestehende Workout-Logging-Flows bleiben weiterhin nutzbar.
 - Erste UI-Platzhalter für Leaderboard, Social Feedback und geplante Workouts sind eingebaut.
 
-Milestone 3: Epic 1 - Persuasive Design & Gamification umgesetzt
-- Firmen-Leaderboards, Team-/Firmenkontext und motivierende Feedback-Elemente sind implementiert.
-- Nutzer können ihren Fortschritt im Firmenkontext sehen.
-- Datenschutz- und Opt-out-Regeln sind im UI abgebildet.
-
-Milestone 4: Epic 2 - Frictionless Logging & Smart Defaults umgesetzt
+Milestone 3: Epic 2 - Frictionless Logging & Smart Defaults umgesetzt
 - Nutzer können Workouts vorplanen und direkt aus dem Plan starten.
 - Beim Logging werden sinnvolle Standardwerte vorgeschlagen.
 - Während des Workouts sind nur noch die wichtigsten Eingaben notwendig.
+
+Milestone 4: Epic 1 - Persuasive Design & Gamification umgesetzt
+- Firmen-Leaderboards, Team-/Firmenkontext und motivierende Feedback-Elemente sind implementiert.
+- Nutzer können ihren Fortschritt im Firmenkontext sehen.
+- Datenschutz- und Opt-out-Regeln sind im UI abgebildet.
 
 Milestone 5: Feedback & UX Testing abgeschlossen
 - 1. Feedbacktermin mit Johannes Robier durchgeführt und Feedback eingearbeitet.
@@ -37,8 +37,8 @@ Milestone 5: Feedback & UX Testing abgeschlossen
 ```mermaid
 flowchart LR
   M1["M1 Scope & UX Flow"] --> M2["M2 Technische Basis"]
-  M2 --> M3["M3 Gamification"]
-  M2 --> M4["M4 Frictionless Logging"]
+  M2 --> M3["M4 Frictionless Logging"]
+  M2 --> M4["M3 Gamification"]
   M3 --> M5["M5 Feedback & UX Tests"]
   M4 --> M5
 ```
