@@ -81,7 +81,7 @@ export class ActivityService {
     return this.plans()
       .filter(p => sessions.some(s => s.planId === p.id))
       .map(plan => {
-        const days = buildWeekData(sessions, weekStart, plan.id);
+        const days = buildWeekData(sessions, weekStart, plan);
         return {
           planId: plan.id,
           days,
@@ -96,7 +96,7 @@ export class ActivityService {
     return this.plans()
       .filter(p => sessions.some(s => s.planId === p.id))
       .map(plan => {
-        const days = buildWeekData(sessions, weekStart, plan.id);
+        const days = buildWeekData(sessions, weekStart, plan);
         return {
           planId: plan.id,
           days,

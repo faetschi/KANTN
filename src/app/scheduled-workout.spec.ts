@@ -1,21 +1,48 @@
+import { vi, beforeEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
 import { WorkoutService } from './core/services/workout.service';
-import { ScheduledWorkout } from './core/models/models';
+import { AuthService } from './core/services/auth.service';
+import { WorkoutRepository } from './core/repositories/workout.repository';
+import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SESSIONS } from './core/models/mock-data';
 
 describe('ScheduledWorkoutService', () => {
   let service: WorkoutService;
 
   beforeEach(() => {
-    service = new WorkoutService();
+    TestBed.configureTestingModule({
+      providers: [
+        WorkoutService,
+        { provide: AuthService, useValue: { currentUser: () => ({ id: 'test-user' }) } },
+        {
+          provide: WorkoutRepository,
+          useValue: {
+            ensureFirstRunSeed: vi.fn().mockResolvedValue(undefined),
+            loadDashboardData: vi.fn().mockResolvedValue({
+              exercises: MOCK_EXERCISES,
+              plans: MOCK_PLANS,
+              sessions: MOCK_SESSIONS,
+              planInvites: [],
+            }),
+            getScheduledWorkouts: vi.fn().mockResolvedValue(null),
+            insertScheduledWorkout: vi.fn().mockResolvedValue('sched-new'),
+            updateScheduledWorkoutStatus: vi.fn().mockResolvedValue(true),
+            rescheduleWorkout: vi.fn().mockResolvedValue(true),
+            deleteScheduledWorkout: vi.fn().mockResolvedValue(true),
+          },
+        },
+      ],
+    });
+    service = TestBed.inject(WorkoutService);
   });
 
   it('allows scheduling a plan', async () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const ok = await service.schedulePlan('p1', tomorrow);
-    expect(ok).toBeTrue();
+    expect(ok).toBe(true);
 
     const allScheduled = service.scheduledWorkouts();
-    expect(allScheduled.some(sw => sw.planId === 'p1' && sw.status === 'scheduled')).toBeTrue();
+    expect(allScheduled.some(sw => sw.planId === 'p1' && sw.status === 'scheduled')).toBe(true);
   });
 
   it('returns today scheduled workouts', () => {

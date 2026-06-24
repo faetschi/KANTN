@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ActivityService } from '../../core/services/activity.service';
-import { getWeekStart, formatPeriodLabel } from '../../core/domain/activity-utils';
+import { getWeekStart, formatPeriodLabel, buildContributionGrid, computePlanStreak, countUniqueDays } from '../../core/domain/activity-utils';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 import { WeeklyViewComponent } from './weekly-view.component';
 import { YearlyViewComponent } from './yearly-view.component';
@@ -26,7 +26,10 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
   template: `
     <div class="p-6 pb-28 space-y-6">
       <header class="flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-gray-900">Activity</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Activity</h1>
+          <p class="text-gray-500 text-sm">Keep your streak alive</p>
+        </div>
         <div class="flex items-center gap-3">
           <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
           <a [routerLink]="['/profile']" class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer block">
@@ -36,18 +39,33 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
       </header>
 
       <!-- Stats Summary -->
-      <div class="grid grid-cols-3 gap-3">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-          <p class="text-lg font-bold text-gray-900">{{ activityService.totalContributions() }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">Total Workouts</p>
+      <div class="grid grid-cols-3 gap-3 stagger">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <mat-icon class="text-lg">done_all</mat-icon>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-gray-900 leading-none">{{ activityService.totalContributions() }}</p>
+            <p class="text-[11px] text-gray-400 mt-1">Total Workouts</p>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-          <p class="text-lg font-bold text-blue-600">{{ activityService.strengthSessionCount() }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">Strength</p>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
+          <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <mat-icon class="text-lg">fitness_center</mat-icon>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-blue-600 leading-none">{{ activityService.strengthSessionCount() }}</p>
+            <p class="text-[11px] text-gray-400 mt-1">Strength</p>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-          <p class="text-lg font-bold text-orange-600">{{ activityService.cardioSessionCount() }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">Cardio</p>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
+          <div class="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+            <mat-icon class="text-lg">directions_run</mat-icon>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-orange-600 leading-none">{{ activityService.cardioSessionCount() }}</p>
+            <p class="text-[11px] text-gray-400 mt-1">Cardio</p>
+          </div>
         </div>
       </div>
 
@@ -59,7 +77,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
           [class.text-gray-900]="viewMode() === 'weekly'"
           [class.shadow-sm]="viewMode() === 'weekly'"
           [class.text-gray-500]="viewMode() !== 'weekly'"
-        >Weekly</button>
+        >Week</button>
         <button
           (click)="onViewModeChange('yearly')"
           class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
@@ -67,7 +85,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
           [class.text-gray-900]="viewMode() === 'yearly'"
           [class.shadow-sm]="viewMode() === 'yearly'"
           [class.text-gray-500]="viewMode() !== 'yearly'"
-        >Yearly</button>
+        >Year</button>
       </div>
 
       <div class="flex items-center justify-center gap-3">
@@ -80,9 +98,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
         </button>
       </div>
 
-      <p class="text-xs text-gray-400 text-center">Tap to log · Long-press for detail</p>
-
-      <div class="view-container" [class.fade-in]="animateView">
+      <div class="view-container pt-2" [class.fade-in]="animateView">
         @switch (viewMode()) {
           @case ('weekly') {
             <app-weekly-view
@@ -95,8 +111,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
           @case ('yearly') {
             <app-yearly-view
               [plans]="activityService.plans()"
-              [yearData]="activityService.yearlyData()"
-              (cellClick)="onCellClick($event)"
+              [yearData]="yearlyViewData()"
             />
           }
         }
@@ -109,11 +124,11 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
     <!-- Long-press Modal -->
     @if (modalData(); as m) {
       <div
-        class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-backdrop"
         (click)="closeModal()"
       >
         <div
-          class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100"
+          class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-lg border border-gray-100 animate-scale-in"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-center justify-between mb-4">
@@ -127,10 +142,7 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
             <div class="space-y-2">
               @for (s of m.sessions; track s.id) {
                 <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div class="flex items-center gap-2">
-                    <mat-icon class="text-sm text-gray-400">fitness_center</mat-icon>
-                    <span class="text-sm font-medium text-gray-700">{{ s.exercises.length }} exercises</span>
-                  </div>
+                  <span class="text-sm font-semibold text-gray-700">{{ s.exercises.length }} exercises</span>
                   <span class="text-xs text-gray-400">{{ s.duration ? (s.duration / 60 | number:'1.0-0') + ' min' : '' }}</span>
                 </div>
               }
@@ -180,6 +192,21 @@ export class ActivityComponent {
     return this.activityService.buildWeeklyData(weekStart);
   });
 
+  yearlyViewData = computed(() => {
+    const year = this.periodAnchor().getFullYear();
+    const now = new Date();
+    const endDate = (year === now.getFullYear()) ? now : new Date(year, 11, 31);
+    const sessions = this.activityService.sessions();
+    return this.activityService.plans()
+      .filter(p => sessions.some(s => s.planId === p.id))
+      .map(plan => ({
+        planId: plan.id,
+        contributions: buildContributionGrid(sessions, 365, plan.id, endDate),
+        streak: computePlanStreak(sessions, plan.id),
+        totalActiveDays: countUniqueDays(sessions, plan.id),
+      }));
+  });
+
   previousPeriod() {
     const d = this.periodAnchor();
     if (this.viewMode() === 'yearly') {
@@ -204,21 +231,30 @@ export class ActivityComponent {
 
   onViewModeChange(mode: 'weekly' | 'yearly') {
     this.viewMode.set(mode);
+    if (mode === 'weekly') {
+      this.periodAnchor.set(new Date());
+    }
     this.animateView = true;
     setTimeout(() => this.animateView = false, 300);
   }
 
+  private formatLocalDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   onCellClick(event: { planId: string; date: Date }) {
-    const dateStr = event.date.toISOString().slice(0, 10);
-    this.router.navigate(['/history'], { queryParams: { date: dateStr } });
+    this.onCellLongPress(event);
   }
 
   onCellLongPress(event: { planId: string; date: Date }) {
-    const dateStr = event.date.toISOString().slice(0, 10);
+    const dateStr = this.formatLocalDate(event.date);
     const plan = this.activityService.getPlanById(event.planId);
     const sessions = this.activityService.sessions().filter(s => {
       const d = new Date(s.date);
-      return d.toISOString().slice(0, 10) === dateStr && s.planId === event.planId;
+      return this.formatLocalDate(d) === dateStr && s.planId === event.planId;
     });
     this.modalData.set({
       date: dateStr,

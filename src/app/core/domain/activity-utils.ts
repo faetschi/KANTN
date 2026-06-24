@@ -1,4 +1,4 @@
-import { WorkoutSession } from '../models/models';
+import { WorkoutSession, WorkoutPlan } from '../models/models';
 import { ContributionDay, WeekDayEntry } from '../models/activity-models';
 
 const ACTIVITY_COLORS: Record<string, string[]> = {
@@ -94,24 +94,31 @@ export function countUniqueDays(sessions: WorkoutSession[], planId?: string): nu
   return days.size;
 }
 
-export function buildContributionGrid(sessions: WorkoutSession[], days = 365, planId?: string): ContributionDay[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+function localDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function buildContributionGrid(sessions: WorkoutSession[], days = 365, planId?: string, endDate?: Date): ContributionDay[] {
+  const end = endDate ? new Date(endDate) : new Date();
+  end.setHours(0, 0, 0, 0);
 
   const sessionCountByDay = new Map<string, number>();
   for (const s of sessions) {
     if (planId && s.planId !== planId) continue;
     const d = new Date(s.date);
     d.setHours(0, 0, 0, 0);
-    const key = d.toISOString().slice(0, 10);
+    const key = localDateKey(d);
     sessionCountByDay.set(key, (sessionCountByDay.get(key) || 0) + 1);
   }
 
   const contributions: ContributionDay[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today);
+    const date = new Date(end);
     date.setDate(date.getDate() - i);
-    const key = date.toISOString().slice(0, 10);
+    const key = localDateKey(date);
     const count = sessionCountByDay.get(key) || 0;
     contributions.push({
       date: new Date(date),
@@ -134,9 +141,17 @@ function countToIntensity(count: number): 0 | 1 | 2 | 3 | 4 {
   return 4;
 }
 
-export function buildWeekData(sessions: WorkoutSession[], weekStart: Date, planId: string): WeekDayEntry[] {
+function isCardioPlan(plan: WorkoutPlan): boolean {
+  const cat = (plan.category || '').trim().toLowerCase();
+  const type = (plan.workoutPlanType || '').trim().toLowerCase();
+  return cat === 'running' || cat === 'cycling' || cat === 'swimming' || cat === 'hiking'
+    || type === 'cardio';
+}
+
+export function buildWeekData(sessions: WorkoutSession[], weekStart: Date, plan: WorkoutPlan): WeekDayEntry[] {
   const weekDays: WeekDayEntry[] = [];
-  const sessionsForPlan = sessions.filter(s => s.planId === planId);
+  const sessionsForPlan = sessions.filter(s => s.planId === plan.id);
+  const cardio = isCardioPlan(plan);
 
   for (let i = 0; i < 7; i++) {
     const date = new Date(weekStart);
@@ -149,12 +164,13 @@ export function buildWeekData(sessions: WorkoutSession[], weekStart: Date, planI
       return d.getTime() === date.getTime();
     });
 
-    const isActive = daySessions.length > 0;
     const totalCount = daySessions.reduce((sum, s) => sum + s.exercises.length, 0);
+    const isActive = totalCount > 0;
 
     weekDays.push({
+      date: new Date(date),
       dayLabel: getDayLabel(date),
-      value: isActive ? (totalCount > 0 ? totalCount : '✓') : '',
+      value: isActive ? (cardio ? '✓' : String(totalCount)) : '',
       isActive,
     });
   }
@@ -162,10 +178,10 @@ export function buildWeekData(sessions: WorkoutSession[], weekStart: Date, planI
   return weekDays;
 }
 
-export function buildWeekDataForAllPlans(sessions: WorkoutSession[], weekStart: Date, planIds: string[]): Map<string, WeekDayEntry[]> {
+export function buildWeekDataForAllPlans(sessions: WorkoutSession[], weekStart: Date, plans: WorkoutPlan[]): Map<string, WeekDayEntry[]> {
   const result = new Map<string, WeekDayEntry[]>();
-  for (const planId of planIds) {
-    result.set(planId, buildWeekData(sessions, weekStart, planId));
+  for (const plan of plans) {
+    result.set(plan.id, buildWeekData(sessions, weekStart, plan));
   }
   return result;
 }

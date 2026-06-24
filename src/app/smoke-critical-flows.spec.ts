@@ -151,6 +151,7 @@ describe('Critical flow smoke tests', () => {
           useValue: {
             getPlanById: vi.fn().mockReturnValue(plan),
             getLastSessionForPlan: vi.fn().mockReturnValue(null),
+            getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession,
             getExerciseById,
             inProgress,

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { WorkoutPlan } from '../../core/models/models';
 import { ContributionDay, WeekDayEntry } from '../../core/models/activity-models';
-import { planColor, intensityColor } from '../../core/domain/activity-utils';
+import { intensityColor } from '../../core/domain/activity-utils';
 import { getWorkoutPlanType, getWorkoutTypeVisual, getWorkoutTypeEmoji, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
 import { ContributionGridComponent } from './contribution-grid.component';
 
@@ -15,7 +15,9 @@ import { ContributionGridComponent } from './contribution-grid.component';
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
       <div class="flex justify-between items-center mb-3">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg" [style.background]="schemeColor"></div>
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" [style.background]="badgeVisual.bgColor">
+            <mat-icon class="text-base" [style]="{fontSize:'16px',width:'16px',height:'16px',color:badgeVisual.color}">fitness_center</mat-icon>
+          </div>
           <div class="flex flex-col">
             <span class="font-semibold text-gray-900">{{ plan.name }}</span>
             <div class="flex items-center gap-1 mt-0.5">
@@ -46,12 +48,13 @@ import { ContributionGridComponent } from './contribution-grid.component';
             <div class="flex flex-col items-center gap-1">
               <span class="text-[10px] font-bold text-gray-400 uppercase">{{ day.dayLabel }}</span>
               <div
-                class="w-full aspect-square rounded-lg flex items-center justify-center text-xs font-bold cursor-pointer select-none"
+                class="w-full aspect-square rounded-lg flex items-center justify-center text-xs font-bold cursor-pointer select-none transition-transform duration-150 active:scale-90"
                 [class.text-white]="day.isActive"
                 [class.text-gray-300]="!day.isActive"
                 [class.border]="!day.isActive"
                 [class.border-gray-200]="!day.isActive"
-                [style.background]="day.isActive ? dayColor : 'transparent'"
+                [class.shadow-sm]="day.isActive"
+                [style.background]="day.isActive ? intensityColor(2, 'green') : 'transparent'"
                 [style.touch-action]="'manipulation'"
                 (pointerdown)="onPointerDown(plan.id, day, $event)"
                 (pointerup)="onPointerUp()"
@@ -68,9 +71,8 @@ import { ContributionGridComponent } from './contribution-grid.component';
         <div class="mt-2">
           <app-contribution-grid
             [data]="yearlyData"
-            [colorScheme]="schemeName"
             [compact]="false"
-            (cellClick)="onGridCellClick(plan.id, $event)"
+            
           />
           <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
             <span>{{ streak }} day streak</span>
@@ -80,50 +82,29 @@ import { ContributionGridComponent } from './contribution-grid.component';
       }
     </div>
   `,
+  host: { class: 'block' },
 })
 export class PracticeCardComponent {
   @Input() plan!: WorkoutPlan;
   @Input() viewMode: 'weekly' | 'yearly' = 'weekly';
   @Input() weeklyData: WeekDayEntry[] = [];
   @Input() yearlyData: ContributionDay[] = [];
-  @Input() colorScheme: string = 'blue';
   @Input() streak: number = 0;
   @Input() totalActiveDays: number = 0;
   @Output() cellClick = new EventEmitter<{ planId: string; date: Date }>();
   @Output() cellLongPress = new EventEmitter<{ planId: string; date: Date }>();
 
+  intensityColor = intensityColor;
+
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
   private pressedPlanId: string | null = null;
   private pressedDate: Date | null = null;
-  private pressedDay: WeekDayEntry | null = null;
-
-  get schemeColor(): string {
-    const hexPalettes: Record<string, string[]> = {
-      blue: ['#ebf5ff', '#b3d9ff', '#4da6ff', '#0066cc', '#003b80'],
-      purple: ['#f3ebff', '#d4b3ff', '#8c4dff', '#5900cc', '#330080'],
-      green: ['#ebf5eb', '#b3d9b3', '#4da64d', '#006600', '#003b00'],
-      orange: ['#fff5eb', '#ffd4b3', '#ff8c4d', '#cc5900', '#803300'],
-      pink: ['#fff0f5', '#ffb3d9', '#ff4da6', '#cc0066', '#800040'],
-      teal: ['#e6fffa', '#b3f0e0', '#4dd4b2', '#00a88a', '#007a61'],
-      indigo: ['#eef2ff', '#c7d2fe', '#818cf8', '#4f46e5', '#3730a3'],
-      amber: ['#fffbeb', '#fde68a', '#f59e0b', '#d97706', '#b45309'],
-    };
-    return (hexPalettes[this.colorScheme] || hexPalettes['blue'])[2];
-  }
-
-  get schemeName(): string {
-    return this.colorScheme;
-  }
-
-  get dayColor(): string {
-    return this.schemeColor;
-  }
 
   private get workoutType() {
     return getWorkoutPlanType(this.plan);
   }
 
-  private get badgeVisual() {
+  get badgeVisual() {
     return getWorkoutTypeVisual(this.workoutType);
   }
 
@@ -140,14 +121,12 @@ export class PracticeCardComponent {
   }
 
   onPointerDown(planId: string, day: WeekDayEntry, event: PointerEvent) {
-    if (!day.isActive) return;
     event.preventDefault();
     this.pressedPlanId = planId;
-    this.pressedDate = new Date();
-    this.pressedDay = day;
+    this.pressedDate = day.date;
     this.pressTimer = setTimeout(() => {
       if (this.pressedPlanId && this.pressedDate) {
-        this.cellLongPress.emit({ planId: this.pressedPlanId, date: this.pressedDate! });
+        this.cellLongPress.emit({ planId: this.pressedPlanId, date: this.pressedDate });
       }
       this.pressTimer = null;
     }, 500);
@@ -157,16 +136,11 @@ export class PracticeCardComponent {
     if (this.pressTimer) {
       clearTimeout(this.pressTimer);
       this.pressTimer = null;
-      if (this.pressedPlanId && this.pressedDay?.isActive) {
-        this.cellClick.emit({ planId: this.pressedPlanId, date: this.pressedDate ?? new Date() });
+      if (this.pressedPlanId && this.pressedDate) {
+        this.cellClick.emit({ planId: this.pressedPlanId, date: this.pressedDate });
       }
     }
     this.pressedPlanId = null;
     this.pressedDate = null;
-    this.pressedDay = null;
-  }
-
-  onGridCellClick(planId: string, event: { date: Date; count: number }) {
-    this.cellClick.emit({ planId, date: event.date });
   }
 }

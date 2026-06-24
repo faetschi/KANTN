@@ -229,9 +229,9 @@ import { CardioMapComponent } from './cardio-map.component';
                             [class.text-white]="set.completed"
                             [class.bg-gray-100]="!set.completed"
                             [class.text-gray-300]="!set.completed"
-                            class="h-10 w-full rounded-xl flex items-center justify-center transition-colors"
+                            class="h-10 w-full rounded-xl flex items-center justify-center transition-colors active:scale-95"
                             [attr.aria-label]="set.completed ? 'Mark set as incomplete' : 'Mark set as complete'">
-                      <mat-icon>check</mat-icon>
+                      <mat-icon [class.animate-pop]="set.completed">check</mat-icon>
                     </button>
                   </div>
                   <div class="flex justify-end mt-1">
@@ -636,7 +636,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     this.route.paramMap.subscribe(params => {
       const id = params.get('planId');
       if (!id) return;
-      this.scheduleId.set(this.route.snapshot.queryParamMap.get('scheduleId'));
+      this.scheduleId.set(this.route.snapshot?.queryParamMap?.get('scheduleId') ?? null);
 
       // If there is an in-progress workout matching this id, resume it
       const inProgress = this.workoutService.inProgress();

@@ -5,6 +5,7 @@ import { MOCK_EXERCISES, MOCK_PLANS, MOCK_SCHEDULED_WORKOUTS, MOCK_SESSIONS } fr
 import { WorkoutRepository } from '../repositories/workout.repository';
 import { buildPersistedSessionPayload } from '../domain/workout-domain';
 import { deriveWorkoutPlanType } from '../domain/workout-types';
+import { isMissed } from '../domain/date-status';
 
 @Injectable({
   providedIn: 'root'
@@ -77,9 +78,9 @@ export class WorkoutService {
   });
 
   missedWorkouts = computed(() => {
-    const now = new Date();
     return this.scheduledWorkoutsSignal()
-      .filter(sw => new Date(sw.scheduledDate) < now && sw.status === 'scheduled');
+      .filter(isMissed)
+      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
   });
 
   constructor() {
@@ -480,9 +481,7 @@ export class WorkoutService {
   }
 
   getMissedScheduledWorkouts(): ScheduledWorkout[] {
-    const now = new Date();
-    return this.scheduledWorkoutsSignal()
-      .filter(sw => new Date(sw.scheduledDate) < now && sw.status === 'scheduled');
+    return this.scheduledWorkoutsSignal().filter(isMissed);
   }
 
   async schedulePlan(planId: string, date: Date, timeSlot?: TimeSlot): Promise<boolean> {
