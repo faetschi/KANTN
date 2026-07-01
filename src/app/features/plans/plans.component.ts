@@ -101,7 +101,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
                     type="button"
                     (click)="respondToInvite(invite.id, true)"
                     [disabled]="respondingInviteId === invite.id"
-                    class="flex-1 bg-gray-900 text-white text-xs font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+                    class="flex-1 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
                   >
                     {{ respondingInviteId === invite.id ? 'Accepting…' : 'Accept' }}
                   </button>
@@ -208,7 +208,7 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
 
             <!-- Actions: Start, Schedule (with date), Edit -->
             <div class="flex gap-3">
-              <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-gray-900 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-gray-800">
+              <button [routerLink]="['/workout', plan.id]" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm shadow-md active:bg-blue-700">
                 Start
               </button>
               <button (click)="openScheduleDialog(plan.id)" class="px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-semibold text-sm flex items-center gap-1.5 whitespace-nowrap">

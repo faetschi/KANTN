@@ -254,7 +254,7 @@ import { CardioMapComponent } from './cardio-map.component';
               <!-- Undo toast -->
               @if (undoMessage()) {
                 <div class="fixed bottom-24 left-4 right-4 z-50 flex justify-center pointer-events-none">
-                  <div class="bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-medium flex items-center gap-3 pointer-events-auto">
+                  <div class="bg-blue-600 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-medium flex items-center gap-3 pointer-events-auto">
                     <span>{{ undoMessage() }}</span>
                     <button (click)="undoLastAction()" class="text-blue-300 font-bold underline">Undo</button>
                     <button (click)="dismissUndo()" class="text-gray-400">
@@ -278,16 +278,16 @@ import { CardioMapComponent } from './cardio-map.component';
         <div class="flex justify-between items-center max-w-screen-xl mx-auto">
           @if (freestyleMode()) {
             <div class="flex items-center gap-1.5">
-              <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+              <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
                 <mat-icon>arrow_back</mat-icon>
               </button>
-              <button type="button" (click)="showFreestylePicker.set(true); freestylePickerClosable.set(true)" class="flex items-center gap-1 px-3 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold">
+              <button type="button" (click)="openFreestylePicker()" class="flex items-center gap-1 px-3 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold">
                 <mat-icon style="font-size:18px;width:18px;height:18px;">add</mat-icon>
                 <span>Add</span>
               </button>
             </div>
           } @else {
-            <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+            <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
               <mat-icon>arrow_back</mat-icon>
             </button>
           }
@@ -655,6 +655,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         }
         if (this.freestyleMode()) {
           this.freestyleExercises.set(inProgress.freestyleExercises || []);
+          this.freestyleStarted.set(!!inProgress.freestyleStarted);
+          if (!inProgress.freestyleStarted) {
+            this.showFreestylePicker.set(true);
+            this.freestylePickerClosable.set(false);
+          }
         }
         this.workoutData.set(restored);
         // Restore cardio data
@@ -669,7 +674,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
           clearInterval(this.timerInterval);
           this.timerInterval = undefined;
         }
-        this.startTimer();
+        if (this.freestyleStarted()) {
+          this.startTimer();
+        }
         return;
       }
 
@@ -702,8 +709,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         }
       }
 
-      // persist lightweight in-progress marker so user can resume after navigation
-      this.persistInProgress();
+      // Persist state for non-freestyle or freestyle with exercises selected
+      if (!this.freestyleMode() || this.freestyleExercises().length > 0) {
+        this.persistInProgress();
+      }
     });
   }
 
@@ -795,6 +804,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       currentExerciseIndex: this.currentExerciseIndex(),
       workoutData: dataObj,
       freestyleExercises: this.freestyleExercises() || [],
+      freestyleStarted: this.freestyleStarted(),
       cardioExerciseData: Object.keys(cardioObj).length > 0 ? cardioObj : undefined,
     };
     this.workoutService.setInProgress(payload);
@@ -927,7 +937,24 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     if (wasEmpty) {
       this.currentExerciseIndex.set(0);
     }
+    if (this.freestyleWorkoutType() === 'cardio') {
+      this.freestyleWorkoutType.set(null);
+      this.startFreestyleWorkout();
+      return;
+    }
+    this.persistInProgress();
     this.showExercisePicker = false;
+  }
+
+  openFreestylePicker() {
+    if (this.freestyleExercises().length > 0) {
+      const type = deriveWorkoutPlanType(this.freestyleExercises());
+      if (type === 'strength' || type === 'cardio') {
+        this.freestyleWorkoutType.set(type);
+      }
+    }
+    this.showFreestylePicker.set(true);
+    this.freestylePickerClosable.set(true);
   }
 
   selectFreestyleWorkoutType(type: 'strength' | 'cardio') {
@@ -950,9 +977,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.freestyleStarted.set(true);
       this.startTime = new Date();
       this.elapsedTime.set(0);
+      if (this.timerInterval !== undefined) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = undefined;
+      }
       this.startTimer();
       this.persistInProgress();
     }
+    this.showFreestylePicker.set(false);
   }
 
   isExerciseSelected(exercise: Exercise): boolean {
@@ -988,6 +1020,18 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     const exId = this.currentExercise()?.id;
     if (!exId) return;
 
+    // Snapshot for undo
+    this.lastSnapshot = { exerciseId: exId, sets: (this.workoutData().get(exId) || []).map(s => ({ ...s })) };
+
+    if (this.freestyleMode()) {
+      const count = this.workoutData().get(exId)?.length || 3;
+      const resetSet: WorkoutSet = { reps: 0, weight: 0, completed: false };
+      const resetSets = Array.from({ length: count }, () => ({ ...resetSet }));
+      this.workoutData.update(m => new Map(m.set(exId, resetSets)));
+      this.showUndo('Reset exercise');
+      return;
+    }
+
     const plan = this.plan();
     if (!plan) return;
 
@@ -996,9 +1040,6 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     const planTargets = this.workoutService.getPlanExerciseTargets(plan.id);
     const lastSession = this.workoutService.getLastSessionForPlan(plan.id);
-
-    // Snapshot for undo
-    this.lastSnapshot = { exerciseId: exId, sets: (this.workoutData().get(exId) || []).map(s => ({ ...s })) };
 
     const defaults = resolveDefault(exId, exercise.name, planTargets, lastSession, lastSession?.exercises);
     const resetSet: WorkoutSet = { reps: defaults.reps, weight: defaults.weight, completed: false, source: defaults.source };

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
@@ -90,14 +90,14 @@ interface CalendarDay {
         <!-- Inline Type Breakdown -->
         <div *ngIf="showCategoryDetails()" class="mt-4 pt-4 border-t border-white/15">
           <div class="flex items-center gap-2 text-white/70 mb-3">
-            <span class="text-lg">📊</span>
+            <mat-icon class="text-xl text-white" style="font-size: 22px; width: 22px; height: 22px;">bar_chart</mat-icon>
             <span class="text-[11px] font-bold uppercase tracking-widest">By Type</span>
           </div>
           <div class="space-y-1.5 -mx-1">
             <div *ngFor="let c of typeBreakdown()" class="flex items-center justify-between py-2.5 px-3 rounded-xl bg-black/20">
               <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.backgroundColor]="typeColor(c.type)"></span>
-                <span class="text-xl shrink-0">{{ c.emoji }}</span>
+                <span class="w-3.5 h-3.5 rounded-full shrink-0" [style.backgroundColor]="typeColor(c.type)" [style.boxShadow]="'0 0 0 2.5px ' + typeColor(c.type) + '80'"></span>
+                <span class="w-8 h-8 flex items-center justify-center rounded-full text-[20px] shrink-0" style="filter: drop-shadow(0 0 6px rgba(0,0,0,0.5)) brightness(1.15);">{{ c.emoji }}</span>
                 <div class="min-w-0">
                   <div class="font-semibold text-white text-sm">{{ c.label }}</div>
                   <div class="text-[11px] text-white/50">{{ c.planned }} planned</div>
@@ -164,6 +164,17 @@ interface CalendarDay {
           </button>
         </div>
       </div>
+
+      <!-- Scroll-down hint for mobile users when the selected day has workouts -->
+      <div
+        *ngIf="viewMode() === 'month' && hasSelectedDayWorkouts() && showScrollHint()"
+        class="sm:hidden flex flex-col items-center gap-0 -mt-2 text-blue-500 animate-bounce-hint select-none"
+        aria-hidden="true"
+      >
+        <span class="text-[10px] font-bold uppercase tracking-widest">{{ selectedDayCount() }} SCHEDULED WORKOUT{{ selectedDayCount() === 1 ? '' : 'S' }}</span>
+        <mat-icon class="text-[18px] leading-none">expand_more</mat-icon>
+      </div>
+
 
       <!-- Selected Day: Scheduled + Completed Workouts -->
       <section *ngIf="selectedDate()" class="space-y-3 stagger">
@@ -355,6 +366,13 @@ interface CalendarDay {
   `,
   styles: [`
     :host { display: block; }
+    .animate-bounce-hint {
+      animation: bounceHint 1.4s ease-in-out infinite;
+    }
+    @keyframes bounceHint {
+      0%, 100% { transform: translateY(0); opacity: 0.85; }
+      50% { transform: translateY(6px); opacity: 1; }
+    }
   `]
 })
 export class CalendarComponent implements OnInit {
@@ -362,6 +380,18 @@ export class CalendarComponent implements OnInit {
   private workoutService = inject(WorkoutService);
   private router = inject(Router);
   generateInitialsAvatar = generateInitialsAvatar;
+
+  // Hides the scroll-down hint once the user scrolls toward the workout list.
+  showScrollHint = signal(true);
+
+  @HostListener('window:scroll')
+  onWindowScroll() {
+    if (window.scrollY > 80) {
+      this.showScrollHint.set(false);
+    } else if (this.hasSelectedDayWorkouts()) {
+      this.showScrollHint.set(true);
+    }
+  }
 
   user = this.authService.currentUser;
 
@@ -627,6 +657,9 @@ export class CalendarComponent implements OnInit {
       return d.getTime() === selected.getTime();
     });
   });
+
+  hasSelectedDayWorkouts = computed(() => this.selectedDayScheduled().length > 0 || this.selectedDayWorkouts().length > 0);
+  selectedDayCount = computed(() => this.selectedDayScheduled().length + this.selectedDayWorkouts().length);
 
   scheduledPlanIds = computed(() => new Set(this.selectedDayScheduled().map(sw => sw.planId)));
 

@@ -244,7 +244,7 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
                   </div>
                 }
                 <div>
-                  <h4 class="font-semibold text-gray-900">{{ getPlanName(session.planId) }}</h4>
+                  <h4 class="font-semibold text-gray-900" [style.fontWeight]="session.id === 'in-progress' && (!session.planId || session.planId === 'freestyle') ? '700' : undefined">{{ session.id === 'in-progress' && (!session.planId || session.planId === 'freestyle') ? 'Active Workout' : getPlanName(session.planId) }}</h4>
                   <p class="text-xs text-gray-500">{{ session.date | date:'MMM d, h:mm a' }} • {{ (session.duration || 0) / 60 | number:'1.0-0' }} min</p>
                 </div>
               </div>
@@ -374,7 +374,7 @@ export class HomeComponent {
   }
 
   getPlanName(planId: string) {
-    if (!planId) return 'Freestyle';
+    if (!planId || planId === 'freestyle') return 'Freestyle Workout';
     return this.workoutService.getPlanById(planId)?.name || 'Unknown Plan';
   }
 

@@ -127,6 +127,7 @@ export interface InProgressWorkout {
   currentExerciseIndex: number;
   workoutData: Record<string, Set[]>;
   freestyleExercises: Exercise[];
+  freestyleStarted: boolean;
   cardioExerciseData?: Record<string, CardioExerciseData>;
 }
 
