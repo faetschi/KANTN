@@ -13,56 +13,56 @@ export interface WorkoutTypeVisual {
 const TYPE_VISUALS: Record<WorkoutExerciseType, WorkoutTypeVisual> = {
   strength: {
     label: 'Strength',
-    color: '#dc2626',
+    color: '#ef4444',
     bgColor: '#fee2e2',
     textColor: '#991b1b',
     borderColor: '#fecaca',
   },
   cardio: {
     label: 'Cardio',
-    color: '#059669',
+    color: '#10b981',
     bgColor: '#d1fae5',
     textColor: '#065f46',
     borderColor: '#a7f3d0',
   },
   mobility: {
     label: 'Mobility',
-    color: '#16a34a',
+    color: '#22c55e',
     bgColor: '#dcfce7',
     textColor: '#166534',
     borderColor: '#bbf7d0',
   },
   core: {
     label: 'Core',
-    color: '#7c3aed',
+    color: '#8b5cf6',
     bgColor: '#ede9fe',
     textColor: '#5b21b6',
     borderColor: '#ddd6fe',
   },
   'full body': {
     label: 'Full Body',
-    color: '#0d9488',
+    color: '#14b8a6',
     bgColor: '#ccfbf1',
     textColor: '#115e59',
     borderColor: '#99f6e4',
   },
   mixed: {
     label: 'Mixed',
-    color: '#4f46e5',
+    color: '#6366f1',
     bgColor: '#e0e7ff',
     textColor: '#3730a3',
     borderColor: '#c7d2fe',
   },
   general: {
-    label: 'General',
-    color: '#6b7280',
-    bgColor: '#f3f4f6',
-    textColor: '#374151',
-    borderColor: '#e5e7eb',
+    label: 'Freestyle',
+    color: '#22d3ee',
+    bgColor: '#ecfeff',
+    textColor: '#155e75',
+    borderColor: '#a5f3fc',
   },
   hiit: {
     label: 'HIIT',
-    color: '#f59e0b',
+    color: '#fbbf24',
     bgColor: '#fef3c7',
     textColor: '#92400e',
     borderColor: '#fde68a',
@@ -150,9 +150,10 @@ export function getWorkoutTypeEmoji(type: string | null | undefined): string | n
   const normalized = (type || '').trim().toLowerCase();
   if (normalized === 'cardio') return '🏃';
   if (normalized === 'strength') return '💪';
-  if (normalized === 'core') return '🎯';
+  if (normalized === 'core') return '🤸';
   if (normalized === 'mobility') return '🧘';
   if (normalized === 'hiit') return '⚡';
+  if (normalized === 'general') return '✨';
   return null;
 }
 

@@ -29,6 +29,9 @@
                 "::1"
               ]
             },
+            "allowedCommonJsDependencies": [
+              "leaflet"
+            ],
             "assets": [
               {
                 "glob": "**/*",
