@@ -5,8 +5,10 @@ import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ProfileService } from '../../core/services/profile.service';
 import { Exercise } from '../../core/models/models';
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/workout-types';
+import { normalizeUsername } from '../../core/domain/username-utils';
 
 @Component({
   selector: 'app-custom-exercises',
@@ -131,12 +133,18 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
                   <option [ngValue]="exercise.id">{{ exercise.name }}</option>
                 }
               </select>
-              <input
-                type="email"
-                [(ngModel)]="shareEmail"
-                placeholder="user@example.com"
-                class="bg-white border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
+              <div class="flex items-center bg-white border border-gray-200 rounded-xl px-3 focus-within:ring-2 focus-within:ring-blue-500">
+                <span class="text-gray-400 font-semibold select-none">&#64;</span>
+                <input
+                  type="text"
+                  [(ngModel)]="shareUsername"
+                  autocapitalize="none"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="username"
+                  class="flex-1 bg-transparent border-none py-2 pl-1 focus:ring-0 focus:outline-none"
+                >
+              </div>
               <div class="flex items-center gap-3">
                 <button
                   type="button"
@@ -196,6 +204,7 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle } from '../../core/domain/w
 export class CustomExercisesComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  profileService = inject(ProfileService);
 
   creatingExercise = false;
   sharingExercise = false;
@@ -206,7 +215,7 @@ export class CustomExercisesComponent {
   imageUploadMessage = '';
   showSharePanel = signal(false);
   shareExerciseId = '';
-  shareEmail = '';
+  shareUsername = '';
   customExercise = {
     name: '',
     description: '',
@@ -358,41 +367,54 @@ export class CustomExercisesComponent {
     }, 3000);
   }
 
+  /**
+   * Resolve the entered @username to a user id.
+   * Returns null and sets a user-facing message when the input is invalid,
+   * the user does not exist, or the user targets themselves.
+   */
+  private async resolveShareTargetUserId(): Promise<string | null> {
+    const username = normalizeUsername(this.shareUsername.replace(/^@/, ''));
+    if (!username) {
+      this.shareMessage = 'Please enter a username.';
+      return null;
+    }
+
+    const target = await this.profileService.getProfileByUsername(username);
+    if (!target) {
+      this.shareMessage = `User @${username} not found.`;
+      return null;
+    }
+
+    const currentUserId = this.authService.currentUser()?.id;
+    if (currentUserId && target.id === currentUserId) {
+      this.shareMessage = 'You cannot share an exercise with yourself.';
+      return null;
+    }
+
+    return target.id;
+  }
+
   async shareCustomExercise() {
     const exerciseId = this.shareExerciseId;
-    const email = this.shareEmail.trim();
 
     if (!exerciseId) {
       this.shareMessage = 'Please select an exercise to share.';
       return;
     }
 
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
-
     this.sharingExercise = true;
     this.shareMessage = '';
 
-    const targetUserId = await this.workoutService.resolveUserIdByEmail(email);
+    const targetUserId = await this.resolveShareTargetUserId();
     if (!targetUserId) {
       this.sharingExercise = false;
-      this.shareMessage = 'User not found for that email.';
-      return;
-    }
-
-    const currentUserId = this.authService.currentUser()?.id;
-    if (currentUserId && targetUserId === currentUserId) {
-      this.sharingExercise = false;
-      this.shareMessage = 'You cannot share an exercise with yourself.';
       return;
     }
 
     const ok = await this.workoutService.shareExercise(exerciseId, targetUserId);
     this.sharingExercise = false;
     if (ok) {
-      this.shareEmail = '';
+      this.shareUsername = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
       this.closeSharePanel();
@@ -403,32 +425,25 @@ export class CustomExercisesComponent {
 
   async unshareCustomExercise() {
     const exerciseId = this.shareExerciseId;
-    const email = this.shareEmail.trim();
 
     if (!exerciseId) {
       this.shareMessage = 'Please select an exercise to unshare.';
       return;
     }
 
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
-
     this.unsharingExercise = true;
     this.shareMessage = '';
 
-    const targetUserId = await this.workoutService.resolveUserIdByEmail(email);
+    const targetUserId = await this.resolveShareTargetUserId();
     if (!targetUserId) {
       this.unsharingExercise = false;
-      this.shareMessage = 'User not found for that email.';
       return;
     }
 
     const ok = await this.workoutService.unshareExercise(exerciseId, targetUserId);
     this.unsharingExercise = false;
     if (ok) {
-      this.shareEmail = '';
+      this.shareUsername = '';
       await this.workoutService.refresh();
       this.syncMyCustomExercises();
       this.closeSharePanel();

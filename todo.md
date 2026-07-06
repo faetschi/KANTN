@@ -6,34 +6,36 @@ Audit status last updated: 2026-02-28.
 
 ### Already Implemented (Documentation)
 
-- [ ] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 
+- [x] BUG: sharing a workout plan by selecting a email and pressing "Share" does not work correctly at the moment, error message: chunk-AHUI2ROU.js:43  POST https://nhudzopadrydydiojhxn.supabase.co/rest/v1/workout_plan_shares?on_conflict=plan_id%2Cshared_with_user_id 403 (Forbidden). After a workout plan is shared, the other user should see the shared workout plan and it should be available for the other user. Also, the shared workout plan should include a visual indication that its from user xy (profile pic and short reference). Also: A shared workout plan CORRECTLY cant be edited by the other user (correct), but the other user cant set it to active, if he got it shared from 
 another user (bug, fix this)
+  - Resolved: share targets are now resolved via @username (SECURITY DEFINER RPC) instead of the RLS-blocked email lookup; accepted shared plans show a "Shared by {name}" badge with avatar; recipients can activate a shared plan (owned clone is created + activated).
 
-- [ ] Pressing the "share" button on the /plans page should make a pop up appear where the whole sharing dialogue happens.
+- [x] Pressing the "share" button on the /plans page should make a pop up appear where the whole sharing dialogue happens.
 
-- [ ] During activate freestyle workout on the /workout/freestyle page, the button "Hide exercise picker" AND "Add exercise" should be sticky (currently only Hide exercise picker). Whne the "Add exercise" button is pressed, it should auto scroll the page all the way up so the user sees the exercises to add next correctly (and doesnt have to scroll up himself). WHen the exercises are shown, it should only show top 8, and user should use search bar to show other exercises.
+- [x] During activate freestyle workout on the /workout/freestyle page, the button "Hide exercise picker" AND "Add exercise" should be sticky (currently only Hide exercise picker). Whne the "Add exercise" button is pressed, it should auto scroll the page all the way up so the user sees the exercises to add next correctly (and doesnt have to scroll up himself). WHen the exercises are shown, it should only show top 8, and user should use search bar to show other exercises.
+  - Resolved: sticky top controls + scroll-to-top on open were already in place; picker now previews the top 8 exercises with a "search to find more" hint.
 
-- 1. [ ] It should be possible to visit other users profile pages, currenlty only via direct url: /profile currently only shows the logged in users profile, but users should be able to visit other peoples profiles via /profile/@username (in the future, other users will be seen in upcoming features, so this is important to be done before those features are implemented). you can use the profiles table username for this.
-- 2. [ ] The Workout-Plan sharing feature should work by selecting/defining a other users username (@username), not by E-Mail. DUring the "Share" dialogue, if the defined user does not exist the user should receive feedback in this dialogue.
+- 1. [x] It should be possible to visit other users profile pages, currenlty only via direct url: /profile currently only shows the logged in users profile, but users should be able to visit other peoples profiles via /profile/@username (in the future, other users will be seen in upcoming features, so this is important to be done before those features are implemented). you can use the profiles table username for this.
+- 2. [x] The Workout-Plan sharing feature should work by selecting/defining a other users username (@username), not by E-Mail. DUring the "Share" dialogue, if the defined user does not exist the user should receive feedback in this dialogue. (Also applied to custom-exercise sharing.)
 
-- [ ] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
-- [ ] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
-- [ ] Implement revoke/unshare flow for shared plans/exercises.
-- [ ] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
-- [ ] Implement default exercises/plans first-run seed load (idempotent).
+- [x] Make workout persistence transactional (session + exercises + sets all succeed or all fail).
+- [x] Add DB-level auth/profile bootstrap (`auth.users` -> `public.profiles` trigger/upsert).
+- [x] Implement revoke/unshare flow for shared plans/exercises.
+- [x] Add minimum automated smoke coverage for critical flows (profile save, create plan, finish workout, share plan).
+- [x] Implement default exercises/plans first-run seed load (idempotent).
 - [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
-- [ ] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
-- [ ] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
-- [ ] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
-- [ ] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
-- [ ] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
-- [ ] Apply the same compact share-icon pattern to exercise sharing actions.
-- [ ] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init. Default Exercises that wxist at start should include: WeightLifting (Squats, Bench Press, ...), Cardio (Running, Cycling, ...)
+- [x] Require upload-only image handling for all image fields (`imageUrl`) used by workout plans and exercises (including admin default exercises): allow custom image upload, use uploaded image references only, and persist paths/URLs correctly in DB. Also make custom profile picture upload possible, this should overwrite the avatar url (make this avatar url not visible to the user in profile page, just upload profile picture button)
+- [x] In workout session tracking, mark the full exercise set row green when a set is completed (clear visual completion state).
+- [x] Simplify “Create a New Plan” page scope to plan creation + selecting available exercises only.
+- [x] Move “Create Custom Exercise” and “Share My Custom Exercise” out of “Create a New Plan” into a dedicated subpage reachable from plan flow or exercises area.
+- [x] Reduce “Share My Plan” footprint on Workout Plans page by replacing large action UI with a top-bar share icon next to the `+` action.
+- [x] Apply the same compact share-icon pattern to exercise sharing actions.
+- [x] Add a List of Default exercises and 2 Beginner Workout Plans to the database at initialization, including Workout picture etc. Those Exercises + WorkoutPlans can be looked up for users as template, so its important to include them at init. Default Exercises that wxist at start should include: WeightLifting (Squats, Bench Press, ...), Cardio (Running, Cycling, ...)
 - [ ] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
 Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings zu viel tippen muss? Lösung: Signaltöne
 - [ ] For specific Cardio exercises, add GPS capability (e.g. Running/Cycling, mit abgespielten Signalton (konfigurierbar) bei bestimmer (konfigurierbarer) Distanz, z.B. alle 5km)
 - [ ] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
-- [ ] When user is not approved, "Completing signin...." is shown, but intended is "Pending Approval"
+- [x] When user is not approved, "Completing signin...." is shown, but intended is "Pending Approval"
 
 
 
