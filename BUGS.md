@@ -17,5 +17,5 @@
 
 # Known Bugs
 
-- [ ] When starting a Freestyle Workout, the popup after selecting exercises does not go away (no "Start" button or doesnt work) for both strenght or cardio after exercise selected
-- [ ] KEINE Schwarze Buttons -> Primary color für alle buttons (blau) so all use primary color
+- [x] When starting a Freestyle Workout, the popup after selecting exercises does not go away (no "Start" button or doesnt work) for both strenght or cardio after exercise selected — Resolved: strength shows a "Start Workout" button that closes the picker; cardio auto-starts and closes on selection. Covered by `freestyle-workout.spec.ts` (strength button click + cardio auto-start).
+- [x] KEINE Schwarze Buttons -> Primary color für alle buttons (blau) so all use primary color — Resolved: all action buttons use the primary blue (`bg-blue-600`); login buttons switched from indigo to blue. Remaining dark elements are modal backdrops and intentional dark cards/segmented toggles, not action buttons.

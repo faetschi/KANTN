@@ -31,6 +31,15 @@ describe('Freestyle workout start flow', () => {
     exerciseType: 'strength',
     metValue: 5,
   };
+  const running: Exercise = {
+    id: 'ex-run',
+    name: 'Running',
+    imageUrl: '',
+    description: '',
+    muscleGroup: 'Full Body',
+    exerciseType: 'cardio',
+    metValue: 9.8,
+  };
 
   beforeEach(async () => {
     setInProgress = vi.fn();
@@ -42,12 +51,16 @@ describe('Freestyle workout start flow', () => {
         {
           provide: WorkoutService,
           useValue: {
-            exercises: () => [pushUps, squats],
+            exercises: () => [pushUps, squats, running],
             getPlanById: vi.fn().mockReturnValue(null),
             getLastSessionForPlan: vi.fn().mockReturnValue(null),
             getPlanExerciseTargets: vi.fn().mockReturnValue([]),
             addSession: vi.fn().mockResolvedValue(true),
-            getExerciseById: vi.fn().mockImplementation((id: string) => (id === pushUps.id ? pushUps : squats)),
+            getExerciseById: vi.fn().mockImplementation((id: string) => {
+              if (id === pushUps.id) return pushUps;
+              if (id === running.id) return running;
+              return squats;
+            }),
             inProgress: inProgressFn,
             setInProgress,
             clearInProgress: vi.fn(),
@@ -117,6 +130,17 @@ describe('Freestyle workout start flow', () => {
     expect(component.showFreestylePicker()).toBe(false);
     expect(component.freestyleStarted()).toBe(true);
     expect(component.currentExercise()?.id).toBe(pushUps.id);
+  });
+
+  it('auto-starts and closes the picker when a cardio exercise is selected', () => {
+    component.selectFreestyleWorkoutType('cardio');
+    // Selecting a cardio exercise immediately begins the (single-exercise) cardio session
+    component.addFreestyleExercise(running);
+    fixture.detectChanges();
+
+    expect(component.showFreestylePicker()).toBe(false);
+    expect(component.freestyleStarted()).toBe(true);
+    expect(component.currentExercise()?.id).toBe(running.id);
   });
 });
 

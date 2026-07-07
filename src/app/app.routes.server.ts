@@ -14,6 +14,10 @@ export const serverRoutes: ServerRoute[] = [
     renderMode: RenderMode.Client,
   },
   {
+    path: 'social/session/:sessionId',
+    renderMode: RenderMode.Client,
+  },
+  {
     path: 'profile/@:username',
     renderMode: RenderMode.Client,
   },

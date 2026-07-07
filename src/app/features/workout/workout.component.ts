@@ -496,6 +496,11 @@ import { CardioMapComponent } from './cardio-map.component';
                 @if (filteredExerciseOptions().length === 0) {
                   <p class="text-center text-gray-400 text-sm py-8">No exercises found</p>
                 }
+                @if (!exerciseSearchQuery.trim() && totalExerciseOptions() > filteredExerciseOptions().length) {
+                  <p class="text-center text-gray-400 text-xs pt-1 pb-2">
+                    Showing top {{ filteredExerciseOptions().length }} of {{ totalExerciseOptions() }} — search to find more
+                  </p>
+                }
               </div>
 
               @if (freestyleExercises().length > 0) {
@@ -839,6 +844,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Number of exercises shown before the user narrows the list with the search bar. */
+  private static readonly FREESTYLE_PICKER_PREVIEW_LIMIT = 8;
+
   filteredExerciseOptions() {
     const query = this.exerciseSearchQuery.trim().toLowerCase();
     const all = this.workoutService.exercises();
@@ -849,12 +857,22 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       filtered = filtered.filter(ex => ex.exerciseType === selectedType);
     }
 
-    if (!query) return filtered;
+    if (!query) {
+      // Show only the top exercises by default; users search to reveal the rest.
+      return filtered.slice(0, WorkoutComponent.FREESTYLE_PICKER_PREVIEW_LIMIT);
+    }
 
     return filtered.filter(exercise => {
       const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
+  }
+
+  /** Total number of exercises available for the selected freestyle type (before preview limiting). */
+  totalExerciseOptions() {
+    const selectedType = this.freestyleWorkoutType();
+    const all = this.workoutService.exercises();
+    return selectedType ? all.filter(ex => ex.exerciseType === selectedType).length : all.length;
   }
 
   typeLabel(type: string | null | undefined) {

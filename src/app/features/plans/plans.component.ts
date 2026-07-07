@@ -5,12 +5,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ProfileService } from '../../core/services/profile.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { FabButtonComponent } from '../../shared/components/fab-button.component';
 import { TimeSlot, WorkoutPlan } from '../../core/models/models';
 import { TimeSlotPickerComponent, TimeSlotItem } from '../../shared/components/time-slot-picker.component';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
+import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
+import { normalizeUsername } from '../../core/domain/username-utils';
 
 @Component({
   selector: 'app-plans',
@@ -51,12 +54,18 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
                 <option [ngValue]="plan.id">{{ plan.name }}</option>
               }
             </select>
-            <input
-              type="email"
-              [(ngModel)]="shareEmail"
-              placeholder="user@example.com"
-              class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
+            <div class="flex items-center bg-gray-50 rounded-xl px-3 focus-within:ring-2 focus-within:ring-blue-500">
+              <span class="text-gray-400 font-semibold select-none">&#64;</span>
+              <input
+                type="text"
+                [(ngModel)]="shareUsername"
+                autocapitalize="none"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="username"
+                class="flex-1 bg-transparent border-none py-2 pl-1 focus:ring-0 focus:outline-none"
+              >
+            </div>
             <div class="flex items-center gap-3">
               <button
                 type="button"
@@ -151,6 +160,12 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
             <div class="flex justify-between items-start gap-3 mb-3">
               <div class="min-w-0 flex-1">
                 <h3 class="text-lg font-bold text-gray-900 truncate">{{ plan.name }}</h3>
+                @if (sharedByName(plan); as sharer) {
+                  <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600">
+                    <img [src]="sharedByAvatar(plan)" class="h-4 w-4 rounded-full object-cover" [alt]="sharer">
+                    Shared by {{ sharer }}
+                  </span>
+                }
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <!-- Exercise avatars -->
@@ -279,13 +294,14 @@ import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWor
 export class PlansComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  profileService = inject(ProfileService);
   notifications = inject(NotificationService);
   router = inject(Router);
   
   plans = this.workoutService.plans;
   planInvites = this.workoutService.planInvites;
   sharePlanId = '';
-  shareEmail = '';
+  shareUsername = '';
   showSharePanel = signal(false);
   planSearchQuery = signal('');
   sharingPlan = false;
@@ -391,6 +407,24 @@ export class PlansComponent {
     return this.plans().some(plan => plan.id === planId && plan.ownerId === currentUserId);
   }
 
+  /** Accepted share invite for a plan (used to label plans shared with the current user). */
+  private acceptedInviteForPlan(planId: string) {
+    return this.planInvites().find(invite => invite.planId === planId && invite.status === 'accepted');
+  }
+
+  /** Name of the user who shared this plan with the current user, or null when not a shared plan. */
+  sharedByName(plan: WorkoutPlan): string | null {
+    if (this.isOwnedPlan(plan.id)) return null;
+    const invite = this.acceptedInviteForPlan(plan.id);
+    return invite?.sharedByName || invite?.sharedByEmail || null;
+  }
+
+  /** Initials avatar for the sharing user, shown next to the shared-by label. */
+  sharedByAvatar(plan: WorkoutPlan): string {
+    const name = this.sharedByName(plan) || 'User';
+    return generateInitialsAvatar(name);
+  }
+
   filteredPlans = computed(() => {
     const query = this.planSearchQuery().trim().toLowerCase();
     const allPlans = this.plans();
@@ -462,42 +496,56 @@ export class PlansComponent {
     this.shareMessage = '';
   }
 
+  /**
+   * Resolve the entered @username to a user id.
+   * Returns null and sets a user-facing message when the input is invalid,
+   * the user does not exist, or the user targets themselves.
+   */
+  private async resolveShareTargetUserId(): Promise<string | null> {
+    const username = normalizeUsername(this.shareUsername.replace(/^@/, ''));
+    if (!username) {
+      this.shareMessage = 'Please enter a username.';
+      return null;
+    }
+
+    const target = await this.profileService.getProfileByUsername(username);
+    if (!target) {
+      this.shareMessage = `User @${username} not found.`;
+      return null;
+    }
+
+    const currentUserId = this.authService.currentUser()?.id;
+    if (currentUserId && target.id === currentUserId) {
+      this.shareMessage = 'You cannot share a plan with yourself.';
+      return null;
+    }
+
+    return target.id;
+  }
+
   async sharePlan() {
     const planId = this.sharePlanId;
-    const email = this.shareEmail.trim();
 
     if (!planId) {
       this.shareMessage = 'Please select a plan to share.';
       return;
     }
 
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
-
     this.sharingPlan = true;
     this.shareMessage = '';
 
-    const targetUserId = await this.workoutService.resolveUserIdByEmail(email);
+    const targetUserId = await this.resolveShareTargetUserId();
     if (!targetUserId) {
       this.sharingPlan = false;
-      this.shareMessage = 'User not found for that email.';
-      return;
-    }
-
-    const currentUserId = this.authService.currentUser()?.id;
-    if (currentUserId && targetUserId === currentUserId) {
-      this.sharingPlan = false;
-      this.shareMessage = 'You cannot share a plan with yourself.';
       return;
     }
 
     const ok = await this.workoutService.sharePlan(planId, targetUserId);
     this.sharingPlan = false;
     if (ok) {
-      this.shareEmail = '';
+      this.shareUsername = '';
       this.closeSharePanel();
+      this.notifications.success('Plan shared.');
     } else {
       this.shareMessage = 'Failed to share plan.';
     }
@@ -505,33 +553,27 @@ export class PlansComponent {
 
   async unsharePlan() {
     const planId = this.sharePlanId;
-    const email = this.shareEmail.trim();
 
     if (!planId) {
       this.shareMessage = 'Please select a plan to unshare.';
       return;
     }
 
-    if (!email) {
-      this.shareMessage = 'Please enter an email address.';
-      return;
-    }
-
     this.unsharingPlan = true;
     this.shareMessage = '';
 
-    const targetUserId = await this.workoutService.resolveUserIdByEmail(email);
+    const targetUserId = await this.resolveShareTargetUserId();
     if (!targetUserId) {
       this.unsharingPlan = false;
-      this.shareMessage = 'User not found for that email.';
       return;
     }
 
     const ok = await this.workoutService.unsharePlan(planId, targetUserId);
     this.unsharingPlan = false;
     if (ok) {
-      this.shareEmail = '';
+      this.shareUsername = '';
       this.closeSharePanel();
+      this.notifications.success('Plan unshared.');
     } else {
       this.shareMessage = 'Failed to unshare plan.';
     }

@@ -455,6 +455,31 @@ export class WorkoutService {
     return this.repository.uploadExerciseImage(userId, file);
   }
 
+  async setSessionPhoto(sessionId: string, file: File): Promise<boolean> {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const photoUrl = await this.repository.uploadWorkoutPhoto(userId, file);
+    if (!photoUrl) return false;
+
+    const success = await this.repository.setSessionPhoto(userId, sessionId, photoUrl);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
+  async removeSessionPhoto(sessionId: string): Promise<boolean> {
+    const userId = this.getCurrentUserId();
+    if (!userId) return false;
+
+    const success = await this.repository.setSessionPhoto(userId, sessionId, null);
+    if (!success) return false;
+
+    await this.refresh();
+    return true;
+  }
+
   // ── Scheduled Workouts ──
 
   getScheduledWorkoutsForDate(date: Date): ScheduledWorkout[] {
