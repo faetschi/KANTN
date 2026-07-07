@@ -4,6 +4,14 @@ Use this file as an implementation tracker.
 
 Audit status last updated: 2026-07-07.
 
+### Social
+
+- [ ] Adjust /social page so that:
+	- [ ] the user has a infinite scroll, but after X workouts (customizable for admins) it stops a bit and loads the next batch via easy-in animation (which allows for inifinte scrolling with good performance and UX)
+	- [ ] bei Friends/Ranking dass der User nur die Personen sieht, die er davor auch geaddet hat (derzeit global, which is wrong)
+	- [ ] on the /social page there should be load animations (easy-in fades/animations) similiar/consistent with the other pages which have animations, and at toggle of feed/friends/ranking
+
+
 - [ ] Fix vercel preview branch deployments, after login always redirects to https://kantn-faetschi.vercel.app/home even though we are on other preview deployment, e.g. https://kantn-git-development-faetschis-projects.vercel.app/login (but should redirect after login to https://kantn-git-development-faetschis-projects.vercel.app/home)
 
 
