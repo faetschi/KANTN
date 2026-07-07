@@ -86,6 +86,16 @@ export const routes: Routes = [
         loadComponent: () => import('./features/activity/activity.component').then(m => m.ActivityComponent)
       },
       {
+        path: 'social',
+        loadComponent: () => import('./features/social/social.component').then(m => m.SocialComponent),
+        canActivate: [ApprovedGuard]
+      },
+      {
+        path: 'social/session/:sessionId',
+        loadComponent: () => import('./features/social/friend-session.component').then(m => m.FriendSessionComponent),
+        canActivate: [ApprovedGuard]
+      },
+      {
         path: 'profile',
         loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent)
       },

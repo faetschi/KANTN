@@ -54,6 +54,7 @@ export interface WorkoutSession {
   duration?: number; // seconds
   exercises: ExerciseSession[];
   caloriesBurned?: number;
+  photoUrl?: string;
 }
 
 export interface WorkoutPlan {

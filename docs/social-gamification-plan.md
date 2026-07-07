@@ -103,6 +103,15 @@ Add `WorkoutSession.photoUrl?: string`.
 
 ---
 
+## TODO / Backlog
+
+- [x] **Feed: open workout on click.** ✅ Done. Implemented via:
+  - **DB**: `get_friend_session(p_session_id uuid) → jsonb` (SECURITY DEFINER, `is_approved()`-gated, only returns the session when the owner is the viewer or an *accepted* friend). Returns the session + exercises (name snapshot) + sets as JSON. Appended to [db/init_supabase.sql](../db/init_supabase.sql) + `grant execute`. **Must be run in Supabase.**
+  - **Service**: `SocialService.loadSession(id)` + `FriendSessionDetail`/`FriendSessionExercise`/`FriendSessionSet` interfaces.
+  - **UI**: new read-only [friend-session.component.ts](../src/app/features/social/friend-session.component.ts) (mirrors History detail: author header with avatar/streak, plan, photo, kcal/duration, strength sets & cardio metrics). Feed cards in [social.component.ts](../src/app/features/social/social.component.ts) are now clickable (profile links `stopPropagation`).
+  - **Routing**: `social/session/:sessionId` in [app.routes.ts](../src/app/app.routes.ts) (ApprovedGuard) + `RenderMode.Client` in [app.routes.server.ts](../src/app/app.routes.server.ts).
+  - **Tests**: `loadSession` mapping + no-access paths covered in [social-service.spec.ts](../src/app/social-service.spec.ts). Production build green.
+
 ## Open Points / Assumptions
 
 - **The SQL must be run manually in Supabase** (the app does not auto-migrate). The append is prod-safe.
