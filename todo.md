@@ -6,10 +6,13 @@ Audit status last updated: 2026-07-07.
 
 ### Social
 
-- [ ] Adjust /social page so that:
-	- [ ] the user has a infinite scroll, but after X workouts (customizable for admins) it stops a bit and loads the next batch via easy-in animation (which allows for inifinte scrolling with good performance and UX)
-	- [ ] bei Friends/Ranking dass der User nur die Personen sieht, die er davor auch geaddet hat (derzeit global, which is wrong)
-	- [ ] on the /social page there should be load animations (easy-in fades/animations) similiar/consistent with the other pages which have animations, and at toggle of feed/friends/ranking
+- [x] Adjust /social page so that:
+	- [x] the user has a infinite scroll, but after X workouts (customizable for admins) it stops a bit and loads the next batch via easy-in animation (which allows for inifinte scrolling with good performance and UX)
+		- Feed now uses keyset (finished_at, session_id) pagination via `get_friends_feed` RPC; `SocialService.feedPageSize` (default 15) is the batch size (admin-overridable field); IntersectionObserver sentinel loads the next batch, new cards fade in (`animate-fade-in`). **New SQL must be run in Supabase** (see 2026-07-08 block in init_supabase.sql).
+	- [x] bei Friends/Ranking dass der User nur die Personen sieht, die er davor auch geaddet hat (derzeit global, which is wrong)
+		- Ranking/leaderboard `get_leaderboard` is now scoped to the viewer + accepted friends (was global). Friends tab was already friend-only. **New SQL must be run in Supabase.**
+	- [x] on the /social page there should be load animations (easy-in fades/animations) similiar/consistent with the other pages which have animations, and at toggle of feed/friends/ranking
+		- Reuses the global `animate-fade-in` / `stagger` classes (styles.css) on header, tabs, each tab section (re-fires on toggle), and the friends/leaderboard lists.
 
 
 - [ ] Fix vercel preview branch deployments, after login always redirects to https://kantn-faetschi.vercel.app/home even though we are on other preview deployment, e.g. https://kantn-git-development-faetschis-projects.vercel.app/login (but should redirect after login to https://kantn-git-development-faetschis-projects.vercel.app/home)
@@ -20,7 +23,7 @@ Audit status last updated: 2026-07-07.
 - [ ] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
 Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings zu viel tippen muss? Lösung: Signaltöne
 - [ ] For specific Cardio exercises, add GPS capability (e.g. Running/Cycling, mit abgespielten Signalton (konfigurierbar) bei bestimmer (konfigurierbarer) Distanz, z.B. alle 5km)
-- [ ] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
+- [x] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
 
 
 

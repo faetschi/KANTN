@@ -2463,3 +2463,248 @@ end;
 $$;
 
 grant execute on function get_friend_session(uuid) to authenticated;
+
+-- =====================================================================
+-- 2026-07-08: Social follow-ups (friends-only ranking + paginated feed).
+-- Append-only & idempotent (see db/how-to-edit-SQL.md).
+-- =====================================================================
+
+-- Ranking is now scoped to the viewer + their accepted friends (previously
+-- global, which leaked every approved user). `create or replace` on the same
+-- signature transparently replaces the earlier global version above.
+create or replace function get_leaderboard(p_limit int default 100)
+returns table (
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  total_workouts bigint,
+  total_calories numeric,
+  streak int,
+  is_me boolean
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    coalesce(s.cnt, 0)::bigint as total_workouts,
+    coalesce(s.cal, 0)::numeric as total_calories,
+    compute_current_streak(p.id) as streak,
+    (p.id = auth.uid()) as is_me
+  from people pe
+  join profiles p on p.id = pe.pid and p.approved = true
+  left join lateral (
+    select count(*) as cnt, sum(ws.total_calories) as cal
+    from workout_sessions ws
+    where ws.owner_id = p.id and ws.finished_at is not null
+  ) s on true
+  order by coalesce(s.cal, 0) desc, coalesce(s.cnt, 0) desc, lower(coalesce(p.display_name, p.username, ''))
+  limit greatest(coalesce(p_limit, 100), 1);
+end;
+$$;
+
+-- Keyset-paginated feed for infinite scroll. Same shape as
+-- get_friends_activity but takes a (finished_at, session_id) cursor so the
+-- client can pull the next batch instead of one large payload. Passing a null
+-- cursor returns the newest page.
+create or replace function get_friends_feed(
+  p_limit int default 15,
+  p_before_at timestamptz default null,
+  p_before_id uuid default null
+)
+returns table (
+  session_id uuid,
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  last_seen timestamptz,
+  plan_name text,
+  total_calories numeric,
+  duration_seconds int,
+  finished_at timestamptz,
+  photo_url text,
+  streak int
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    ws.id,
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.last_seen,
+    wp.name,
+    ws.total_calories,
+    ws.duration_seconds,
+    ws.finished_at,
+    ws.photo_url,
+    compute_current_streak(p.id) as streak
+  from people pe
+  join profiles p on p.id = pe.pid
+  join workout_sessions ws on ws.owner_id = pe.pid and ws.finished_at is not null
+  left join workout_plans wp on wp.id = ws.plan_id
+  where p_before_at is null
+     or (ws.finished_at, ws.id) < (p_before_at, p_before_id)
+  order by ws.finished_at desc, ws.id desc
+  limit greatest(coalesce(p_limit, 15), 1);
+end;
+$$;
+
+grant execute on function get_friends_feed(int, timestamptz, uuid) to authenticated;
+
+-- All finished workouts of a single user, for the "click a friend -> see all
+-- their workouts" view on the public profile page. SECURITY DEFINER (RLS makes
+-- workout_sessions owner-only) and only returns rows when the viewer is the
+-- user themselves or an accepted friend. (finished_at, session_id) keyset for
+-- optional "load more". Returns empty for non-friends / not-approved.
+create or replace function get_user_sessions(
+  p_user uuid,
+  p_limit int default 20,
+  p_before_at timestamptz default null,
+  p_before_id uuid default null
+)
+returns table (
+  session_id uuid,
+  plan_name text,
+  total_calories numeric,
+  duration_seconds int,
+  finished_at timestamptz,
+  photo_url text
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_allowed boolean;
+begin
+  if not is_approved() or p_user is null then
+    return;
+  end if;
+
+  v_allowed := (p_user = auth.uid())
+    or exists (
+      select 1
+      from friendships f
+      where f.status = 'accepted'
+        and (
+          (f.requester_id = auth.uid() and f.addressee_id = p_user)
+          or (f.addressee_id = auth.uid() and f.requester_id = p_user)
+        )
+    );
+
+  if not v_allowed then
+    return;
+  end if;
+
+  return query
+  select
+    ws.id,
+    wp.name,
+    ws.total_calories,
+    ws.duration_seconds,
+    ws.finished_at,
+    ws.photo_url
+  from workout_sessions ws
+  left join workout_plans wp on wp.id = ws.plan_id
+  where ws.owner_id = p_user
+    and ws.finished_at is not null
+    and (p_before_at is null or (ws.finished_at, ws.id) < (p_before_at, p_before_id))
+  order by ws.finished_at desc, ws.id desc
+  limit greatest(coalesce(p_limit, 20), 1);
+end;
+$$;
+
+grant execute on function get_user_sessions(uuid, int, timestamptz, uuid) to authenticated;
+
+-- 2026-07-08: Fix get_public_profile_by_username — the approved-check used an
+-- unqualified `id`, which is ambiguous with the RETURNS TABLE OUT column `id`
+-- (SQLSTATE 42702). This made every call throw at runtime; it only surfaced
+-- once the public-profile page started loading. Alias the table (`pr`) so the
+-- reference is unambiguous. `create or replace` keeps the same signature.
+create or replace function get_public_profile_by_username(p_username text)
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  fun_fact text,
+  height int,
+  weight int,
+  age int,
+  last_seen timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_requester_approved boolean := false;
+begin
+  select pr.approved into v_requester_approved
+  from profiles pr
+  where pr.id = auth.uid();
+
+  if not coalesce(v_requester_approved, false) then
+    return;
+  end if;
+
+  return query
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.fun_fact,
+    p.height,
+    p.weight,
+    p.age,
+    p.last_seen
+  from profiles p
+  where lower(p.username) = lower(p_username)
+    and p.approved = true;
+end;
+$$;
+
+grant execute on function get_public_profile_by_username(text) to authenticated;

@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal, OnInit } from '@angular/core';
+import { Component, ElementRef, effect, inject, signal, viewChild, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -17,7 +17,7 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
   template: `
     <div class="p-4 sm:p-6 pb-24 space-y-6 max-w-2xl mx-auto">
       <!-- Header: own streak -->
-      <header class="bg-gradient-to-br from-orange-500 to-red-500 rounded-3xl p-5 text-white shadow-sm">
+      <header class="bg-gradient-to-br from-orange-500 to-red-500 rounded-3xl p-5 text-white shadow-sm animate-fade-in">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-orange-100 text-sm font-medium">Your streak</p>
@@ -34,7 +34,7 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
       </header>
 
       <!-- Tabs -->
-      <div class="flex bg-gray-100 rounded-2xl p-1">
+      <div class="flex bg-gray-100 rounded-2xl p-1 animate-fade-in">
         <button
           type="button"
           (click)="setTab('feed')"
@@ -77,7 +77,7 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
 
       <!-- FEED -->
       @if (activeTab() === 'feed') {
-        <section class="space-y-3">
+        <section class="space-y-3 animate-fade-in">
           @if (social.activity().length === 0) {
             <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center text-gray-400">
               <mat-icon class="!w-10 !h-10 !text-4xl mb-2 text-gray-300">groups</mat-icon>
@@ -91,7 +91,7 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
               tabindex="0"
               role="button"
               [attr.aria-label]="'View ' + item.displayName + '\\'s workout'"
-              class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300"
+              class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300 animate-fade-in"
             >
               <div class="flex items-center gap-3">
                 <a [routerLink]="'/profile/@' + item.username" (click)="$event.stopPropagation()" class="shrink-0">
@@ -133,12 +133,24 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
               </div>
             </article>
           }
+
+          <!-- Infinite scroll: sentinel + batch loader -->
+          @if (social.hasMoreActivity()) {
+            <div #feedSentinel class="h-1" aria-hidden="true"></div>
+            <div class="flex justify-center py-4 min-h-[2rem]">
+              @if (social.loadingMoreActivity()) {
+                <div class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-orange-500 animate-spin"></div>
+              }
+            </div>
+          } @else if (social.activity().length > 0) {
+            <p class="text-center text-xs text-gray-300 py-4">You're all caught up.</p>
+          }
         </section>
       }
 
       <!-- FRIENDS -->
       @if (activeTab() === 'friends') {
-        <section class="space-y-5">
+        <section class="space-y-5 animate-fade-in">
           <!-- Add friend -->
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
             <label class="text-sm font-semibold text-gray-900">Add a friend</label>
@@ -203,9 +215,17 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
                 No friends yet. Add someone by their &#64;username.
               </div>
             }
+            <div class="space-y-2 stagger">
             @for (friend of social.friends(); track friend.id) {
-              <div class="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex items-center gap-3">
-                <a [routerLink]="'/profile/@' + friend.username" class="shrink-0">
+              <div
+                (click)="openProfile(friend.username)"
+                (keyup.enter)="openProfile(friend.username)"
+                tabindex="0"
+                role="button"
+                [attr.aria-label]="'View ' + friend.displayName + '\\'s workouts'"
+                class="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex items-center gap-3 cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                <a [routerLink]="'/profile/@' + friend.username" (click)="$event.stopPropagation()" class="shrink-0">
                   <img
                     [src]="friend.avatarUrl || avatarFor(friend.displayName)"
                     (error)="onImgError($event, friend.displayName)"
@@ -222,23 +242,25 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
                   </div>
                   <p class="text-xs text-gray-400">{{ friend.totalWorkouts }} workouts · {{ friend.totalCalories | number:'1.0-0' }} kcal</p>
                 </div>
-                <button type="button" (click)="remove(friend)" class="text-gray-300 hover:text-red-500" aria-label="Remove friend">
+                <button type="button" (click)="$event.stopPropagation(); remove(friend)" class="text-gray-300 hover:text-red-500" aria-label="Remove friend">
                   <mat-icon class="!w-5 !h-5 !text-xl">person_remove</mat-icon>
                 </button>
               </div>
             }
+            </div>
           </div>
         </section>
       }
 
       <!-- LEADERBOARD -->
       @if (activeTab() === 'leaderboard') {
-        <section class="space-y-2">
+        <section class="space-y-2 animate-fade-in">
           @if (social.leaderboard().length === 0) {
             <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center text-gray-400 text-sm">
               No one on the leaderboard yet.
             </div>
           }
+          <div class="space-y-2 stagger">
           @for (entry of social.leaderboard(); track entry.userId; let i = $index) {
             <div
               class="rounded-2xl p-3 shadow-sm border flex items-center gap-3"
@@ -273,6 +295,7 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
               </div>
             </div>
           }
+          </div>
         </section>
       }
     </div>
@@ -287,6 +310,30 @@ export class SocialComponent implements OnInit {
   protected usernameInput = '';
   protected adding = signal(false);
 
+  /** Bottom-of-feed sentinel; when it scrolls into view we pull the next batch. */
+  private feedSentinel = viewChild<ElementRef<HTMLElement>>('feedSentinel');
+
+  constructor() {
+    // Attach an IntersectionObserver whenever the sentinel is in the DOM
+    // (feed tab + more items available). Cleans itself up automatically when
+    // the sentinel is removed or the tab changes.
+    effect((onCleanup) => {
+      const sentinel = this.feedSentinel()?.nativeElement;
+      if (!sentinel || typeof IntersectionObserver === 'undefined') return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            void this.social.loadMoreActivity();
+          }
+        },
+        { rootMargin: '300px' },
+      );
+      observer.observe(sentinel);
+      onCleanup(() => observer.disconnect());
+    });
+  }
+
   ngOnInit(): void {
     void this.social.refreshAll();
   }
@@ -297,6 +344,10 @@ export class SocialComponent implements OnInit {
 
   openSession(sessionId: string): void {
     void this.router.navigate(['/social/session', sessionId]);
+  }
+
+  openProfile(username: string): void {
+    void this.router.navigate(['/profile/@' + username]);
   }
 
   async add(): Promise<void> {

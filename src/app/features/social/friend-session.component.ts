@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -143,6 +143,7 @@ import { timeAgo } from '../../core/domain/time-ago';
 export class FriendSessionComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private location = inject(Location);
   private social = inject(SocialService);
 
   protected loading = signal(true);
@@ -207,6 +208,12 @@ export class FriendSessionComponent implements OnInit {
   }
 
   goBack(): void {
-    void this.router.navigate(['/social']);
+    // Return to wherever we came from (feed or a friend's profile). Fall back
+    // to /social on a direct deep-link load with no in-app history.
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      this.location.back();
+    } else {
+      void this.router.navigate(['/social']);
+    }
   }
 }

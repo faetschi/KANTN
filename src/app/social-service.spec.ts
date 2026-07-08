@@ -91,6 +91,139 @@ describe('SocialService.sendRequest', () => {
   });
 });
 
+describe('SocialService feed pagination', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  function feedRow(id: string, finishedAt: string) {
+    return {
+      session_id: id,
+      user_id: 'u1',
+      username: 'alice',
+      display_name: 'Alice',
+      avatar_url: null,
+      last_seen: null,
+      plan_name: 'Push',
+      total_calories: 100,
+      duration_seconds: 600,
+      finished_at: finishedAt,
+      photo_url: null,
+      streak: 3,
+    };
+  }
+
+  it('loads the first page and flags more when a full batch returns', async () => {
+    const service = configure(makeClient({
+      get_friends_feed: () => ({
+        data: Array.from({ length: 15 }, (_, i) => feedRow(`s${i}`, `2026-07-0${(i % 9) + 1}T10:00:00Z`)),
+        error: null,
+      }),
+    }));
+
+    await service.loadActivity();
+    expect(service.activity().length).toBe(15);
+    expect(service.hasMoreActivity()).toBe(true);
+  });
+
+  it('does not flag more when a partial batch returns', async () => {
+    const service = configure(makeClient({
+      get_friends_feed: () => ({ data: [feedRow('s0', '2026-07-06T10:00:00Z')], error: null }),
+    }));
+
+    await service.loadActivity();
+    expect(service.hasMoreActivity()).toBe(false);
+  });
+
+  it('appends the next batch using the last item as the keyset cursor', async () => {
+    let secondCall: any = null;
+    let call = 0;
+    const service = configure(makeClient({
+      get_friends_feed: (args) => {
+        call += 1;
+        if (call === 1) {
+          return {
+            data: Array.from({ length: 15 }, (_, i) => feedRow(`a${i}`, '2026-07-06T10:00:00Z')),
+            error: null,
+          };
+        }
+        secondCall = args;
+        return { data: [feedRow('b0', '2026-07-05T10:00:00Z')], error: null };
+      },
+    }));
+
+    await service.loadActivity();
+    const appended = await service.loadMoreActivity();
+
+    expect(appended).toBe(1);
+    expect(service.activity().length).toBe(16);
+    expect(service.hasMoreActivity()).toBe(false);
+    expect(secondCall.p_before_id).toBe('a14');
+    expect(secondCall.p_before_at).toBe('2026-07-06T10:00:00Z');
+  });
+
+  it('is a no-op when nothing more is available', async () => {
+    const service = configure(makeClient({
+      get_friends_feed: () => ({ data: [feedRow('s0', '2026-07-06T10:00:00Z')], error: null }),
+    }));
+
+    await service.loadActivity();
+    expect(await service.loadMoreActivity()).toBe(0);
+  });
+});
+
+describe('SocialService.loadUserSessions', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('returns [] when the client is unavailable', async () => {
+    const service = configure(null);
+    expect(await service.loadUserSessions('u1')).toEqual([]);
+  });
+
+  it('returns [] and does not call the RPC without a userId', async () => {
+    let called = false;
+    const service = configure(makeClient({
+      get_user_sessions: () => { called = true; return { data: [], error: null }; },
+    }));
+    expect(await service.loadUserSessions('')).toEqual([]);
+    expect(called).toBe(false);
+  });
+
+  it('maps rows and forwards the keyset cursor', async () => {
+    let forwarded: any = null;
+    const service = configure(makeClient({
+      get_user_sessions: (args) => {
+        forwarded = args;
+        return {
+          data: [
+            { session_id: 's1', plan_name: 'Push', total_calories: '250', duration_seconds: '1200', finished_at: '2026-07-06T10:00:00Z', photo_url: 'http://x/p.jpg' },
+          ],
+          error: null,
+        };
+      },
+    }));
+
+    const rows = await service.loadUserSessions('u1', 20, '2026-07-07T00:00:00Z', 's0');
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toEqual({
+      sessionId: 's1',
+      planName: 'Push',
+      totalCalories: 250,
+      durationSeconds: 1200,
+      finishedAt: '2026-07-06T10:00:00Z',
+      photoUrl: 'http://x/p.jpg',
+    });
+    expect(forwarded.p_user).toBe('u1');
+    expect(forwarded.p_before_at).toBe('2026-07-07T00:00:00Z');
+    expect(forwarded.p_before_id).toBe('s0');
+  });
+
+  it('returns [] when the RPC errors (e.g. no access)', async () => {
+    const service = configure(makeClient({
+      get_user_sessions: () => ({ data: null, error: { message: 'nope' } }),
+    }));
+    expect(await service.loadUserSessions('u1')).toEqual([]);
+  });
+});
+
 describe('SocialService.loadSession', () => {
   afterEach(() => TestBed.resetTestingModule());
 

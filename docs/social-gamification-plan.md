@@ -112,6 +112,12 @@ Add `WorkoutSession.photoUrl?: string`.
   - **Routing**: `social/session/:sessionId` in [app.routes.ts](../src/app/app.routes.ts) (ApprovedGuard) + `RenderMode.Client` in [app.routes.server.ts](../src/app/app.routes.server.ts).
   - **Tests**: `loadSession` mapping + no-access paths covered in [social-service.spec.ts](../src/app/social-service.spec.ts). Production build green.
 
+## 2026-07-08 Follow-ups (from todo.md)
+
+- [x] **Ranking scoped to friends.** `get_leaderboard` now ranks only the viewer + accepted friends (was all approved users — the "global, which is wrong" item). Same signature, `create or replace` appended to [db/init_supabase.sql](../db/init_supabase.sql). **Must be run in Supabase.**
+- [x] **Infinite scroll feed.** New `get_friends_feed(p_limit, p_before_at, p_before_id)` keyset RPC ((finished_at, session_id) cursor). `SocialService.loadActivity()` loads the first page, `loadMoreActivity()` appends the next; `feedPageSize` (default 15) is the batch size and is an overridable field for a future admin setting. UI uses an `IntersectionObserver` sentinel at the feed bottom; new cards ease in via `animate-fade-in`. **Must be run in Supabase.**
+- [x] **Load animations.** Header, tabs, each tab `<section>` (re-fires on toggle), and the friends/leaderboard lists use the shared `animate-fade-in` / `stagger` classes from [src/styles.css](../src/styles.css).
+
 ## Open Points / Assumptions
 
 - **The SQL must be run manually in Supabase** (the app does not auto-migrate). The append is prod-safe.
