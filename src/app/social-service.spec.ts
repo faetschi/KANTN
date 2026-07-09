@@ -292,3 +292,92 @@ describe('SocialService.loadSession', () => {
     expect(detail!.exercises[0].sets[1].completed).toBe(false);
   });
 });
+
+describe('SocialService leaderboard privacy & ranking states', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  function lbRow(id: string, name: string, isMe = false) {
+    return {
+      user_id: id,
+      username: name.toLowerCase(),
+      display_name: name,
+      avatar_url: null,
+      total_workouts: 5,
+      total_calories: 500,
+      streak: 2,
+      is_me: isMe,
+    };
+  }
+
+  // The opt-out (profiles.leaderboard_visible) is enforced server-side in the
+  // get_leaderboard SQL: a hidden user is excluded from other people's ranking,
+  // but always still sees their own row. These tests lock the client contract —
+  // the service surfaces exactly the privacy-aware rows the RPC returns and
+  // never re-introduces a hidden user.
+  it('shows only the users the privacy-aware RPC returns (hidden friend excluded)', async () => {
+    const viewer = { id: 'me', visible: false };
+    const friends = [
+      { id: 'me', name: 'Me', visible: false },
+      { id: 'alice', name: 'Alice', visible: true },
+      { id: 'bob', name: 'Bob', visible: false }, // opted out → hidden from viewer
+    ];
+
+    const service = configure(makeClient({
+      // Mirror the SQL predicate: keep visible users, plus the viewer themselves.
+      get_leaderboard: () => ({
+        data: friends
+          .filter(f => f.visible || f.id === viewer.id)
+          .map(f => lbRow(f.id, f.name, f.id === viewer.id)),
+        error: null,
+      }),
+    }));
+
+    await service.loadLeaderboard();
+
+    const ids = service.leaderboard().map(e => e.userId);
+    expect(ids).toContain('alice');
+    expect(ids).not.toContain('bob');     // opted-out friend is hidden
+    expect(ids).toContain('me');          // opted-out viewer still sees themselves
+    expect(service.leaderboard().find(e => e.userId === 'me')?.isMe).toBe(true);
+    expect(service.leaderboardError()).toBe(false);
+  });
+
+  it('maps ranking rows and flags the current user', async () => {
+    const service = configure(makeClient({
+      get_leaderboard: () => ({ data: [lbRow('me', 'Me', true), lbRow('alice', 'Alice')], error: null }),
+    }));
+
+    await service.loadLeaderboard();
+    const me = service.leaderboard().find(e => e.isMe);
+    expect(me?.displayName).toBe('Me');
+    expect(me?.totalCalories).toBe(500);
+    expect(me?.streak).toBe(2);
+  });
+
+  it('flags an error and stops loading when the ranking RPC fails', async () => {
+    const service = configure(makeClient({
+      get_leaderboard: () => ({ data: null, error: { message: 'boom' } }),
+    }));
+
+    await service.loadLeaderboard();
+    expect(service.leaderboardError()).toBe(true);
+    expect(service.leaderboardLoading()).toBe(false);
+  });
+
+  it('clears the error flag on a subsequent successful load', async () => {
+    let fail = true;
+    const service = configure(makeClient({
+      get_leaderboard: () => fail
+        ? { data: null, error: { message: 'boom' } }
+        : { data: [lbRow('me', 'Me', true)], error: null },
+    }));
+
+    await service.loadLeaderboard();
+    expect(service.leaderboardError()).toBe(true);
+
+    fail = false;
+    await service.loadLeaderboard();
+    expect(service.leaderboardError()).toBe(false);
+    expect(service.leaderboard().length).toBe(1);
+  });
+});

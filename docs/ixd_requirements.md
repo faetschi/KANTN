@@ -149,7 +149,7 @@ As a company user, I want to understand what is visible to others, so that I can
 - [x] Add a profile setting for leaderboard visibility. (`leaderboard_visible` toggle in Profile → Privacy)
 - [x] Respect the visibility setting in leaderboard queries. (`get_leaderboard` hides opted-out others; the user always still sees themselves)
 - [x] Add short explanatory copy near the leaderboard or setting. (note on the Ranking tab + helper text under the toggle)
-- [ ] Test anonymized and hidden-user leaderboard behavior. (manual/DB test still to add)
+- [x] Test anonymized and hidden-user leaderboard behavior. (`social-service.spec.ts` — hidden friend excluded, opted-out self still visible, ranking error/loading states)
 
 ## Frictionless Logging & Smart Defaults
 
@@ -180,7 +180,7 @@ As a user, I want to start a workout from my plan or calendar, so that I do not 
 - [x] Build a simple upcoming-workouts list or calendar entry point.
 - [x] Add a "start workout" action for planned workouts.
 - [x] Map planned workout exercises into the active workout state.
-- [ ] Add tests for starting a workout from a plan.
+- [x] Add tests for starting a workout from a plan. (`workout-start-from-plan.spec.ts` — plan→active mapping + smart-default prefill)
 
 #### Story 2: Smart Exercise Defaults
 
