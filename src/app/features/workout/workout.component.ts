@@ -10,6 +10,8 @@ import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType, get
 import { resolveDefault, resolveCardioDefaults, getUnitMismatchMessage, sourceLabel, DefaultSource } from '../../core/domain/smart-defaults';
 import { computeCardioMetrics, createVirtualCardioExercise } from '../../core/domain/cardio-utils';
 import { CardioMapComponent } from './cardio-map.component';
+import { SocialService } from '../../core/services/social.service';
+import { buildWorkoutCompletionFeedback, WorkoutCompletionFeedback } from '../../core/domain/workout-motivation';
 
 @Component({
   selector: 'app-workout',
@@ -369,7 +371,35 @@ import { CardioMapComponent } from './cardio-map.component';
           </div>
         </div>
       }
-      
+
+      <!-- Post-workout motivational feedback (Epic 1 / Story 3) -->
+      @if (showCompletionModal() && completionFeedback(); as fb) {
+        <div class="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
+          <div class="w-full max-w-sm bg-white rounded-3xl p-6 shadow-xl border border-gray-100 text-center space-y-4 animate-pop">
+            <div class="text-6xl select-none" aria-hidden="true">{{ fb.emoji }}</div>
+            <div>
+              <h3 class="text-xl font-extrabold text-gray-900">{{ fb.title }}</h3>
+              <p class="text-sm text-gray-500 mt-1">{{ fb.message }}</p>
+            </div>
+            <div class="flex items-center justify-center gap-6 py-2">
+              <div>
+                <p class="text-2xl font-bold text-gray-900">{{ formatTime(completionDurationSeconds()) }}</p>
+                <p class="text-[10px] uppercase tracking-wider text-gray-400">Duration</p>
+              </div>
+              @if (social.myStreak() > 0) {
+                <div>
+                  <p class="text-2xl font-bold text-orange-500">🔥 {{ social.myStreak() }}</p>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-400">Day streak</p>
+                </div>
+              }
+            </div>
+            <button type="button" (click)="dismissCompletion()" class="w-full py-3 rounded-2xl text-sm font-bold text-white bg-blue-600 active:bg-blue-700 transition-colors">
+              Done
+            </button>
+          </div>
+        </div>
+      }
+
       @if (showExerciseListModal()) {
         <div class="fixed top-0 left-0 right-0 z-70 bg-black/40 flex items-center justify-center p-4" style="bottom: calc(72px + env(safe-area-inset-bottom, 20px));">
           <div class="w-full max-w-lg bg-white rounded-2xl p-4 shadow-xl border border-gray-100 space-y-3" style="max-height: calc(100vh - (72px + env(safe-area-inset-bottom, 20px)) - 32px); overflow:auto;">
@@ -536,6 +566,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   route = inject(ActivatedRoute);
   router = inject(Router);
   workoutService = inject(WorkoutService);
+  protected social = inject(SocialService);
 
   planId = signal<string>('');
   scheduleId = signal<string | null>(null);
@@ -609,6 +640,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showExitOptionsModal = signal(false);
   showFreestyleSaveModal = signal(false);
   freestylePlanName = '';
+
+  // Post-workout motivational feedback (Epic 1 / Story 3).
+  showCompletionModal = signal(false);
+  completionFeedback = signal<WorkoutCompletionFeedback | null>(null);
+  completionDurationSeconds = signal(0);
   private persistThrottleTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Cardio state
@@ -1338,6 +1374,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
 
     this.saveErrorMessage = '';
+    this.completionDurationSeconds.set(session.duration ?? 0);
 
     if (this.freestyleMode()) {
       this.freestylePlanName = `Freestyle ${new Date().toLocaleDateString()}`;
@@ -1345,6 +1382,25 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       return;
     }
 
+    await this.presentCompletion();
+  }
+
+  /**
+   * Load the (possibly just-updated) streak and show a supportive completion
+   * message. Streak is best-effort — a failure still shows a generic message.
+   */
+  private async presentCompletion(): Promise<void> {
+    try {
+      await this.social.loadMyStreak();
+    } catch {
+      // ignore — buildWorkoutCompletionFeedback handles a 0 streak gracefully
+    }
+    this.completionFeedback.set(buildWorkoutCompletionFeedback(this.social.myStreak()));
+    this.showCompletionModal.set(true);
+  }
+
+  dismissCompletion(): void {
+    this.showCompletionModal.set(false);
     this.router.navigate(['/home']);
   }
 
@@ -1374,13 +1430,13 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
+    await this.presentCompletion();
   }
 
-  skipFreestylePlanSave() {
+  async skipFreestylePlanSave() {
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
+    await this.presentCompletion();
   }
 
   openExerciseListModal() {

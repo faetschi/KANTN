@@ -2708,3 +2708,72 @@ end;
 $$;
 
 grant execute on function get_public_profile_by_username(text) to authenticated;
+
+-- =====================================================================
+-- 2026-07-09: Epic 1 — leaderboard privacy / opt-out.
+-- Append-only & idempotent (see db/how-to-edit-SQL.md).
+-- =====================================================================
+
+-- Opt-out flag. Default true = users are shown on the friends ranking as
+-- before; setting it false hides the user from *other* people's ranking.
+alter table profiles
+  add column if not exists leaderboard_visible boolean not null default true;
+
+-- Ranking now respects the opt-out: a user who set leaderboard_visible = false
+-- is excluded from the ranking of their friends, but always still sees their
+-- own row (so the setting never makes the page look broken for them).
+-- `create or replace` on the same signature transparently replaces the
+-- 2026-07-08 friends-scoped version above.
+create or replace function get_leaderboard(p_limit int default 100)
+returns table (
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  total_workouts bigint,
+  total_calories numeric,
+  streak int,
+  is_me boolean
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    coalesce(s.cnt, 0)::bigint as total_workouts,
+    coalesce(s.cal, 0)::numeric as total_calories,
+    compute_current_streak(p.id) as streak,
+    (p.id = auth.uid()) as is_me
+  from people pe
+  join profiles p on p.id = pe.pid and p.approved = true
+    and (coalesce(p.leaderboard_visible, true) or p.id = auth.uid())
+  left join lateral (
+    select count(*) as cnt, sum(ws.total_calories) as cal
+    from workout_sessions ws
+    where ws.owner_id = p.id and ws.finished_at is not null
+  ) s on true
+  order by coalesce(s.cal, 0) desc, coalesce(s.cnt, 0) desc, lower(coalesce(p.display_name, p.username, ''))
+  limit greatest(coalesce(p_limit, 100), 1);
+end;
+$$;
+
+grant execute on function get_leaderboard(int) to authenticated;

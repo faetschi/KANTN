@@ -8,6 +8,8 @@ export interface User {
   age: number;
   avatarUrl?: string;
   lastSeen?: string;
+  /** When false, the user is hidden from other people's friends ranking. */
+  leaderboardVisible?: boolean;
 }
 
 export interface Exercise {

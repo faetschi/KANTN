@@ -118,6 +118,8 @@ export class SocialService {
   private myStreakSignal = signal<number>(0);
   private hasMoreActivitySignal = signal<boolean>(false);
   private loadingMoreSignal = signal<boolean>(false);
+  private leaderboardLoadingSignal = signal<boolean>(false);
+  private leaderboardErrorSignal = signal<boolean>(false);
 
   friends = computed(() => this.friendsSignal());
   friendRequests = computed(() => this.friendRequestsSignal());
@@ -129,6 +131,10 @@ export class SocialService {
   hasMoreActivity = computed(() => this.hasMoreActivitySignal());
   /** True while a "load next batch" request is in flight. */
   loadingMoreActivity = computed(() => this.loadingMoreSignal());
+  /** True while the ranking is being (re)loaded. */
+  leaderboardLoading = computed(() => this.leaderboardLoadingSignal());
+  /** True when the last ranking load failed. */
+  leaderboardError = computed(() => this.leaderboardErrorSignal());
 
   async refreshAll(): Promise<void> {
     await Promise.all([
@@ -253,19 +259,28 @@ export class SocialService {
     const client = this.supabase.getClient();
     if (!client) return;
 
-    const { data, error } = await client.rpc('get_leaderboard', { p_limit: limit });
-    if (error || !Array.isArray(data)) return;
+    this.leaderboardLoadingSignal.set(true);
+    this.leaderboardErrorSignal.set(false);
+    try {
+      const { data, error } = await client.rpc('get_leaderboard', { p_limit: limit });
+      if (error || !Array.isArray(data)) {
+        this.leaderboardErrorSignal.set(true);
+        return;
+      }
 
-    this.leaderboardSignal.set(data.map((row: any) => ({
-      userId: row.user_id,
-      username: row.username || '',
-      displayName: row.display_name || row.username || 'User',
-      avatarUrl: row.avatar_url || null,
-      totalWorkouts: Number(row.total_workouts || 0),
-      totalCalories: Number(row.total_calories || 0),
-      streak: Number(row.streak || 0),
-      isMe: !!row.is_me,
-    })));
+      this.leaderboardSignal.set(data.map((row: any) => ({
+        userId: row.user_id,
+        username: row.username || '',
+        displayName: row.display_name || row.username || 'User',
+        avatarUrl: row.avatar_url || null,
+        totalWorkouts: Number(row.total_workouts || 0),
+        totalCalories: Number(row.total_calories || 0),
+        streak: Number(row.streak || 0),
+        isMe: !!row.is_me,
+      })));
+    } finally {
+      this.leaderboardLoadingSignal.set(false);
+    }
   }
 
   async loadMyStreak(): Promise<void> {
@@ -412,5 +427,7 @@ export class SocialService {
     this.myStreakSignal.set(0);
     this.hasMoreActivitySignal.set(false);
     this.loadingMoreSignal.set(false);
+    this.leaderboardLoadingSignal.set(false);
+    this.leaderboardErrorSignal.set(false);
   }
 }

@@ -45,12 +45,15 @@ flowchart LR
 
 ## Implementation Status Overview
 
+> **Note:** Epic 1 pivoted from a *company/team* model to a *friends* model. Users add
+> friends by @username; feed, ranking and streaks are scoped to accepted friends (+ self).
+
 ### Epic 1: Persuasive Design & Gamification
-- [ ] Company/team context: not implemented
-- [ ] Company leaderboard: not implemented
-- [ ] Motivational feedback after workouts: not implemented
-- [ ] Privacy and leaderboard visibility controls: not implemented
-- [ ] Social feature UI/placeholders: not implemented
+- [ ] Company/team context: **to discuss first** — deliberately open. The friends model currently stands in for a social context; whether/how to add a real company/team grouping still needs a decision (see Story 1 note).
+- [x] Company leaderboard: implemented as a **friends-scoped ranking** (`get_leaderboard` RPC + Ranking tab; own row highlighted, empty/loading/error states)
+- [x] Motivational feedback after workouts: implemented — supportive completion modal after finishing a workout (`workout-motivation.ts` + streak/duration summary)
+- [x] Privacy and leaderboard visibility controls: implemented — `leaderboard_visible` opt-out toggle in Profile, respected by `get_leaderboard`, with explanatory copy on the Ranking tab
+- [x] Social feature UI/placeholders: implemented — full social page (Feed / Friends / Ranking) with infinite scroll and animations, not placeholders
 
 ### Epic 2: Frictionless Logging & Smart Defaults
 - [x] Planned workout start from calendar/plan: implemented
@@ -63,7 +66,7 @@ flowchart LR
 
 ### Notes
 - Epic 2 has strong coverage in the current codebase.
-- Epic 1 is largely still open; the current app does not yet expose company/team social features, leaderboard aggregation, or privacy opt-out controls.
+- Epic 1 is now implemented via a **friends** model (feed, friend requests, friends-scoped ranking, streaks), plus a leaderboard opt-out and a post-workout motivational message. Still to decide: whether to add a real company/team grouping (Story 1).
 - Existing `visibility` fields are currently used for plan/exercise sharing, not social leaderboard privacy.
 
 # Epics
@@ -92,9 +95,13 @@ As a company user, I want to be associated with my company or team, so that my p
 - The app can identify the user's company when showing social features.
 - Users without a company can still use the app normally.
 
-**Implementation Tasks**
+**Implementation Tasks** — _⚠️ TO DISCUSS FIRST: how to solve the company/team dimension._
+_The friends model currently covers the "social context" need. Before building this,_
+_decide the approach: (a) lightweight `profiles.company` text field + optional company_
+_filter on the ranking, (b) full companies table with user assignment + company-wide_
+_leaderboard, or (c) drop it and keep friends as the only context. No code until decided._
 - [ ] Add or confirm company/team fields in the user profile model.
-- [ ] Add repository/service methods to read the current user's company context.
+- [ ] Add repository/service methods to read the current user's company context. (friend context exists via `get_friends`, but no company)
 - [ ] Add fallback handling for users without a company.
 - [ ] Add basic test coverage for company lookup and missing-company behavior.
 
@@ -108,11 +115,11 @@ As a company user, I want to see a simple leaderboard, so that I can understand 
 - The current user's own position is easy to identify.
 
 **Implementation Tasks**
-- [ ] Define the first leaderboard metric.
-- [ ] Add backend query or repository method for leaderboard data.
-- [ ] Build a simple leaderboard UI for the company context.
-- [ ] Highlight the current user's row.
-- [ ] Add empty, loading, and error states.
+- [x] Define the first leaderboard metric. (workouts / calories / streak)
+- [x] Add backend query or repository method for leaderboard data. (`get_leaderboard` RPC, friends-scoped)
+- [x] Build a simple leaderboard UI for the company context. (Ranking tab on the social page)
+- [x] Highlight the current user's row. (`isMe` → blue row + "(you)")
+- [x] Add empty, loading, and error states. (empty message, skeleton loader, and a retryable error state on the Ranking tab)
 
 #### Story 3: Motivational Feedback
 
@@ -124,10 +131,10 @@ As a company user, I want positive feedback after completing workouts, so that p
 - Feedback stays supportive and avoids shaming language.
 
 **Implementation Tasks**
-- [ ] Add a small set of motivational message templates.
-- [ ] Connect workout completion to the feedback display.
-- [ ] Include personal streak or company progress when available.
-- [ ] Add UI copy review for tone and clarity.
+- [x] Add a small set of motivational message templates. (`workout-motivation.ts` — generic + streak-based)
+- [x] Connect workout completion to the feedback display. (completion modal after finishing a workout, incl. freestyle)
+- [x] Include personal streak or company progress when available. (streak + session duration shown in the modal)
+- [x] Add UI copy review for tone and clarity. (copy is deliberately supportive, no shaming; see file header note)
 
 #### Story 4: Privacy & Visibility Control
 
@@ -139,10 +146,10 @@ As a company user, I want to understand what is visible to others, so that I can
 - Opted-out users are hidden or anonymized without breaking leaderboard totals.
 
 **Implementation Tasks**
-- [ ] Add a profile setting for leaderboard visibility.
-- [ ] Respect the visibility setting in leaderboard queries.
-- [ ] Add short explanatory copy near the leaderboard or setting.
-- [ ] Test anonymized and hidden-user leaderboard behavior.
+- [x] Add a profile setting for leaderboard visibility. (`leaderboard_visible` toggle in Profile → Privacy)
+- [x] Respect the visibility setting in leaderboard queries. (`get_leaderboard` hides opted-out others; the user always still sees themselves)
+- [x] Add short explanatory copy near the leaderboard or setting. (note on the Ranking tab + helper text under the toggle)
+- [ ] Test anonymized and hidden-user leaderboard behavior. (manual/DB test still to add)
 
 ## Frictionless Logging & Smart Defaults
 

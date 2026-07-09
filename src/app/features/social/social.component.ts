@@ -255,7 +255,29 @@ type SocialTab = 'feed' | 'friends' | 'leaderboard';
       <!-- LEADERBOARD -->
       @if (activeTab() === 'leaderboard') {
         <section class="space-y-2 animate-fade-in">
-          @if (social.leaderboard().length === 0) {
+          <p class="text-xs text-gray-400 px-1">
+            Ranked by calories. Only you and your accepted friends appear here — you can hide yourself in
+            <a routerLink="/profile" class="text-blue-500 font-medium">Profile</a>.
+          </p>
+          @if (social.leaderboardError()) {
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center space-y-3">
+              <p class="text-sm text-gray-500">Couldn't load the ranking.</p>
+              <button type="button" (click)="social.loadLeaderboard()" class="text-sm font-semibold text-blue-600">Try again</button>
+            </div>
+          } @else if (social.leaderboardLoading() && social.leaderboard().length === 0) {
+            <div class="space-y-2">
+              @for (n of [1,2,3,4,5]; track n) {
+                <div class="rounded-2xl p-3 shadow-sm border border-gray-100 bg-white flex items-center gap-3 animate-pulse">
+                  <div class="w-8 h-4 bg-gray-100 rounded"></div>
+                  <div class="w-10 h-10 rounded-full bg-gray-200"></div>
+                  <div class="flex-1 space-y-2">
+                    <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                    <div class="h-2 bg-gray-100 rounded w-1/4"></div>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else if (social.leaderboard().length === 0) {
             <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center text-gray-400 text-sm">
               No one on the leaderboard yet.
             </div>
