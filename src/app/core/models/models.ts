@@ -95,6 +95,8 @@ export interface CardioExerciseData {
   gpsEnabled: boolean;
   gpsCoordinates: Array<{lat: number; lng: number; timestamp: number}>;
   mapSnapshotUrl?: string;
+  /** Number of distance milestones already announced by a signal tone. */
+  cuedMilestones?: number;
 }
 
 export type ScheduledWorkoutStatus = 'scheduled' | 'completed' | 'missed' | 'skipped';

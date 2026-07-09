@@ -97,6 +97,22 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
           <p class="text-2xl font-bold text-gray-900">{{ (currentStats().duration / 60) | number:'1.0-0' }}</p>
           <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
         </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex items-center space-x-2 mb-2 text-red-500">
+            <mat-icon class="text-sm">fitness_center</mat-icon>
+            <span class="text-xs font-semibold uppercase tracking-wider">Volume</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-900">{{ currentStats().volumeKg | number:'1.0-0' }}<span class="text-sm font-medium text-gray-400"> kg</span></p>
+          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex items-center space-x-2 mb-2 text-green-500">
+            <mat-icon class="text-sm">route</mat-icon>
+            <span class="text-xs font-semibold uppercase tracking-wider">Distance</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-900">{{ (currentStats().distanceMeters / 1000) | number:'1.0-2' }}<span class="text-sm font-medium text-gray-400"> km</span></p>
+          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
+        </div>
       </section>
 
       <!-- Missed Workouts Popup -->
