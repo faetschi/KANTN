@@ -35,8 +35,11 @@ import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
       }
 
       @if (!loading() && !profile()) {
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 text-center text-sm text-gray-500">
-          User not found.
+        <div class="flex flex-col items-center justify-center min-h-[calc(100dvh-12rem)] px-4">
+          <div class="bg-amber-50 p-6 rounded-2xl shadow-sm border border-amber-200 text-center max-w-sm w-full">
+            <mat-icon class="!text-4xl !w-10 !h-10 text-orange-500 mb-2">warning</mat-icon>
+            <p class="text-sm font-semibold text-amber-800">User not found</p>
+          </div>
         </div>
       }
 
