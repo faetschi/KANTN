@@ -1416,6 +1416,11 @@ create policy "profiles_update" on profiles
   for update using (auth.uid() = id or is_admin())
   with check (auth.uid() = id or is_admin());
 
+drop policy if exists "profiles_delete" on profiles;
+
+create policy "profiles_delete" on profiles
+  for delete using (is_admin());
+
 drop policy if exists "exercises_select" on exercises;
 drop policy if exists "exercises_insert" on exercises;
 drop policy if exists "exercises_update" on exercises;
