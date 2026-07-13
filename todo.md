@@ -6,21 +6,33 @@ Audit status last updated: 2026-07-07.
 
 ### Social
 
-- [ ] Adjust /social page so that:
-	- [ ] the user has a infinite scroll, but after X workouts (customizable for admins) it stops a bit and loads the next batch via easy-in animation (which allows for inifinte scrolling with good performance and UX)
-	- [ ] bei Friends/Ranking dass der User nur die Personen sieht, die er davor auch geaddet hat (derzeit global, which is wrong)
-	- [ ] on the /social page there should be load animations (easy-in fades/animations) similiar/consistent with the other pages which have animations, and at toggle of feed/friends/ranking
+- [x] Adjust /social page so that:
+	- [x] the user has a infinite scroll, but after X workouts (customizable for admins) it stops a bit and loads the next batch via easy-in animation (which allows for inifinte scrolling with good performance and UX)
+		- Feed now uses keyset (finished_at, session_id) pagination via `get_friends_feed` RPC; `SocialService.feedPageSize` (default 15) is the batch size (admin-overridable field); IntersectionObserver sentinel loads the next batch, new cards fade in (`animate-fade-in`). **New SQL must be run in Supabase** (see 2026-07-08 block in init_supabase.sql).
+	- [x] bei Friends/Ranking dass der User nur die Personen sieht, die er davor auch geaddet hat (derzeit global, which is wrong)
+		- Ranking/leaderboard `get_leaderboard` is now scoped to the viewer + accepted friends (was global). Friends tab was already friend-only. **New SQL must be run in Supabase.**
+	- [x] on the /social page there should be load animations (easy-in fades/animations) similiar/consistent with the other pages which have animations, and at toggle of feed/friends/ranking
+		- Reuses the global `animate-fade-in` / `stagger` classes (styles.css) on header, tabs, each tab section (re-fires on toggle), and the friends/leaderboard lists.
 
 
 - [ ] Fix vercel preview branch deployments, after login always redirects to https://kantn-faetschi.vercel.app/home even though we are on other preview deployment, e.g. https://kantn-git-development-faetschis-projects.vercel.app/login (but should redirect after login to https://kantn-git-development-faetschis-projects.vercel.app/home)
+	- Root cause: **not a code bug** — the client already redirects dynamically via `${location.origin}/oauth/consent` (`auth.service.ts`). Login is Google-OAuth-only; Supabase only returns to `redirect_to` if it's allow-listed, otherwise it falls back to the **Site URL** (production). Preview domains aren't allow-listed → fallback to prod.
+	- Fix (Supabase Dashboard → **Authentication → URL Configuration → Redirect URLs**), add these patterns:
+		- `https://kantn-git-*-faetschis-projects.vercel.app/**`  ← Branch-Previews (z.B. development)
+		- `https://kantn-*-faetschis-projects.vercel.app/**`  ← Deployment-Previews (Hash-URLs)
+		- `http://localhost:4000/**`  ← lokal (falls noch nicht drin)
+	- Keep **Site URL** = production (`https://kantn-faetschi.vercel.app`); the Google callback (`https://<project>.supabase.co/auth/v1/callback`) is domain-independent and needs no change.
+
 
 
 - [ ] Complete go-live verification run in staging + define rollback steps for DB/policy changes.
 
-- [ ] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
+- [x] Currently Calories and Tome per week/month is tracked. also interesting would be total weight lifted or distance (meters /kilometers) run/cycled per week/month. Maybe Calorie calculation could be based on Time, Bodyweight/Height, Weighrlifted or distance run etc.
+	- Home now shows four weekly/monthly stat cards: Calories, Minutes, **Volume** (total kg lifted = reps × weight over completed sets) and **Distance** (km from cardio). Totals are computed client-side from loaded sessions in `computePeriodTotals` (`core/domain/stats-utils.ts`) and surfaced via `StatsService` (`volumeKg` / `distanceMeters`) — **no DB migration required**. Calorie calc already uses the MET × bodyweight × time formula (`calcCalories`), so time + bodyweight are already inputs.
 Reduced Cognitive Load: Wie verhinderst du, dass der User während des Trainings zu viel tippen muss? Lösung: Signaltöne
-- [ ] For specific Cardio exercises, add GPS capability (e.g. Running/Cycling, mit abgespielten Signalton (konfigurierbar) bei bestimmer (konfigurierbarer) Distanz, z.B. alle 5km)
-- [ ] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
+- [x] For specific Cardio exercises, add GPS capability (e.g. Running/Cycling, mit abgespielten Signalton (konfigurierbar) bei bestimmer (konfigurierbarer) Distanz, z.B. alle 5km)
+	- GPS route tracking already existed; added a **configurable distance signal tone**. In the cardio workout panel a "Signal tone every" control cycles Off → 0.5 km → 1 km → 2 km → 5 km (persisted in localStorage). A two-tone beep + vibration fires each time GPS distance crosses a new interval (`core/domain/audio-cue.ts`, Web Audio API — no assets, works offline). Manual-distance entry re-baselines milestones so it never fires a burst. Unit-tested in `signal-and-stats.spec.ts`.
+- [x] New Button in Footer Menu for Social / Gamification & Leaderboard: mit status aller anderen "Freunde" User (User has to be added as friend first), where the user can see, wer der Freunde wann welches Workout gemacht hat + User können Bild zum Workout hochladen, dass man dann sieht. Streak (Feuer Emoji) kann gesammelt werden, für aufeinanderfolgende Workouts ohne unterbrechung von Tagen + Insgesamtes Workout/Statistik Leaderboard über alle User (für Firma die diese App einsetzt, um extrem Sportliche User zu "belohnen")
 
 
 

@@ -178,9 +178,15 @@ describe('Critical flow smoke tests', () => {
 
     component.elapsedTime.set(120);
     await component.finishWorkout();
+
+    // Finishing now shows the motivational completion modal; navigation to
+    // /home happens when the user dismisses it.
+    expect(addSession).toHaveBeenCalled();
+    expect(component.showCompletionModal()).toBe(true);
+
+    component.dismissCompletion();
     component.ngOnDestroy();
 
-    expect(addSession).toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(['/home']);
   });
 

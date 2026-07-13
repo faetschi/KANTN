@@ -9,7 +9,18 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 import { resolveDefault, resolveCardioDefaults, getUnitMismatchMessage, sourceLabel, DefaultSource } from '../../core/domain/smart-defaults';
 import { computeCardioMetrics, createVirtualCardioExercise } from '../../core/domain/cardio-utils';
+import {
+  CARDIO_CUE_INTERVAL_OPTIONS,
+  DEFAULT_CARDIO_CUE_INTERVAL,
+  distanceCuesReached,
+  formatCueInterval,
+  playBeep,
+  playDistanceCue,
+  primeAudioCue,
+} from '../../core/domain/audio-cue';
 import { CardioMapComponent } from './cardio-map.component';
+import { SocialService } from '../../core/services/social.service';
+import { buildWorkoutCompletionFeedback, WorkoutCompletionFeedback } from '../../core/domain/workout-motivation';
 
 @Component({
   selector: 'app-workout',
@@ -110,6 +121,20 @@ import { CardioMapComponent } from './cardio-map.component';
                 <div class="text-xs text-gray-500 uppercase">km/h</div>
               </div>
             </div>
+
+            <button (click)="cycleCardioCueInterval()"
+                    class="w-full flex items-center justify-between bg-white rounded-xl px-3 py-2.5 active:scale-[0.99] transition-transform"
+                    [attr.aria-label]="'Signal tone every ' + cardioCueLabel()">
+              <span class="flex items-center gap-1.5 text-sm text-gray-600">
+                <mat-icon class="text-[18px]" style="font-size:18px;width:18px;height:18px;"
+                          [class.text-orange-500]="cardioCueIntervalMeters() > 0"
+                          [class.text-gray-400]="cardioCueIntervalMeters() === 0">
+                  {{ cardioCueIntervalMeters() > 0 ? 'notifications_active' : 'notifications_off' }}
+                </mat-icon>
+                <span>Signal tone every</span>
+              </span>
+              <span class="px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-bold text-gray-800">{{ cardioCueLabel() }}</span>
+            </button>
 
             <div class="flex items-center justify-between">
               <button (click)="toggleGPS()"
@@ -369,7 +394,35 @@ import { CardioMapComponent } from './cardio-map.component';
           </div>
         </div>
       }
-      
+
+      <!-- Post-workout motivational feedback (Epic 1 / Story 3) -->
+      @if (showCompletionModal() && completionFeedback(); as fb) {
+        <div class="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
+          <div class="w-full max-w-sm bg-white rounded-3xl p-6 shadow-xl border border-gray-100 text-center space-y-4 animate-pop">
+            <div class="text-6xl select-none" aria-hidden="true">{{ fb.emoji }}</div>
+            <div>
+              <h3 class="text-xl font-extrabold text-gray-900">{{ fb.title }}</h3>
+              <p class="text-sm text-gray-500 mt-1">{{ fb.message }}</p>
+            </div>
+            <div class="flex items-center justify-center gap-6 py-2">
+              <div>
+                <p class="text-2xl font-bold text-gray-900">{{ formatTime(completionDurationSeconds()) }}</p>
+                <p class="text-[10px] uppercase tracking-wider text-gray-400">Duration</p>
+              </div>
+              @if (social.myStreak() > 0) {
+                <div>
+                  <p class="text-2xl font-bold text-orange-500">🔥 {{ social.myStreak() }}</p>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-400">Day streak</p>
+                </div>
+              }
+            </div>
+            <button type="button" (click)="dismissCompletion()" class="w-full py-3 rounded-2xl text-sm font-bold text-white bg-blue-600 active:bg-blue-700 transition-colors">
+              Done
+            </button>
+          </div>
+        </div>
+      }
+
       @if (showExerciseListModal()) {
         <div class="fixed top-0 left-0 right-0 z-70 bg-black/40 flex items-center justify-center p-4" style="bottom: calc(72px + env(safe-area-inset-bottom, 20px));">
           <div class="w-full max-w-lg bg-white rounded-2xl p-4 shadow-xl border border-gray-100 space-y-3" style="max-height: calc(100vh - (72px + env(safe-area-inset-bottom, 20px)) - 32px); overflow:auto;">
@@ -536,6 +589,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   route = inject(ActivatedRoute);
   router = inject(Router);
   workoutService = inject(WorkoutService);
+  protected social = inject(SocialService);
 
   planId = signal<string>('');
   scheduleId = signal<string | null>(null);
@@ -609,6 +663,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showExitOptionsModal = signal(false);
   showFreestyleSaveModal = signal(false);
   freestylePlanName = '';
+
+  // Post-workout motivational feedback (Epic 1 / Story 3).
+  showCompletionModal = signal(false);
+  completionFeedback = signal<WorkoutCompletionFeedback | null>(null);
+  completionDurationSeconds = signal(0);
   private persistThrottleTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Cardio state
@@ -617,6 +676,73 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showManualDistanceDialog = signal(false);
   manualDistanceInput = '';
   @ViewChild(CardioMapComponent) cardioMap?: CardioMapComponent;
+
+  // Configurable distance-interval signal tone (reduces cognitive load: the user
+  // hears a beep instead of having to watch the screen). Persisted per device.
+  private static readonly CUE_INTERVAL_KEY = 'kantn_cardio_cue_interval_m';
+  cardioCueIntervalMeters = signal<number>(this.loadCueInterval());
+
+  private loadCueInterval(): number {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(WorkoutComponent.CUE_INTERVAL_KEY) : null;
+      const value = raw != null ? parseInt(raw, 10) : NaN;
+      return (CARDIO_CUE_INTERVAL_OPTIONS as readonly number[]).includes(value) ? value : DEFAULT_CARDIO_CUE_INTERVAL;
+    } catch {
+      return DEFAULT_CARDIO_CUE_INTERVAL;
+    }
+  }
+
+  cardioCueLabel(): string {
+    return formatCueInterval(this.cardioCueIntervalMeters());
+  }
+
+  /** Cycle through the available cue intervals (Off → 0.5km → 1km → 2km → 5km → Off). */
+  cycleCardioCueInterval() {
+    const options = CARDIO_CUE_INTERVAL_OPTIONS as readonly number[];
+    const currentIndex = options.indexOf(this.cardioCueIntervalMeters());
+    const next = options[(currentIndex + 1) % options.length];
+    this.cardioCueIntervalMeters.set(next);
+    try {
+      localStorage.setItem(WorkoutComponent.CUE_INTERVAL_KEY, String(next));
+    } catch {
+      // ignore persistence failures
+    }
+
+    // Re-baseline the current exercise so changing the interval mid-run doesn't
+    // retroactively fire (or suppress) beeps for distance already covered.
+    const exId = this.currentExercise()?.id;
+    if (exId) {
+      this.cardioExerciseData.update(map => {
+        const data = map.get(exId);
+        if (!data) return map;
+        const nextMap = new Map(map);
+        nextMap.set(exId, { ...data, cuedMilestones: distanceCuesReached(data.distanceMeters, next) });
+        return nextMap;
+      });
+    }
+
+    if (next > 0) {
+      // Confirmation beep + unlock the audio context on this user gesture.
+      primeAudioCue();
+      playBeep({ frequency: 660, durationMs: 120 });
+    }
+  }
+
+  /**
+   * Play a signal tone when the distance has crossed a new interval milestone.
+   * Returns the (possibly updated) cardio data with the new milestone count.
+   */
+  private maybePlayDistanceCue(data: CardioExerciseData): CardioExerciseData {
+    const interval = this.cardioCueIntervalMeters();
+    if (interval <= 0) return data;
+    const reached = distanceCuesReached(data.distanceMeters, interval);
+    const already = data.cuedMilestones || 0;
+    if (reached > already) {
+      playDistanceCue();
+      return { ...data, cuedMilestones: reached };
+    }
+    return data;
+  }
 
   isCardioExercise = computed(() => {
     const exercise = this.currentExercise();
@@ -1338,6 +1464,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
 
     this.saveErrorMessage = '';
+    this.completionDurationSeconds.set(session.duration ?? 0);
 
     if (this.freestyleMode()) {
       this.freestylePlanName = `Freestyle ${new Date().toLocaleDateString()}`;
@@ -1345,6 +1472,25 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       return;
     }
 
+    await this.presentCompletion();
+  }
+
+  /**
+   * Load the (possibly just-updated) streak and show a supportive completion
+   * message. Streak is best-effort — a failure still shows a generic message.
+   */
+  private async presentCompletion(): Promise<void> {
+    try {
+      await this.social.loadMyStreak();
+    } catch {
+      // ignore — buildWorkoutCompletionFeedback handles a 0 streak gracefully
+    }
+    this.completionFeedback.set(buildWorkoutCompletionFeedback(this.social.myStreak()));
+    this.showCompletionModal.set(true);
+  }
+
+  dismissCompletion(): void {
+    this.showCompletionModal.set(false);
     this.router.navigate(['/home']);
   }
 
@@ -1374,13 +1520,13 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
+    await this.presentCompletion();
   }
 
-  skipFreestylePlanSave() {
+  async skipFreestylePlanSave() {
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
+    await this.presentCompletion();
   }
 
   openExerciseListModal() {
@@ -1420,6 +1566,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         avgSpeedKmh: 0,
         gpsEnabled: false,
         gpsCoordinates: [],
+        cuedMilestones: 0,
       });
       return newData;
     });
@@ -1446,6 +1593,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   startGPSTracking(exerciseId: string) {
     if (!navigator.geolocation) return;
+    // Unlock audio here — this runs off a user gesture (GPS ON / start workout).
+    primeAudioCue();
     this.cardioExerciseData.update(map => {
       const newData = new Map(map);
       const data = newData.get(exerciseId);
@@ -1540,7 +1689,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     } else {
       updated.gpsCoordinates = [{ lat: latitude, lng: longitude, timestamp }];
     }
-    newData.set(exerciseId, updated);
+    newData.set(exerciseId, this.maybePlayDistanceCue(updated));
     this.cardioExerciseData.set(newData);
   }
 
@@ -1563,6 +1712,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
           updated.avgPaceSecondsPerKm = Math.floor(updated.elapsedSeconds / distanceKm);
           updated.avgSpeedKmh = distanceKm / (updated.elapsedSeconds / 3600);
         }
+        // Manually entered distance shouldn't fire a burst of milestone beeps.
+        updated.cuedMilestones = distanceCuesReached(distance, this.cardioCueIntervalMeters());
         newData.set(exerciseId, updated);
         this.cardioExerciseData.set(newData);
       }

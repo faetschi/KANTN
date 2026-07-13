@@ -537,6 +537,8 @@ describe('Cardio Integration Tests', () => {
       expect(sessionArg.exercises[0].avgPacePerKmSeconds).toBe(360);
       expect(sessionArg.exercises[0].avgSpeedKmh).toBe(10.0);
       expect(sessionArg.exercises[0].exerciseDurationSeconds).toBe(1800);
+      // Finishing now shows the completion modal; navigation happens on dismiss.
+      component.dismissCompletion();
       expect(navigate).toHaveBeenCalledWith(['/home']);
     });
   });
@@ -644,6 +646,8 @@ describe('Cardio Integration Tests', () => {
       const strengthEx = sessionArg.exercises.find((e: any) => e.exerciseId === 'strength-ex-1');
       expect(strengthEx).toBeTruthy();
       expect(strengthEx.sets.length).toBeGreaterThan(0);
+      // Finishing now shows the completion modal; navigation happens on dismiss.
+      component.dismissCompletion();
       expect(navigate).toHaveBeenCalledWith(['/home']);
     });
   });
@@ -789,16 +793,16 @@ describe('Exercise Type Detection Logic', () => {
   });
 
   describe('getWorkoutTypeVisual', () => {
-    it('returns orange color for cardio', () => {
+    it('returns green color for cardio', () => {
       const visual = getWorkoutTypeVisual('cardio');
       expect(visual.label).toBe('Cardio');
-      expect(visual.color).toBe('#059669');
+      expect(visual.color).toBe('#10b981');
     });
 
     it('returns red color for strength', () => {
       const visual = getWorkoutTypeVisual('strength');
       expect(visual.label).toBe('Strength');
-      expect(visual.color).toBe('#dc2626');
+      expect(visual.color).toBe('#ef4444');
     });
   });
 

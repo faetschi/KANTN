@@ -8,6 +8,8 @@ export interface User {
   age: number;
   avatarUrl?: string;
   lastSeen?: string;
+  /** When false, the user is hidden from other people's friends ranking. */
+  leaderboardVisible?: boolean;
 }
 
 export interface Exercise {
@@ -93,6 +95,8 @@ export interface CardioExerciseData {
   gpsEnabled: boolean;
   gpsCoordinates: Array<{lat: number; lng: number; timestamp: number}>;
   mapSnapshotUrl?: string;
+  /** Number of distance milestones already announced by a signal tone. */
+  cuedMilestones?: number;
 }
 
 export type ScheduledWorkoutStatus = 'scheduled' | 'completed' | 'missed' | 'skipped';

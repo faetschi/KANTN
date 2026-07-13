@@ -33,14 +33,22 @@ export class ProfileService {
     const client = this.supabase.getClient();
     if (!client) return null;
 
-    const normalized = username.trim().toLowerCase();
+    // Routes use the pretty `@handle` form, so the param can arrive with a
+    // leading `@` — strip it before resolving.
+    const normalized = username.trim().toLowerCase().replace(/^@+/, '');
     if (!normalized) return null;
 
     const { data, error } = await client.rpc('get_public_profile_by_username', {
       p_username: normalized,
     });
 
-    if (error || !data || !Array.isArray(data) || data.length === 0) return null;
+    if (error) {
+      // Surface the real PostgREST error (message/details/hint/code) — the
+      // browser network tab only shows the bare 400 status.
+      console.error('[getProfileByUsername] RPC error for', normalized, error);
+      return null;
+    }
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
 
     const row = data[0] as ProfileRow;
     if (!row.username) return null;

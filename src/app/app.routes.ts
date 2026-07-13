@@ -100,7 +100,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent)
       },
       {
-        path: 'profile/@:username',
+        // Links use the pretty `/profile/@handle` form; `:username` captures
+        // the whole segment (leading `@` included) and it is stripped when the
+        // profile is resolved. A custom `@`-matcher was avoided because routes
+        // with matchers cannot be prerendered by the SSR builder.
+        path: 'profile/:username',
         loadComponent: () => import('./features/profile/public-profile.component').then(m => m.PublicProfileComponent),
         canActivate: [ApprovedGuard]
       }

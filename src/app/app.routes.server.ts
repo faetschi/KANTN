@@ -18,7 +18,10 @@ export const serverRoutes: ServerRoute[] = [
     renderMode: RenderMode.Client,
   },
   {
-    path: 'profile/@:username',
+    // Angular's route matcher treats `@:username` literally, so a param
+    // segment is used here to flag any `/profile/<handle>` URL as client-only
+    // (the client route uses a custom matcher that requires the `@` prefix).
+    path: 'profile/:username',
     renderMode: RenderMode.Client,
   },
   {

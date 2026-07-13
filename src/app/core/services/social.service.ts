@@ -48,6 +48,15 @@ export interface LeaderboardEntry {
   isMe: boolean;
 }
 
+export interface UserSession {
+  sessionId: string;
+  planName: string | null;
+  totalCalories: number;
+  durationSeconds: number;
+  finishedAt: string;
+  photoUrl: string | null;
+}
+
 export interface FriendSessionSet {
   reps: number;
   weight: number;
@@ -96,11 +105,21 @@ export type SendRequestResult =
 export class SocialService {
   private supabase = inject(SupabaseService);
 
+  /**
+   * How many feed items to pull per batch. Kept as a mutable field so an admin
+   * setting can override it later (see todo.md — "customizable for admins").
+   */
+  feedPageSize = 15;
+
   private friendsSignal = signal<Friend[]>([]);
   private friendRequestsSignal = signal<FriendRequest[]>([]);
   private activitySignal = signal<FriendActivity[]>([]);
   private leaderboardSignal = signal<LeaderboardEntry[]>([]);
   private myStreakSignal = signal<number>(0);
+  private hasMoreActivitySignal = signal<boolean>(false);
+  private loadingMoreSignal = signal<boolean>(false);
+  private leaderboardLoadingSignal = signal<boolean>(false);
+  private leaderboardErrorSignal = signal<boolean>(false);
 
   friends = computed(() => this.friendsSignal());
   friendRequests = computed(() => this.friendRequestsSignal());
@@ -108,6 +127,14 @@ export class SocialService {
   leaderboard = computed(() => this.leaderboardSignal());
   myStreak = computed(() => this.myStreakSignal());
   pendingRequestCount = computed(() => this.friendRequestsSignal().length);
+  /** True while more feed items exist beyond what is currently loaded. */
+  hasMoreActivity = computed(() => this.hasMoreActivitySignal());
+  /** True while a "load next batch" request is in flight. */
+  loadingMoreActivity = computed(() => this.loadingMoreSignal());
+  /** True while the ranking is being (re)loaded. */
+  leaderboardLoading = computed(() => this.leaderboardLoadingSignal());
+  /** True when the last ranking load failed. */
+  leaderboardError = computed(() => this.leaderboardErrorSignal());
 
   async refreshAll(): Promise<void> {
     await Promise.all([
@@ -155,14 +182,8 @@ export class SocialService {
     })));
   }
 
-  async loadActivity(limit = 30): Promise<void> {
-    const client = this.supabase.getClient();
-    if (!client) return;
-
-    const { data, error } = await client.rpc('get_friends_activity', { p_limit: limit });
-    if (error || !Array.isArray(data)) return;
-
-    this.activitySignal.set(data.map((row: any) => ({
+  private mapActivityRow(row: any): FriendActivity {
+    return {
       sessionId: row.session_id,
       userId: row.user_id,
       username: row.username || '',
@@ -175,26 +196,91 @@ export class SocialService {
       finishedAt: row.finished_at,
       photoUrl: row.photo_url || null,
       streak: Number(row.streak || 0),
-    })));
+    };
+  }
+
+  /** Load the newest page of the feed, resetting the pagination cursor. */
+  async loadActivity(): Promise<void> {
+    const client = this.supabase.getClient();
+    if (!client) return;
+
+    const { data, error } = await client.rpc('get_friends_feed', {
+      p_limit: this.feedPageSize,
+      p_before_at: null,
+      p_before_id: null,
+    });
+    if (error || !Array.isArray(data)) return;
+
+    const rows = data.map((row: any) => this.mapActivityRow(row));
+    this.activitySignal.set(rows);
+    this.hasMoreActivitySignal.set(rows.length >= this.feedPageSize);
+  }
+
+  /**
+   * Append the next batch of feed items using a (finished_at, session_id)
+   * keyset cursor. No-op when nothing more is available or a batch is already
+   * loading. Returns the number of newly appended items.
+   */
+  async loadMoreActivity(): Promise<number> {
+    const client = this.supabase.getClient();
+    if (!client || this.loadingMoreSignal() || !this.hasMoreActivitySignal()) return 0;
+
+    const current = this.activitySignal();
+    const last = current[current.length - 1];
+    if (!last) return 0;
+
+    this.loadingMoreSignal.set(true);
+    try {
+      const { data, error } = await client.rpc('get_friends_feed', {
+        p_limit: this.feedPageSize,
+        p_before_at: last.finishedAt,
+        p_before_id: last.sessionId,
+      });
+      if (error || !Array.isArray(data)) {
+        this.hasMoreActivitySignal.set(false);
+        return 0;
+      }
+
+      const rows = data.map((row: any) => this.mapActivityRow(row));
+      // Guard against overlap in case of concurrent inserts sharing a cursor.
+      const seen = new Set(current.map((item) => item.sessionId));
+      const fresh = rows.filter((item) => !seen.has(item.sessionId));
+      if (fresh.length > 0) {
+        this.activitySignal.set([...current, ...fresh]);
+      }
+      this.hasMoreActivitySignal.set(rows.length >= this.feedPageSize);
+      return fresh.length;
+    } finally {
+      this.loadingMoreSignal.set(false);
+    }
   }
 
   async loadLeaderboard(limit = 100): Promise<void> {
     const client = this.supabase.getClient();
     if (!client) return;
 
-    const { data, error } = await client.rpc('get_leaderboard', { p_limit: limit });
-    if (error || !Array.isArray(data)) return;
+    this.leaderboardLoadingSignal.set(true);
+    this.leaderboardErrorSignal.set(false);
+    try {
+      const { data, error } = await client.rpc('get_leaderboard', { p_limit: limit });
+      if (error || !Array.isArray(data)) {
+        this.leaderboardErrorSignal.set(true);
+        return;
+      }
 
-    this.leaderboardSignal.set(data.map((row: any) => ({
-      userId: row.user_id,
-      username: row.username || '',
-      displayName: row.display_name || row.username || 'User',
-      avatarUrl: row.avatar_url || null,
-      totalWorkouts: Number(row.total_workouts || 0),
-      totalCalories: Number(row.total_calories || 0),
-      streak: Number(row.streak || 0),
-      isMe: !!row.is_me,
-    })));
+      this.leaderboardSignal.set(data.map((row: any) => ({
+        userId: row.user_id,
+        username: row.username || '',
+        displayName: row.display_name || row.username || 'User',
+        avatarUrl: row.avatar_url || null,
+        totalWorkouts: Number(row.total_workouts || 0),
+        totalCalories: Number(row.total_calories || 0),
+        streak: Number(row.streak || 0),
+        isMe: !!row.is_me,
+      })));
+    } finally {
+      this.leaderboardLoadingSignal.set(false);
+    }
   }
 
   async loadMyStreak(): Promise<void> {
@@ -248,6 +334,38 @@ export class SocialService {
           }))
         : [],
     };
+  }
+
+  /**
+   * All finished workouts of a single user (self or an accepted friend),
+   * newest first. Returns [] when the viewer has no access. Pass the last
+   * loaded item's finishedAt/sessionId as a keyset cursor to load older ones.
+   */
+  async loadUserSessions(
+    userId: string,
+    limit = 20,
+    beforeAt: string | null = null,
+    beforeId: string | null = null,
+  ): Promise<UserSession[]> {
+    const client = this.supabase.getClient();
+    if (!client || !userId) return [];
+
+    const { data, error } = await client.rpc('get_user_sessions', {
+      p_user: userId,
+      p_limit: limit,
+      p_before_at: beforeAt,
+      p_before_id: beforeId,
+    });
+    if (error || !Array.isArray(data)) return [];
+
+    return data.map((row: any) => ({
+      sessionId: row.session_id,
+      planName: row.plan_name || null,
+      totalCalories: Number(row.total_calories || 0),
+      durationSeconds: Number(row.duration_seconds || 0),
+      finishedAt: row.finished_at,
+      photoUrl: row.photo_url || null,
+    }));
   }
 
   async sendRequest(username: string): Promise<SendRequestResult> {
@@ -307,5 +425,9 @@ export class SocialService {
     this.activitySignal.set([]);
     this.leaderboardSignal.set([]);
     this.myStreakSignal.set(0);
+    this.hasMoreActivitySignal.set(false);
+    this.loadingMoreSignal.set(false);
+    this.leaderboardLoadingSignal.set(false);
+    this.leaderboardErrorSignal.set(false);
   }
 }

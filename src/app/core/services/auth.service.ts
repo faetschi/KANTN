@@ -138,7 +138,7 @@ export class AuthService {
 
     const { data: profile, error: profileError } = await client
       .from('profiles')
-      .select('id, email, username, display_name, avatar_url, height, weight, age, is_admin, approved, last_seen')
+      .select('id, email, username, display_name, avatar_url, height, weight, age, is_admin, approved, last_seen, leaderboard_visible')
       .eq('id', user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -155,6 +155,7 @@ export class AuthService {
       is_admin: !!profile?.is_admin,
       approved: profile?.approved ?? undefined,
       lastSeen: profile?.last_seen || undefined,
+      leaderboardVisible: profile?.leaderboard_visible ?? true,
     };
 
     this.currentUserSignal.set(mapped);
