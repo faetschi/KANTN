@@ -3,12 +3,22 @@ import { WorkoutService } from './workout.service';
 import { AuthService } from './auth.service';
 import { SupabaseService } from './supabase.service';
 import { startOfWeek, startOfMonth } from 'date-fns';
+import { computePeriodTotalsSince } from '../domain/stats-utils';
 
 interface AggregateStats {
   count: number;
   duration: number;
   calories: number;
+  /** Total training volume lifted (kg = reps × weight over completed sets). */
+  volumeKg: number;
+  /** Total distance covered from cardio exercises (metres). */
+  distanceMeters: number;
 }
+
+const EMPTY_STATS: AggregateStats = { count: 0, duration: 0, calories: 0, volumeKg: 0, distanceMeters: 0 };
+
+/** Period totals available from the DB stats RPC (no volume/distance). */
+type RpcPeriodTotals = Pick<AggregateStats, 'count' | 'duration' | 'calories'>;
 
 interface StatsRpcRow {
   workout_count: number | string | null;
@@ -34,8 +44,8 @@ export class StatsService {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
 
-  private weeklyStatsSignal = signal<AggregateStats>({ count: 0, duration: 0, calories: 0 });
-  private monthlyStatsSignal = signal<AggregateStats>({ count: 0, duration: 0, calories: 0 });
+  private weeklyStatsSignal = signal<AggregateStats>({ ...EMPTY_STATS });
+  private monthlyStatsSignal = signal<AggregateStats>({ ...EMPTY_STATS });
 
   constructor() {
     effect(() => {
@@ -46,8 +56,8 @@ export class StatsService {
       void sessions;
 
       if (!currentUser || loadedUserId !== currentUser.id) {
-        this.weeklyStatsSignal.set({ count: 0, duration: 0, calories: 0 });
-        this.monthlyStatsSignal.set({ count: 0, duration: 0, calories: 0 });
+        this.weeklyStatsSignal.set({ ...EMPTY_STATS });
+        this.monthlyStatsSignal.set({ ...EMPTY_STATS });
         return;
       }
 
@@ -55,12 +65,15 @@ export class StatsService {
     });
   }
 
-  private getFallbackStats(fromTs: Date) {
+  private getFallbackStats(fromTs: Date): AggregateStats {
     const sessions = this.workoutService.sessions().filter(s => s.createdAt >= fromTs);
+    const totals = computePeriodTotalsSince(this.workoutService.sessions(), fromTs);
     return {
       count: sessions.length,
       duration: sessions.reduce((acc, session) => acc + (session.duration || 0), 0),
       calories: sessions.reduce((acc, session) => acc + (session.caloriesBurned || 0), 0),
+      volumeKg: totals.volumeKg,
+      distanceMeters: totals.distanceMeters,
     };
   }
 
@@ -85,17 +98,20 @@ export class StatsService {
       count: parseNumberOrFallback(row.workout_count, fallback.count),
       duration: parseNumberOrFallback(row.total_duration_seconds, fallback.duration),
       calories: parseNumberOrFallback(row.total_calories, fallback.calories),
+      // Volume/distance are not provided by the RPC — always taken from local sessions.
+      volumeKg: fallback.volumeKg,
+      distanceMeters: fallback.distanceMeters,
     };
   }
 
-  private async fetchPeriodStats(): Promise<{ weekly?: AggregateStats; monthly?: AggregateStats } | null> {
+  private async fetchPeriodStats(): Promise<{ weekly?: RpcPeriodTotals; monthly?: RpcPeriodTotals } | null> {
     const client = this.supabase.getClient();
     if (!client) return null;
 
     const { data, error } = await client.rpc('get_my_stats_periods');
     if (error || !Array.isArray(data)) return null;
 
-    const byPeriod = new Map<string, AggregateStats>();
+    const byPeriod = new Map<string, RpcPeriodTotals>();
     for (const row of data as StatsPeriodRow[]) {
       const key = (row.period || '').toLowerCase();
       if (key !== 'week' && key !== 'month') continue;
@@ -126,11 +142,16 @@ export class StatsService {
         count: periodStats.weekly.count ?? weeklyFallback.count,
         duration: periodStats.weekly.duration ?? weeklyFallback.duration,
         calories: periodStats.weekly.calories ?? weeklyFallback.calories,
+        // Volume/distance are computed locally regardless of the RPC.
+        volumeKg: weeklyFallback.volumeKg,
+        distanceMeters: weeklyFallback.distanceMeters,
       });
       this.monthlyStatsSignal.set({
         count: periodStats.monthly.count ?? monthlyFallback.count,
         duration: periodStats.monthly.duration ?? monthlyFallback.duration,
         calories: periodStats.monthly.calories ?? monthlyFallback.calories,
+        volumeKg: monthlyFallback.volumeKg,
+        distanceMeters: monthlyFallback.distanceMeters,
       });
       return;
     }

@@ -10,6 +10,7 @@ import { AuthService } from './core/services/auth.service';
 import { SupabaseService } from './core/services/supabase.service';
 import { StatsService } from './core/services/stats.service';
 import { WorkoutService } from './core/services/workout.service';
+import { ProfileService } from './core/services/profile.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Exercise } from './core/models/models';
 
@@ -177,15 +178,21 @@ describe('Critical flow smoke tests', () => {
 
     component.elapsedTime.set(120);
     await component.finishWorkout();
+
+    // Finishing now shows the motivational completion modal; navigation to
+    // /home happens when the user dismisses it.
+    expect(addSession).toHaveBeenCalled();
+    expect(component.showCompletionModal()).toBe(true);
+
+    component.dismissCompletion();
     component.ngOnDestroy();
 
-    expect(addSession).toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(['/home']);
   });
 
-  it('shares a plan with a resolved user id', async () => {
+  it('shares a plan with a user resolved by @username', async () => {
     const sharePlan = vi.fn().mockResolvedValue(true);
-    const resolveUserIdByEmail = vi.fn().mockResolvedValue('user-2');
+    const getProfileByUsername = vi.fn().mockResolvedValue({ id: 'user-2', username: 'target', name: 'Target' });
 
     await TestBed.configureTestingModule({
       imports: [PlansComponent],
@@ -194,12 +201,13 @@ describe('Critical flow smoke tests', () => {
           provide: WorkoutService,
           useValue: {
             plans: () => [{ id: 'plan-1', name: 'Plan', description: '', exercises: [], isActive: false, ownerId: 'user-1' }],
-            resolveUserIdByEmail,
+            planInvites: () => [],
             sharePlan,
             setActivePlan: vi.fn().mockResolvedValue(true),
           },
         },
         { provide: AuthService, useValue: { currentUser: () => ({ id: 'user-1' }) } },
+        { provide: ProfileService, useValue: { getProfileByUsername } },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
         { provide: Router, useValue: { navigate: vi.fn() } },
       ],
@@ -209,10 +217,10 @@ describe('Critical flow smoke tests', () => {
     const component = fixture.componentInstance;
 
     component.sharePlanId = 'plan-1';
-    component.shareEmail = 'target@example.com';
+    component.shareUsername = '@Target';
     await component.sharePlan();
 
-    expect(resolveUserIdByEmail).toHaveBeenCalledWith('target@example.com');
+    expect(getProfileByUsername).toHaveBeenCalledWith('target');
     expect(sharePlan).toHaveBeenCalledWith('plan-1', 'user-2');
   });
 });

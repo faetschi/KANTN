@@ -55,6 +55,7 @@ interface WorkoutSessionRow {
   duration_seconds: number;
   total_calories: number | string;
   created_at: string;
+  photo_url: string | null;
 }
 
 interface WorkoutSessionExerciseRow {
@@ -206,6 +207,7 @@ export class WorkoutRepository {
         endTime: row.finished_at ? new Date(row.finished_at) : undefined,
         duration: row.duration_seconds || 0,
         caloriesBurned: Number(row.total_calories || 0),
+        photoUrl: row.photo_url || undefined,
         exercises: exerciseRows.map(exRow => ({
           exerciseId: exRow.exercise_id || '',
           exerciseTypeSnapshot: exRow.exercise_type_snapshot || undefined,
@@ -648,6 +650,49 @@ export class WorkoutRepository {
 
     const { data } = client.storage.from('exercise-images').getPublicUrl(filePath);
     return data.publicUrl || null;
+  }
+
+  async uploadWorkoutPhoto(userId: string, file: File) {
+    const client = this.supabase.getClient();
+    if (!client) return null;
+
+    const optimizedFile = await optimizeImageForUpload(file, {
+      maxWidth: 1280,
+      maxHeight: 1280,
+      quality: 0.82,
+    });
+    const fileExt = optimizedFile.name.includes('.') ? optimizedFile.name.split('.').pop() : 'jpg';
+    const safeExt = (fileExt || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${safeExt}`;
+
+    const uploadPromise = client
+      .storage
+      .from('workout-photos')
+      .upload(filePath, optimizedFile, { upsert: false });
+
+    const timeoutMs = 20000;
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+      setTimeout(() => resolve({ data: null, error: { message: 'Upload timed out. Please try again.' } }), timeoutMs);
+    });
+
+    const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+    if (uploadResult?.error) return null;
+
+    const { data } = client.storage.from('workout-photos').getPublicUrl(filePath);
+    return data.publicUrl || null;
+  }
+
+  async setSessionPhoto(userId: string, sessionId: string, photoUrl: string | null) {
+    const client = this.supabase.getClient();
+    if (!client) return false;
+
+    const { error } = await client
+      .from('workout_sessions')
+      .update({ photo_url: photoUrl })
+      .eq('id', sessionId)
+      .eq('owner_id', userId);
+
+    return !error;
   }
 
   // ── Scheduled Workouts ──

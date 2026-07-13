@@ -86,11 +86,25 @@ export const routes: Routes = [
         loadComponent: () => import('./features/activity/activity.component').then(m => m.ActivityComponent)
       },
       {
+        path: 'social',
+        loadComponent: () => import('./features/social/social.component').then(m => m.SocialComponent),
+        canActivate: [ApprovedGuard]
+      },
+      {
+        path: 'social/session/:sessionId',
+        loadComponent: () => import('./features/social/friend-session.component').then(m => m.FriendSessionComponent),
+        canActivate: [ApprovedGuard]
+      },
+      {
         path: 'profile',
         loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent)
       },
       {
-        path: 'profile/@:username',
+        // Links use the pretty `/profile/@handle` form; `:username` captures
+        // the whole segment (leading `@` included) and it is stripped when the
+        // profile is resolved. A custom `@`-matcher was avoided because routes
+        // with matchers cannot be prerendered by the SSR builder.
+        path: 'profile/:username',
         loadComponent: () => import('./features/profile/public-profile.component').then(m => m.PublicProfileComponent),
         canActivate: [ApprovedGuard]
       }

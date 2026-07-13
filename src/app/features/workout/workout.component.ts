@@ -9,7 +9,18 @@ import { SearchBarComponent } from '../../shared/components/search-bar.component
 import { getWorkoutTypeVisual, workoutTypeBadgeStyle, deriveWorkoutPlanType, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 import { resolveDefault, resolveCardioDefaults, getUnitMismatchMessage, sourceLabel, DefaultSource } from '../../core/domain/smart-defaults';
 import { computeCardioMetrics, createVirtualCardioExercise } from '../../core/domain/cardio-utils';
+import {
+  CARDIO_CUE_INTERVAL_OPTIONS,
+  DEFAULT_CARDIO_CUE_INTERVAL,
+  distanceCuesReached,
+  formatCueInterval,
+  playBeep,
+  playDistanceCue,
+  primeAudioCue,
+} from '../../core/domain/audio-cue';
 import { CardioMapComponent } from './cardio-map.component';
+import { SocialService } from '../../core/services/social.service';
+import { buildWorkoutCompletionFeedback, WorkoutCompletionFeedback } from '../../core/domain/workout-motivation';
 
 @Component({
   selector: 'app-workout',
@@ -110,6 +121,20 @@ import { CardioMapComponent } from './cardio-map.component';
                 <div class="text-xs text-gray-500 uppercase">km/h</div>
               </div>
             </div>
+
+            <button (click)="cycleCardioCueInterval()"
+                    class="w-full flex items-center justify-between bg-white rounded-xl px-3 py-2.5 active:scale-[0.99] transition-transform"
+                    [attr.aria-label]="'Signal tone every ' + cardioCueLabel()">
+              <span class="flex items-center gap-1.5 text-sm text-gray-600">
+                <mat-icon class="text-[18px]" style="font-size:18px;width:18px;height:18px;"
+                          [class.text-orange-500]="cardioCueIntervalMeters() > 0"
+                          [class.text-gray-400]="cardioCueIntervalMeters() === 0">
+                  {{ cardioCueIntervalMeters() > 0 ? 'notifications_active' : 'notifications_off' }}
+                </mat-icon>
+                <span>Signal tone every</span>
+              </span>
+              <span class="px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-bold text-gray-800">{{ cardioCueLabel() }}</span>
+            </button>
 
             <div class="flex items-center justify-between">
               <button (click)="toggleGPS()"
@@ -254,7 +279,7 @@ import { CardioMapComponent } from './cardio-map.component';
               <!-- Undo toast -->
               @if (undoMessage()) {
                 <div class="fixed bottom-24 left-4 right-4 z-50 flex justify-center pointer-events-none">
-                  <div class="bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-medium flex items-center gap-3 pointer-events-auto">
+                  <div class="bg-blue-600 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-medium flex items-center gap-3 pointer-events-auto">
                     <span>{{ undoMessage() }}</span>
                     <button (click)="undoLastAction()" class="text-blue-300 font-bold underline">Undo</button>
                     <button (click)="dismissUndo()" class="text-gray-400">
@@ -278,16 +303,16 @@ import { CardioMapComponent } from './cardio-map.component';
         <div class="flex justify-between items-center max-w-screen-xl mx-auto">
           @if (freestyleMode()) {
             <div class="flex items-center gap-1.5">
-              <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+              <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
                 <mat-icon>arrow_back</mat-icon>
               </button>
-              <button type="button" (click)="showFreestylePicker.set(true); freestylePickerClosable.set(true)" class="flex items-center gap-1 px-3 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold">
+              <button type="button" (click)="openFreestylePicker()" class="flex items-center gap-1 px-3 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold">
                 <mat-icon style="font-size:18px;width:18px;height:18px;">add</mat-icon>
                 <span>Add</span>
               </button>
             </div>
           } @else {
-            <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="p-2.5 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
+            <button (click)="prevExercise()" [disabled]="effectiveExerciseIndex() === 0" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-gray-600 disabled:opacity-30">
               <mat-icon>arrow_back</mat-icon>
             </button>
           }
@@ -369,7 +394,35 @@ import { CardioMapComponent } from './cardio-map.component';
           </div>
         </div>
       }
-      
+
+      <!-- Post-workout motivational feedback (Epic 1 / Story 3) -->
+      @if (showCompletionModal() && completionFeedback(); as fb) {
+        <div class="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
+          <div class="w-full max-w-sm bg-white rounded-3xl p-6 shadow-xl border border-gray-100 text-center space-y-4 animate-pop">
+            <div class="text-6xl select-none" aria-hidden="true">{{ fb.emoji }}</div>
+            <div>
+              <h3 class="text-xl font-extrabold text-gray-900">{{ fb.title }}</h3>
+              <p class="text-sm text-gray-500 mt-1">{{ fb.message }}</p>
+            </div>
+            <div class="flex items-center justify-center gap-6 py-2">
+              <div>
+                <p class="text-2xl font-bold text-gray-900">{{ formatTime(completionDurationSeconds()) }}</p>
+                <p class="text-[10px] uppercase tracking-wider text-gray-400">Duration</p>
+              </div>
+              @if (social.myStreak() > 0) {
+                <div>
+                  <p class="text-2xl font-bold text-orange-500">🔥 {{ social.myStreak() }}</p>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-400">Day streak</p>
+                </div>
+              }
+            </div>
+            <button type="button" (click)="dismissCompletion()" class="w-full py-3 rounded-2xl text-sm font-bold text-white bg-blue-600 active:bg-blue-700 transition-colors">
+              Done
+            </button>
+          </div>
+        </div>
+      }
+
       @if (showExerciseListModal()) {
         <div class="fixed top-0 left-0 right-0 z-70 bg-black/40 flex items-center justify-center p-4" style="bottom: calc(72px + env(safe-area-inset-bottom, 20px));">
           <div class="w-full max-w-lg bg-white rounded-2xl p-4 shadow-xl border border-gray-100 space-y-3" style="max-height: calc(100vh - (72px + env(safe-area-inset-bottom, 20px)) - 32px); overflow:auto;">
@@ -496,6 +549,11 @@ import { CardioMapComponent } from './cardio-map.component';
                 @if (filteredExerciseOptions().length === 0) {
                   <p class="text-center text-gray-400 text-sm py-8">No exercises found</p>
                 }
+                @if (!exerciseSearchQuery.trim() && totalExerciseOptions() > filteredExerciseOptions().length) {
+                  <p class="text-center text-gray-400 text-xs pt-1 pb-2">
+                    Showing top {{ filteredExerciseOptions().length }} of {{ totalExerciseOptions() }} — search to find more
+                  </p>
+                }
               </div>
 
               @if (freestyleExercises().length > 0) {
@@ -531,6 +589,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   route = inject(ActivatedRoute);
   router = inject(Router);
   workoutService = inject(WorkoutService);
+  protected social = inject(SocialService);
 
   planId = signal<string>('');
   scheduleId = signal<string | null>(null);
@@ -604,6 +663,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showExitOptionsModal = signal(false);
   showFreestyleSaveModal = signal(false);
   freestylePlanName = '';
+
+  // Post-workout motivational feedback (Epic 1 / Story 3).
+  showCompletionModal = signal(false);
+  completionFeedback = signal<WorkoutCompletionFeedback | null>(null);
+  completionDurationSeconds = signal(0);
   private persistThrottleTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Cardio state
@@ -612,6 +676,73 @@ export class WorkoutComponent implements OnInit, OnDestroy {
   showManualDistanceDialog = signal(false);
   manualDistanceInput = '';
   @ViewChild(CardioMapComponent) cardioMap?: CardioMapComponent;
+
+  // Configurable distance-interval signal tone (reduces cognitive load: the user
+  // hears a beep instead of having to watch the screen). Persisted per device.
+  private static readonly CUE_INTERVAL_KEY = 'kantn_cardio_cue_interval_m';
+  cardioCueIntervalMeters = signal<number>(this.loadCueInterval());
+
+  private loadCueInterval(): number {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(WorkoutComponent.CUE_INTERVAL_KEY) : null;
+      const value = raw != null ? parseInt(raw, 10) : NaN;
+      return (CARDIO_CUE_INTERVAL_OPTIONS as readonly number[]).includes(value) ? value : DEFAULT_CARDIO_CUE_INTERVAL;
+    } catch {
+      return DEFAULT_CARDIO_CUE_INTERVAL;
+    }
+  }
+
+  cardioCueLabel(): string {
+    return formatCueInterval(this.cardioCueIntervalMeters());
+  }
+
+  /** Cycle through the available cue intervals (Off → 0.5km → 1km → 2km → 5km → Off). */
+  cycleCardioCueInterval() {
+    const options = CARDIO_CUE_INTERVAL_OPTIONS as readonly number[];
+    const currentIndex = options.indexOf(this.cardioCueIntervalMeters());
+    const next = options[(currentIndex + 1) % options.length];
+    this.cardioCueIntervalMeters.set(next);
+    try {
+      localStorage.setItem(WorkoutComponent.CUE_INTERVAL_KEY, String(next));
+    } catch {
+      // ignore persistence failures
+    }
+
+    // Re-baseline the current exercise so changing the interval mid-run doesn't
+    // retroactively fire (or suppress) beeps for distance already covered.
+    const exId = this.currentExercise()?.id;
+    if (exId) {
+      this.cardioExerciseData.update(map => {
+        const data = map.get(exId);
+        if (!data) return map;
+        const nextMap = new Map(map);
+        nextMap.set(exId, { ...data, cuedMilestones: distanceCuesReached(data.distanceMeters, next) });
+        return nextMap;
+      });
+    }
+
+    if (next > 0) {
+      // Confirmation beep + unlock the audio context on this user gesture.
+      primeAudioCue();
+      playBeep({ frequency: 660, durationMs: 120 });
+    }
+  }
+
+  /**
+   * Play a signal tone when the distance has crossed a new interval milestone.
+   * Returns the (possibly updated) cardio data with the new milestone count.
+   */
+  private maybePlayDistanceCue(data: CardioExerciseData): CardioExerciseData {
+    const interval = this.cardioCueIntervalMeters();
+    if (interval <= 0) return data;
+    const reached = distanceCuesReached(data.distanceMeters, interval);
+    const already = data.cuedMilestones || 0;
+    if (reached > already) {
+      playDistanceCue();
+      return { ...data, cuedMilestones: reached };
+    }
+    return data;
+  }
 
   isCardioExercise = computed(() => {
     const exercise = this.currentExercise();
@@ -655,6 +786,11 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         }
         if (this.freestyleMode()) {
           this.freestyleExercises.set(inProgress.freestyleExercises || []);
+          this.freestyleStarted.set(!!inProgress.freestyleStarted);
+          if (!inProgress.freestyleStarted) {
+            this.showFreestylePicker.set(true);
+            this.freestylePickerClosable.set(false);
+          }
         }
         this.workoutData.set(restored);
         // Restore cardio data
@@ -669,7 +805,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
           clearInterval(this.timerInterval);
           this.timerInterval = undefined;
         }
-        this.startTimer();
+        if (this.freestyleStarted()) {
+          this.startTimer();
+        }
         return;
       }
 
@@ -702,8 +840,10 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         }
       }
 
-      // persist lightweight in-progress marker so user can resume after navigation
-      this.persistInProgress();
+      // Persist state for non-freestyle or freestyle with exercises selected
+      if (!this.freestyleMode() || this.freestyleExercises().length > 0) {
+        this.persistInProgress();
+      }
     });
   }
 
@@ -795,6 +935,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       currentExerciseIndex: this.currentExerciseIndex(),
       workoutData: dataObj,
       freestyleExercises: this.freestyleExercises() || [],
+      freestyleStarted: this.freestyleStarted(),
       cardioExerciseData: Object.keys(cardioObj).length > 0 ? cardioObj : undefined,
     };
     this.workoutService.setInProgress(payload);
@@ -829,6 +970,9 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Number of exercises shown before the user narrows the list with the search bar. */
+  private static readonly FREESTYLE_PICKER_PREVIEW_LIMIT = 8;
+
   filteredExerciseOptions() {
     const query = this.exerciseSearchQuery.trim().toLowerCase();
     const all = this.workoutService.exercises();
@@ -839,12 +983,22 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       filtered = filtered.filter(ex => ex.exerciseType === selectedType);
     }
 
-    if (!query) return filtered;
+    if (!query) {
+      // Show only the top exercises by default; users search to reveal the rest.
+      return filtered.slice(0, WorkoutComponent.FREESTYLE_PICKER_PREVIEW_LIMIT);
+    }
 
     return filtered.filter(exercise => {
       const haystack = [exercise.name, exercise.muscleGroup || '', exercise.exerciseType || ''].join(' ').toLowerCase();
       return haystack.includes(query);
     });
+  }
+
+  /** Total number of exercises available for the selected freestyle type (before preview limiting). */
+  totalExerciseOptions() {
+    const selectedType = this.freestyleWorkoutType();
+    const all = this.workoutService.exercises();
+    return selectedType ? all.filter(ex => ex.exerciseType === selectedType).length : all.length;
   }
 
   typeLabel(type: string | null | undefined) {
@@ -927,7 +1081,24 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     if (wasEmpty) {
       this.currentExerciseIndex.set(0);
     }
+    if (this.freestyleWorkoutType() === 'cardio') {
+      this.freestyleWorkoutType.set(null);
+      this.startFreestyleWorkout();
+      return;
+    }
+    this.persistInProgress();
     this.showExercisePicker = false;
+  }
+
+  openFreestylePicker() {
+    if (this.freestyleExercises().length > 0) {
+      const type = deriveWorkoutPlanType(this.freestyleExercises());
+      if (type === 'strength' || type === 'cardio') {
+        this.freestyleWorkoutType.set(type);
+      }
+    }
+    this.showFreestylePicker.set(true);
+    this.freestylePickerClosable.set(true);
   }
 
   selectFreestyleWorkoutType(type: 'strength' | 'cardio') {
@@ -950,9 +1121,14 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       this.freestyleStarted.set(true);
       this.startTime = new Date();
       this.elapsedTime.set(0);
+      if (this.timerInterval !== undefined) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = undefined;
+      }
       this.startTimer();
       this.persistInProgress();
     }
+    this.showFreestylePicker.set(false);
   }
 
   isExerciseSelected(exercise: Exercise): boolean {
@@ -988,6 +1164,18 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     const exId = this.currentExercise()?.id;
     if (!exId) return;
 
+    // Snapshot for undo
+    this.lastSnapshot = { exerciseId: exId, sets: (this.workoutData().get(exId) || []).map(s => ({ ...s })) };
+
+    if (this.freestyleMode()) {
+      const count = this.workoutData().get(exId)?.length || 3;
+      const resetSet: WorkoutSet = { reps: 0, weight: 0, completed: false };
+      const resetSets = Array.from({ length: count }, () => ({ ...resetSet }));
+      this.workoutData.update(m => new Map(m.set(exId, resetSets)));
+      this.showUndo('Reset exercise');
+      return;
+    }
+
     const plan = this.plan();
     if (!plan) return;
 
@@ -996,9 +1184,6 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     const planTargets = this.workoutService.getPlanExerciseTargets(plan.id);
     const lastSession = this.workoutService.getLastSessionForPlan(plan.id);
-
-    // Snapshot for undo
-    this.lastSnapshot = { exerciseId: exId, sets: (this.workoutData().get(exId) || []).map(s => ({ ...s })) };
 
     const defaults = resolveDefault(exId, exercise.name, planTargets, lastSession, lastSession?.exercises);
     const resetSet: WorkoutSet = { reps: defaults.reps, weight: defaults.weight, completed: false, source: defaults.source };
@@ -1279,6 +1464,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     }
 
     this.saveErrorMessage = '';
+    this.completionDurationSeconds.set(session.duration ?? 0);
 
     if (this.freestyleMode()) {
       this.freestylePlanName = `Freestyle ${new Date().toLocaleDateString()}`;
@@ -1286,6 +1472,25 @@ export class WorkoutComponent implements OnInit, OnDestroy {
       return;
     }
 
+    await this.presentCompletion();
+  }
+
+  /**
+   * Load the (possibly just-updated) streak and show a supportive completion
+   * message. Streak is best-effort — a failure still shows a generic message.
+   */
+  private async presentCompletion(): Promise<void> {
+    try {
+      await this.social.loadMyStreak();
+    } catch {
+      // ignore — buildWorkoutCompletionFeedback handles a 0 streak gracefully
+    }
+    this.completionFeedback.set(buildWorkoutCompletionFeedback(this.social.myStreak()));
+    this.showCompletionModal.set(true);
+  }
+
+  dismissCompletion(): void {
+    this.showCompletionModal.set(false);
     this.router.navigate(['/home']);
   }
 
@@ -1315,13 +1520,13 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
+    await this.presentCompletion();
   }
 
-  skipFreestylePlanSave() {
+  async skipFreestylePlanSave() {
     this.saveErrorMessage = '';
     this.showFreestyleSaveModal.set(false);
-    this.router.navigate(['/home']);
+    await this.presentCompletion();
   }
 
   openExerciseListModal() {
@@ -1361,6 +1566,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
         avgSpeedKmh: 0,
         gpsEnabled: false,
         gpsCoordinates: [],
+        cuedMilestones: 0,
       });
       return newData;
     });
@@ -1387,6 +1593,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
 
   startGPSTracking(exerciseId: string) {
     if (!navigator.geolocation) return;
+    // Unlock audio here — this runs off a user gesture (GPS ON / start workout).
+    primeAudioCue();
     this.cardioExerciseData.update(map => {
       const newData = new Map(map);
       const data = newData.get(exerciseId);
@@ -1481,7 +1689,7 @@ export class WorkoutComponent implements OnInit, OnDestroy {
     } else {
       updated.gpsCoordinates = [{ lat: latitude, lng: longitude, timestamp }];
     }
-    newData.set(exerciseId, updated);
+    newData.set(exerciseId, this.maybePlayDistanceCue(updated));
     this.cardioExerciseData.set(newData);
   }
 
@@ -1504,6 +1712,8 @@ export class WorkoutComponent implements OnInit, OnDestroy {
           updated.avgPaceSecondsPerKm = Math.floor(updated.elapsedSeconds / distanceKm);
           updated.avgSpeedKmh = distanceKm / (updated.elapsedSeconds / 3600);
         }
+        // Manually entered distance shouldn't fire a burst of milestone beeps.
+        updated.cuedMilestones = distanceCuesReached(distance, this.cardioCueIntervalMeters());
         newData.set(exerciseId, updated);
         this.cardioExerciseData.set(newData);
       }

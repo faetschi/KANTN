@@ -1,10 +1,11 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
 import { WorkoutService } from '../../core/services/workout.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { WorkoutSession } from '../../core/models/models';
 
 @Component({
@@ -35,6 +36,35 @@ import { WorkoutSession } from '../../core/models/models';
             <div class="bg-gray-50 rounded-xl p-3">
               <p class="text-[10px] uppercase tracking-wider text-gray-500">Calories</p>
               <p class="text-lg font-semibold text-gray-900">{{ workoutSession.caloriesBurned || 0 }} kcal</p>
+            </div>
+          </div>
+
+          <!-- Workout photo -->
+          <div class="pt-2">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Photo</p>
+            @if (workoutSession.photoUrl) {
+              <img [src]="workoutSession.photoUrl" alt="Workout photo" class="w-full rounded-xl border border-gray-100 max-h-96 object-cover" />
+            }
+            <div class="flex items-center gap-2 mt-2">
+              <label
+                class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold cursor-pointer"
+                [class.opacity-50]="uploading()"
+                [class.pointer-events-none]="uploading()"
+              >
+                <mat-icon class="!w-5 !h-5 !text-xl">photo_camera</mat-icon>
+                {{ uploading() ? 'Uploading…' : (workoutSession.photoUrl ? 'Replace photo' : 'Add photo') }}
+                <input type="file" accept="image/*" class="hidden" (change)="onPhotoSelected($event, workoutSession.id)" [disabled]="uploading()" />
+              </label>
+              @if (workoutSession.photoUrl) {
+                <button
+                  type="button"
+                  (click)="removePhoto(workoutSession.id)"
+                  [disabled]="uploading()"
+                  class="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              }
             </div>
           </div>
 
@@ -133,6 +163,9 @@ export class HistoryDetailComponent {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private workoutService = inject(WorkoutService);
+  private notifications = inject(NotificationService);
+
+  protected uploading = signal(false);
 
   private isFromCalendar = history.state?.fromCalendar === true;
 
@@ -222,6 +255,40 @@ export class HistoryDetailComponent {
     const targetId = this.nextSessionId();
     if (!targetId) return;
     void this.router.navigate(['/history', targetId], { state: { fromCalendar: this.isFromCalendar } });
+  }
+
+  async onPhotoSelected(event: Event, sessionId: string) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || this.uploading()) return;
+
+    this.uploading.set(true);
+    try {
+      const ok = await this.workoutService.setSessionPhoto(sessionId, file);
+      if (ok) {
+        this.notifications.success('Photo added to your workout.');
+      } else {
+        this.notifications.error('Could not upload the photo. Please try again.');
+      }
+    } finally {
+      this.uploading.set(false);
+    }
+  }
+
+  async removePhoto(sessionId: string) {
+    if (this.uploading()) return;
+    this.uploading.set(true);
+    try {
+      const ok = await this.workoutService.removeSessionPhoto(sessionId);
+      if (ok) {
+        this.notifications.success('Photo removed.');
+      } else {
+        this.notifications.error('Could not remove the photo.');
+      }
+    } finally {
+      this.uploading.set(false);
+    }
   }
 
   goBack() {

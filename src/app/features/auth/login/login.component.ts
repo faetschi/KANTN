@@ -28,12 +28,12 @@ import { AuthService } from '../../../core/services/auth.service';
         <p class="text-gray-500 mb-10">Your personal fitness companion</p>
 
         <div class="space-y-3">
-          <button (click)="login()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center">
+          <button (click)="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center">
             <span>Login</span>
             <span class="material-icons ml-2 text-sm">login</span>
           </button>
 
-          <button (click)="register()" class="w-full border border-indigo-600 text-indigo-600 font-semibold py-4 px-6 rounded-xl transition-all active:scale-95 flex items-center justify-center">
+          <button (click)="register()" class="w-full border border-blue-600 text-blue-600 font-semibold py-4 px-6 rounded-xl transition-all active:scale-95 flex items-center justify-center">
             <span>Register</span>
             <span class="material-icons ml-2 text-sm">person_add</span>
           </button>

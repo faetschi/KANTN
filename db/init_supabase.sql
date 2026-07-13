@@ -1886,3 +1886,894 @@ create policy "avatars_delete" on storage.objects
 
 -- Example helper usage (run in SQL editor or with service_role key):
 -- select * from set_user_role_by_email('faetschi.ai@gmail.com', true, true);
+
+-- =====================================================================
+-- 2026-07-06: Social / Gamification (friends, streaks, workout photos,
+-- leaderboard). Append-only & idempotent (see db/how-to-edit-SQL.md).
+-- =====================================================================
+
+-- 1.1 Friendships -----------------------------------------------------
+create table if not exists friendships (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references profiles(id) on delete cascade,
+  addressee_id uuid not null references profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  unique (requester_id, addressee_id)
+);
+
+-- Forward-safe migrations for friendships
+alter table friendships
+  add column if not exists requester_id uuid,
+  add column if not exists addressee_id uuid,
+  add column if not exists status text not null default 'pending',
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists responded_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'friendships_status_check'
+  ) then
+    alter table friendships
+      add constraint friendships_status_check
+      check (status in ('pending', 'accepted', 'declined'));
+  end if;
+end;
+$$;
+
+create index if not exists idx_friendships_addressee_status
+  on friendships (addressee_id, status);
+
+alter table friendships enable row level security;
+
+-- Direct reads are limited to the two parties (mutations go through RPCs).
+drop policy if exists "friendships_select" on friendships;
+create policy "friendships_select" on friendships
+  for select
+  using (
+    (requester_id = auth.uid() and is_approved())
+    or (addressee_id = auth.uid() and is_approved())
+    or is_admin()
+  );
+
+grant select on table friendships to authenticated;
+
+-- 1.2 Workout photo column -------------------------------------------
+alter table workout_sessions
+  add column if not exists photo_url text;
+
+-- 1.3 Streak helper ---------------------------------------------------
+-- Consecutive-days streak (UTC calendar days). Anchor is today when the
+-- user worked out today, otherwise yesterday; counts backwards over the
+-- leading run of consecutive days that each have >= 1 finished session.
+create or replace function compute_current_streak(p_user uuid)
+returns int
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_streak int := 0;
+  v_anchor date;
+  v_today date := (now() at time zone 'UTC')::date;
+begin
+  if p_user is null then
+    return 0;
+  end if;
+
+  if exists (
+    select 1
+    from workout_sessions ws
+    where ws.owner_id = p_user
+      and ws.finished_at is not null
+      and (ws.finished_at at time zone 'UTC')::date = v_today
+  ) then
+    v_anchor := v_today;
+  else
+    v_anchor := v_today - 1;
+  end if;
+
+  -- Gaps-and-islands: within the descending list of distinct workout days,
+  -- the leading consecutive run is exactly the rows where the day equals
+  -- anchor - (row_number - 1). Once a gap appears the equality never holds
+  -- again, so counting matches gives the current streak length.
+  select count(*) into v_streak
+  from (
+    select d, (row_number() over (order by d desc))::int as rn
+    from (
+      select distinct (ws.finished_at at time zone 'UTC')::date as d
+      from workout_sessions ws
+      where ws.owner_id = p_user
+        and ws.finished_at is not null
+        and (ws.finished_at at time zone 'UTC')::date <= v_anchor
+    ) days
+  ) ranked
+  where ranked.d = v_anchor - (ranked.rn - 1);
+
+  return coalesce(v_streak, 0);
+end;
+$$;
+
+create or replace function get_my_streak()
+returns int
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select case when is_approved() then compute_current_streak(auth.uid()) else 0 end;
+$$;
+
+-- 1.4 Friend RPCs -----------------------------------------------------
+create or replace function send_friend_request(p_addressee uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_me uuid := auth.uid();
+  v_existing friendships%rowtype;
+begin
+  if not is_approved() then
+    return 'not_allowed';
+  end if;
+
+  if p_addressee is null or p_addressee = v_me then
+    return 'self';
+  end if;
+
+  if not exists (
+    select 1 from profiles where id = p_addressee and approved = true
+  ) then
+    return 'not_found';
+  end if;
+
+  -- Existing outgoing request (me -> addressee)
+  select * into v_existing
+  from friendships
+  where requester_id = v_me and addressee_id = p_addressee;
+
+  if found then
+    if v_existing.status = 'accepted' then
+      return 'already_friends';
+    elsif v_existing.status = 'pending' then
+      return 'already_pending';
+    else
+      -- Reactivate a previously declined outgoing request.
+      update friendships
+      set status = 'pending', created_at = now(), responded_at = null
+      where id = v_existing.id;
+      return 'sent';
+    end if;
+  end if;
+
+  -- Existing incoming request (addressee -> me)
+  select * into v_existing
+  from friendships
+  where requester_id = p_addressee and addressee_id = v_me;
+
+  if found then
+    if v_existing.status = 'accepted' then
+      return 'already_friends';
+    elsif v_existing.status = 'pending' then
+      -- They already asked us: accept it instead of creating a duplicate.
+      update friendships
+      set status = 'accepted', responded_at = now()
+      where id = v_existing.id;
+      return 'accepted_incoming';
+    end if;
+    -- Reverse request was declined: fall through and create a fresh one.
+  end if;
+
+  insert into friendships (requester_id, addressee_id, status)
+  values (v_me, p_addressee, 'pending');
+  return 'sent';
+end;
+$$;
+
+create or replace function respond_friend_request(p_request_id uuid, p_accept boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_updated int;
+begin
+  if not is_approved() then
+    return false;
+  end if;
+
+  update friendships
+  set
+    status = case when p_accept then 'accepted' else 'declined' end,
+    responded_at = now()
+  where id = p_request_id
+    and addressee_id = auth.uid()
+    and status = 'pending';
+
+  get diagnostics v_updated = row_count;
+  return v_updated > 0;
+end;
+$$;
+
+create or replace function remove_friend(p_friend uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_deleted int;
+begin
+  if not is_approved() then
+    return false;
+  end if;
+
+  delete from friendships
+  where (requester_id = auth.uid() and addressee_id = p_friend)
+     or (requester_id = p_friend and addressee_id = auth.uid());
+
+  get diagnostics v_deleted = row_count;
+  return v_deleted > 0;
+end;
+$$;
+
+create or replace function get_friends()
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  last_seen timestamptz,
+  streak int,
+  total_workouts bigint,
+  total_calories numeric
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with friend_ids as (
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end as fid
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.last_seen,
+    compute_current_streak(p.id) as streak,
+    coalesce(s.cnt, 0)::bigint as total_workouts,
+    coalesce(s.cal, 0)::numeric as total_calories
+  from friend_ids fi
+  join profiles p on p.id = fi.fid
+  left join lateral (
+    select count(*) as cnt, sum(ws.total_calories) as cal
+    from workout_sessions ws
+    where ws.owner_id = p.id and ws.finished_at is not null
+  ) s on true
+  order by lower(coalesce(p.display_name, p.username, ''));
+end;
+$$;
+
+create or replace function get_friend_requests()
+returns table (
+  request_id uuid,
+  requester_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  select
+    f.id,
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    f.created_at
+  from friendships f
+  join profiles p on p.id = f.requester_id
+  where f.addressee_id = auth.uid()
+    and f.status = 'pending'
+  order by f.created_at desc;
+end;
+$$;
+
+create or replace function get_friends_activity(p_limit int default 30)
+returns table (
+  session_id uuid,
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  last_seen timestamptz,
+  plan_name text,
+  total_calories numeric,
+  duration_seconds int,
+  finished_at timestamptz,
+  photo_url text,
+  streak int
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    ws.id,
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.last_seen,
+    wp.name,
+    ws.total_calories,
+    ws.duration_seconds,
+    ws.finished_at,
+    ws.photo_url,
+    compute_current_streak(p.id) as streak
+  from people pe
+  join profiles p on p.id = pe.pid
+  join workout_sessions ws on ws.owner_id = pe.pid and ws.finished_at is not null
+  left join workout_plans wp on wp.id = ws.plan_id
+  order by ws.finished_at desc
+  limit greatest(coalesce(p_limit, 30), 1);
+end;
+$$;
+
+create or replace function get_leaderboard(p_limit int default 100)
+returns table (
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  total_workouts bigint,
+  total_calories numeric,
+  streak int,
+  is_me boolean
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    coalesce(s.cnt, 0)::bigint as total_workouts,
+    coalesce(s.cal, 0)::numeric as total_calories,
+    compute_current_streak(p.id) as streak,
+    (p.id = auth.uid()) as is_me
+  from profiles p
+  left join lateral (
+    select count(*) as cnt, sum(ws.total_calories) as cal
+    from workout_sessions ws
+    where ws.owner_id = p.id and ws.finished_at is not null
+  ) s on true
+  where p.approved = true
+  order by coalesce(s.cal, 0) desc, coalesce(s.cnt, 0) desc, lower(coalesce(p.display_name, p.username, ''))
+  limit greatest(coalesce(p_limit, 100), 1);
+end;
+$$;
+
+grant execute on function compute_current_streak(uuid) to authenticated;
+grant execute on function get_my_streak() to authenticated;
+grant execute on function send_friend_request(uuid) to authenticated;
+grant execute on function respond_friend_request(uuid, boolean) to authenticated;
+grant execute on function remove_friend(uuid) to authenticated;
+grant execute on function get_friends() to authenticated;
+grant execute on function get_friend_requests() to authenticated;
+grant execute on function get_friends_activity(int) to authenticated;
+grant execute on function get_leaderboard(int) to authenticated;
+
+-- 1.2b Workout photo storage bucket ----------------------------------
+insert into storage.buckets (id, name, public)
+values ('workout-photos', 'workout-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "workout_photos_select" on storage.objects;
+drop policy if exists "workout_photos_insert" on storage.objects;
+drop policy if exists "workout_photos_update" on storage.objects;
+drop policy if exists "workout_photos_delete" on storage.objects;
+
+create policy "workout_photos_select" on storage.objects
+  for select
+  using (bucket_id = 'workout-photos');
+
+create policy "workout_photos_insert" on storage.objects
+  for insert
+  with check (
+    bucket_id = 'workout-photos'
+    and auth.role() = 'authenticated'
+    and is_approved()
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "workout_photos_update" on storage.objects
+  for update
+  using (
+    bucket_id = 'workout-photos'
+    and owner = auth.uid()
+    and is_approved()
+  )
+  with check (
+    bucket_id = 'workout-photos'
+    and owner = auth.uid()
+    and is_approved()
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "workout_photos_delete" on storage.objects
+  for delete
+  using (
+    bucket_id = 'workout-photos'
+    and owner = auth.uid()
+    and is_approved()
+  );
+
+-- 1.4b Read a single friend's (or own) workout session with full detail -----
+-- Feed cards link here. RLS blocks cross-user reads of workout_sessions /
+-- _exercises / _sets, so this SECURITY DEFINER RPC returns the session as JSON
+-- only when the viewer is approved and the owner is themselves or an accepted
+-- friend. Returns null (no access / not found) otherwise.
+create or replace function get_friend_session(p_session_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_owner uuid;
+  v_allowed boolean;
+  v_result jsonb;
+begin
+  if not is_approved() then
+    return null;
+  end if;
+
+  select owner_id into v_owner
+  from workout_sessions
+  where id = p_session_id and finished_at is not null;
+
+  if v_owner is null then
+    return null;
+  end if;
+
+  v_allowed := (v_owner = auth.uid())
+    or exists (
+      select 1
+      from friendships f
+      where f.status = 'accepted'
+        and (
+          (f.requester_id = auth.uid() and f.addressee_id = v_owner)
+          or (f.addressee_id = auth.uid() and f.requester_id = v_owner)
+        )
+    );
+
+  if not v_allowed then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'sessionId', ws.id,
+    'userId', p.id,
+    'username', p.username,
+    'displayName', coalesce(p.display_name, p.username),
+    'avatarUrl', p.avatar_url,
+    'planName', wp.name,
+    'totalCalories', ws.total_calories,
+    'durationSeconds', ws.duration_seconds,
+    'startedAt', ws.started_at,
+    'finishedAt', ws.finished_at,
+    'photoUrl', ws.photo_url,
+    'streak', compute_current_streak(p.id),
+    'exercises', coalesce((
+      select jsonb_agg(sub.ex order by sub.ex_pos)
+      from (
+        select
+          se.position as ex_pos,
+          jsonb_build_object(
+            'exerciseId', se.exercise_id,
+            'name', coalesce(nullif(se.exercise_name_snapshot, ''), ex.name, 'Exercise'),
+            'exerciseTypeSnapshot', se.exercise_type_snapshot,
+            'durationSeconds', se.duration_seconds,
+            'distanceMeters', se.distance_meters,
+            'avgPacePerKmSeconds', se.avg_pace_per_km_seconds,
+            'maxPacePerKmSeconds', se.max_pace_per_km_seconds,
+            'avgSpeedKmh', se.avg_speed_kmh,
+            'sets', coalesce((
+              select jsonb_agg(
+                jsonb_build_object(
+                  'reps', st.reps,
+                  'weight', st.weight,
+                  'completed', st.completed
+                ) order by st.set_order
+              )
+              from workout_session_sets st
+              where st.session_exercise_id = se.id
+            ), '[]'::jsonb)
+          ) as ex
+        from workout_session_exercises se
+        left join exercises ex on ex.id = se.exercise_id
+        where se.session_id = ws.id
+      ) sub
+    ), '[]'::jsonb)
+  )
+  into v_result
+  from workout_sessions ws
+  join profiles p on p.id = ws.owner_id
+  left join workout_plans wp on wp.id = ws.plan_id
+  where ws.id = p_session_id;
+
+  return v_result;
+end;
+$$;
+
+grant execute on function get_friend_session(uuid) to authenticated;
+
+-- =====================================================================
+-- 2026-07-08: Social follow-ups (friends-only ranking + paginated feed).
+-- Append-only & idempotent (see db/how-to-edit-SQL.md).
+-- =====================================================================
+
+-- Ranking is now scoped to the viewer + their accepted friends (previously
+-- global, which leaked every approved user). `create or replace` on the same
+-- signature transparently replaces the earlier global version above.
+create or replace function get_leaderboard(p_limit int default 100)
+returns table (
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  total_workouts bigint,
+  total_calories numeric,
+  streak int,
+  is_me boolean
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    coalesce(s.cnt, 0)::bigint as total_workouts,
+    coalesce(s.cal, 0)::numeric as total_calories,
+    compute_current_streak(p.id) as streak,
+    (p.id = auth.uid()) as is_me
+  from people pe
+  join profiles p on p.id = pe.pid and p.approved = true
+  left join lateral (
+    select count(*) as cnt, sum(ws.total_calories) as cal
+    from workout_sessions ws
+    where ws.owner_id = p.id and ws.finished_at is not null
+  ) s on true
+  order by coalesce(s.cal, 0) desc, coalesce(s.cnt, 0) desc, lower(coalesce(p.display_name, p.username, ''))
+  limit greatest(coalesce(p_limit, 100), 1);
+end;
+$$;
+
+-- Keyset-paginated feed for infinite scroll. Same shape as
+-- get_friends_activity but takes a (finished_at, session_id) cursor so the
+-- client can pull the next batch instead of one large payload. Passing a null
+-- cursor returns the newest page.
+create or replace function get_friends_feed(
+  p_limit int default 15,
+  p_before_at timestamptz default null,
+  p_before_id uuid default null
+)
+returns table (
+  session_id uuid,
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  last_seen timestamptz,
+  plan_name text,
+  total_calories numeric,
+  duration_seconds int,
+  finished_at timestamptz,
+  photo_url text,
+  streak int
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    ws.id,
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.last_seen,
+    wp.name,
+    ws.total_calories,
+    ws.duration_seconds,
+    ws.finished_at,
+    ws.photo_url,
+    compute_current_streak(p.id) as streak
+  from people pe
+  join profiles p on p.id = pe.pid
+  join workout_sessions ws on ws.owner_id = pe.pid and ws.finished_at is not null
+  left join workout_plans wp on wp.id = ws.plan_id
+  where p_before_at is null
+     or (ws.finished_at, ws.id) < (p_before_at, p_before_id)
+  order by ws.finished_at desc, ws.id desc
+  limit greatest(coalesce(p_limit, 15), 1);
+end;
+$$;
+
+grant execute on function get_friends_feed(int, timestamptz, uuid) to authenticated;
+
+-- All finished workouts of a single user, for the "click a friend -> see all
+-- their workouts" view on the public profile page. SECURITY DEFINER (RLS makes
+-- workout_sessions owner-only) and only returns rows when the viewer is the
+-- user themselves or an accepted friend. (finished_at, session_id) keyset for
+-- optional "load more". Returns empty for non-friends / not-approved.
+create or replace function get_user_sessions(
+  p_user uuid,
+  p_limit int default 20,
+  p_before_at timestamptz default null,
+  p_before_id uuid default null
+)
+returns table (
+  session_id uuid,
+  plan_name text,
+  total_calories numeric,
+  duration_seconds int,
+  finished_at timestamptz,
+  photo_url text
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_allowed boolean;
+begin
+  if not is_approved() or p_user is null then
+    return;
+  end if;
+
+  v_allowed := (p_user = auth.uid())
+    or exists (
+      select 1
+      from friendships f
+      where f.status = 'accepted'
+        and (
+          (f.requester_id = auth.uid() and f.addressee_id = p_user)
+          or (f.addressee_id = auth.uid() and f.requester_id = p_user)
+        )
+    );
+
+  if not v_allowed then
+    return;
+  end if;
+
+  return query
+  select
+    ws.id,
+    wp.name,
+    ws.total_calories,
+    ws.duration_seconds,
+    ws.finished_at,
+    ws.photo_url
+  from workout_sessions ws
+  left join workout_plans wp on wp.id = ws.plan_id
+  where ws.owner_id = p_user
+    and ws.finished_at is not null
+    and (p_before_at is null or (ws.finished_at, ws.id) < (p_before_at, p_before_id))
+  order by ws.finished_at desc, ws.id desc
+  limit greatest(coalesce(p_limit, 20), 1);
+end;
+$$;
+
+grant execute on function get_user_sessions(uuid, int, timestamptz, uuid) to authenticated;
+
+-- 2026-07-08: Fix get_public_profile_by_username — the approved-check used an
+-- unqualified `id`, which is ambiguous with the RETURNS TABLE OUT column `id`
+-- (SQLSTATE 42702). This made every call throw at runtime; it only surfaced
+-- once the public-profile page started loading. Alias the table (`pr`) so the
+-- reference is unambiguous. `create or replace` keeps the same signature.
+create or replace function get_public_profile_by_username(p_username text)
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  fun_fact text,
+  height int,
+  weight int,
+  age int,
+  last_seen timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  v_requester_approved boolean := false;
+begin
+  select pr.approved into v_requester_approved
+  from profiles pr
+  where pr.id = auth.uid();
+
+  if not coalesce(v_requester_approved, false) then
+    return;
+  end if;
+
+  return query
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.fun_fact,
+    p.height,
+    p.weight,
+    p.age,
+    p.last_seen
+  from profiles p
+  where lower(p.username) = lower(p_username)
+    and p.approved = true;
+end;
+$$;
+
+grant execute on function get_public_profile_by_username(text) to authenticated;
+
+-- =====================================================================
+-- 2026-07-09: Epic 1 — leaderboard privacy / opt-out.
+-- Append-only & idempotent (see db/how-to-edit-SQL.md).
+-- =====================================================================
+
+-- Opt-out flag. Default true = users are shown on the friends ranking as
+-- before; setting it false hides the user from *other* people's ranking.
+alter table profiles
+  add column if not exists leaderboard_visible boolean not null default true;
+
+-- Ranking now respects the opt-out: a user who set leaderboard_visible = false
+-- is excluded from the ranking of their friends, but always still sees their
+-- own row (so the setting never makes the page look broken for them).
+-- `create or replace` on the same signature transparently replaces the
+-- 2026-07-08 friends-scoped version above.
+create or replace function get_leaderboard(p_limit int default 100)
+returns table (
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  total_workouts bigint,
+  total_calories numeric,
+  streak int,
+  is_me boolean
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not is_approved() then
+    return;
+  end if;
+
+  return query
+  with people as (
+    select auth.uid() as pid
+    union
+    select case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+    from friendships f
+    where f.status = 'accepted'
+      and (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+  )
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    coalesce(s.cnt, 0)::bigint as total_workouts,
+    coalesce(s.cal, 0)::numeric as total_calories,
+    compute_current_streak(p.id) as streak,
+    (p.id = auth.uid()) as is_me
+  from people pe
+  join profiles p on p.id = pe.pid and p.approved = true
+    and (coalesce(p.leaderboard_visible, true) or p.id = auth.uid())
+  left join lateral (
+    select count(*) as cnt, sum(ws.total_calories) as cal
+    from workout_sessions ws
+    where ws.owner_id = p.id and ws.finished_at is not null
+  ) s on true
+  order by coalesce(s.cal, 0) desc, coalesce(s.cnt, 0) desc, lower(coalesce(p.display_name, p.username, ''))
+  limit greatest(coalesce(p_limit, 100), 1);
+end;
+$$;
+
+grant execute on function get_leaderboard(int) to authenticated;

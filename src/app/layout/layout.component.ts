@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, DestroyRef } from '@angular/core';
+import { Component, inject, signal, computed, effect, DestroyRef } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
@@ -6,6 +6,8 @@ import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NotificationOutletComponent } from '../shared/components/notification-outlet.component';
 import { WorkoutService } from '../core/services/workout.service';
+import { SocialService } from '../core/services/social.service';
+import { AuthService } from '../core/services/auth.service';
 import { ScheduledWorkout } from '../core/models/models';
 
 @Component({
@@ -41,7 +43,7 @@ import { ScheduledWorkout } from '../core/models/models';
 
       @if (currentRoute() !== '/pending') {
       <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
-        <nav class="px-8 pt-3 pb-3 flex justify-around items-center">
+        <nav class="px-4 pt-3 pb-3 flex justify-around items-center">
           <a routerLink="/home" routerLinkActive="text-blue-600 active" [routerLinkActiveOptions]="{exact: true}" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
             <mat-icon class="mb-1 text-current">home</mat-icon>
             <span class="text-[10px] font-medium">Home</span>
@@ -53,6 +55,15 @@ import { ScheduledWorkout } from '../core/models/models';
           <a routerLink="/calendar" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
             <mat-icon class="mb-1 text-current">calendar_month</mat-icon>
             <span class="text-[10px] font-medium">Calendar</span>
+          </a>
+          <a routerLink="/social" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200 relative">
+            <div class="relative">
+              <mat-icon class="mb-1 text-current">groups</mat-icon>
+              @if (social.pendingRequestCount() > 0) {
+                <span class="absolute -top-0.5 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white"></span>
+              }
+            </div>
+            <span class="text-[10px] font-medium">Social</span>
           </a>
         </nav>
       </div>
@@ -66,9 +77,12 @@ import { ScheduledWorkout } from '../core/models/models';
 })
 export class LayoutComponent {
   private workoutService = inject(WorkoutService);
+  protected social = inject(SocialService);
+  private auth = inject(AuthService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private dismissedKey = 'opencode_reminder_dismissed';
+  private loadedRequestsForUser: string | null = null;
 
   protected currentRoute = signal('');
 
@@ -80,6 +94,20 @@ export class LayoutComponent {
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(e => {
       this.currentRoute.set(e.urlAfterRedirects);
+    });
+
+    // Keep the footer request badge in sync once an approved user is loaded.
+    effect(() => {
+      const user = this.auth.currentUser();
+      if (!user) {
+        this.loadedRequestsForUser = null;
+        this.social.clear();
+        return;
+      }
+      if (this.auth.isApproved() && this.loadedRequestsForUser !== user.id) {
+        this.loadedRequestsForUser = user.id;
+        void this.social.loadRequests();
+      }
     });
   }
 

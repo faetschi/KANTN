@@ -311,6 +311,40 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
         </div>
       </div>
 
+      <!-- Privacy: leaderboard visibility -->
+      <section class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+        <div class="p-4 flex items-center justify-between gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+              <mat-icon class="text-sm">leaderboard</mat-icon>
+            </div>
+            <div>
+              <span class="font-medium text-gray-900 block">Show me on the ranking</span>
+              <span class="text-xs text-gray-400">Only your accepted friends can see the ranking.</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            [attr.aria-checked]="leaderboardVisible()"
+            [disabled]="savingVisibility()"
+            (click)="toggleLeaderboardVisibility()"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors disabled:opacity-50"
+            [class.bg-green-500]="leaderboardVisible()"
+            [class.bg-gray-200]="!leaderboardVisible()"
+          >
+            <span
+              class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5"
+              [class.translate-x-5]="leaderboardVisible()"
+              [class.translate-x-0.5]="!leaderboardVisible()"
+            ></span>
+          </button>
+        </div>
+        <p class="px-4 pb-4 -mt-1 text-xs text-gray-400">
+          When off, your name and stats are hidden from your friends' ranking. Your friends feed and your own view are unaffected.
+        </p>
+      </section>
+
       <!-- Settings List -->
       <section class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
         <a *ngIf="user()?.is_admin" [routerLink]="['/admin']" class="p-4 flex items-center justify-between border-b border-gray-50 active:bg-gray-50 transition-colors cursor-pointer no-underline">
@@ -383,6 +417,9 @@ export class ProfileComponent {
     age: 0,
   };
 
+  leaderboardVisible = signal<boolean>(true);
+  savingVisibility = signal<boolean>(false);
+
   constructor() {
     effect(() => {
       const u = this.user();
@@ -395,6 +432,7 @@ export class ProfileComponent {
         weight: u.weight || 0,
         age: u.age || 0,
       };
+      this.leaderboardVisible.set(u.leaderboardVisible ?? true);
     });
 
     try {
@@ -651,6 +689,34 @@ export class ProfileComponent {
     }
 
     this.notifications.success('Saved.');
+    await this.authService.refreshProfile();
+  }
+
+  async toggleLeaderboardVisibility() {
+    if (this.savingVisibility()) return;
+
+    const client = this.supabase.getClient();
+    const current = this.user();
+    if (!client || !current) return;
+
+    const next = !this.leaderboardVisible();
+    // Optimistic flip; revert on failure so the switch never lies.
+    this.leaderboardVisible.set(next);
+    this.savingVisibility.set(true);
+
+    const { error } = await client.from('profiles')
+      .update({ leaderboard_visible: next })
+      .eq('id', current.id);
+
+    this.savingVisibility.set(false);
+
+    if (error) {
+      this.leaderboardVisible.set(!next);
+      this.notifications.error(error.message || 'Failed to update visibility.');
+      return;
+    }
+
+    this.notifications.success(next ? 'You are shown on the ranking.' : 'You are hidden from the ranking.');
     await this.authService.refreshProfile();
   }
 }
