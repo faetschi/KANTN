@@ -206,7 +206,7 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
         [class.opacity-0]="!recentActivityVisible()"
         [class.opacity-100]="recentActivityVisible()"
         class="transition-opacity duration-150">
-        <div class="flex justify-between items-end mb-4">
+        <div class="flex justify-between items-center mb-4">
           <h2 class="text-lg font-bold text-gray-900">Recent Activity</h2>
           <a routerLink="/history" class="text-blue-600 text-sm font-medium">View History</a>
         </div>
