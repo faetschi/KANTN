@@ -46,6 +46,7 @@ export class StatsService {
 
   private weeklyStatsSignal = signal<AggregateStats>({ ...EMPTY_STATS });
   private monthlyStatsSignal = signal<AggregateStats>({ ...EMPTY_STATS });
+  private yearlyStatsSignal = signal<AggregateStats>({ ...EMPTY_STATS });
 
   constructor() {
     effect(() => {
@@ -58,6 +59,7 @@ export class StatsService {
       if (!currentUser || loadedUserId !== currentUser.id) {
         this.weeklyStatsSignal.set({ ...EMPTY_STATS });
         this.monthlyStatsSignal.set({ ...EMPTY_STATS });
+        this.yearlyStatsSignal.set({ ...EMPTY_STATS });
         return;
       }
 
@@ -132,11 +134,18 @@ export class StatsService {
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const monthStart = startOfMonth(now);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
 
     const weeklyFallback = this.getFallbackStats(weekStart);
     const monthlyFallback = this.getFallbackStats(monthStart);
+    const yearlyFallback = this.getFallbackStats(yearStart);
 
-    const periodStats = await this.fetchPeriodStats();
+    const [yearly, periodStats] = await Promise.all([
+      this.fetchRangeStats(yearStart, now, yearlyFallback),
+      this.fetchPeriodStats(),
+    ]);
+    this.yearlyStatsSignal.set(yearly);
+
     if (periodStats?.weekly && periodStats?.monthly) {
       this.weeklyStatsSignal.set({
         count: periodStats.weekly.count ?? weeklyFallback.count,
@@ -168,4 +177,6 @@ export class StatsService {
   weeklyStats = computed(() => this.weeklyStatsSignal());
 
   monthlyStats = computed(() => this.monthlyStatsSignal());
+
+  yearlyStats = computed(() => this.yearlyStatsSignal());
 }

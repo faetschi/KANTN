@@ -52,10 +52,6 @@ import { ScheduledWorkout } from '../core/models/models';
             <mat-icon class="mb-1 text-current">fitness_center</mat-icon>
             <span class="text-[10px] font-medium">Plans</span>
           </a>
-          <a routerLink="/calendar" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
-            <mat-icon class="mb-1 text-current">calendar_month</mat-icon>
-            <span class="text-[10px] font-medium">Calendar</span>
-          </a>
           <a routerLink="/social" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200 relative">
             <div class="relative">
               <mat-icon class="mb-1 text-current">groups</mat-icon>
@@ -64,6 +60,14 @@ import { ScheduledWorkout } from '../core/models/models';
               }
             </div>
             <span class="text-[10px] font-medium">Social</span>
+          </a>
+          <a routerLink="/activity" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1 text-current">trending_up</mat-icon>
+            <span class="text-[10px] font-medium">Activity</span>
+          </a>
+          <a routerLink="/calendar" routerLinkActive="text-blue-600 active" class="flex flex-col items-center text-gray-400 transition-colors duration-200">
+            <mat-icon class="mb-1 text-current">calendar_month</mat-icon>
+            <span class="text-[10px] font-medium">Calendar</span>
           </a>
         </nav>
       </div>

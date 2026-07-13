@@ -5,7 +5,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService } from '../../core/services/workout.service';
 import { AuthService } from '../../core/services/auth.service';
-import { ProfileService } from '../../core/services/profile.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { FabButtonComponent } from '../../shared/components/fab-button.component';
@@ -13,7 +12,6 @@ import { TimeSlot, WorkoutPlan } from '../../core/models/models';
 import { TimeSlotPickerComponent, TimeSlotItem } from '../../shared/components/time-slot-picker.component';
 import { getWorkoutPlanType, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutTypeEmoji } from '../../core/domain/workout-types';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
-import { normalizeUsername } from '../../core/domain/username-utils';
 
 @Component({
   selector: 'app-plans',
@@ -26,71 +24,13 @@ import { normalizeUsername } from '../../core/domain/username-utils';
           <h1 class="text-2xl font-bold text-gray-900">Workout Plans</h1>
           <p class="text-gray-500 text-sm">Create your perfect workout</p>
         </div>
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            (click)="showSharePanel.set(true); shareMessage = ''"
-            class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
-            aria-label="Share plan"
-          >
-            <mat-icon>share</mat-icon>
-          </button>
+        <div class="flex items-center gap-3">
+          <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
+          <a [routerLink]="['/profile']" class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer block">
+            <img [src]="user()?.avatarUrl || generateInitialsAvatar(user()?.name || 'User')" (error)="onAvatarError($event)" alt="Profile" class="w-full h-full object-cover">
+          </a>
         </div>
       </header>
-
-      @if (showSharePanel()) {
-      <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" (click)="closeSharePanel()">
-        <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4" (click)="$event.stopPropagation()">
-          <div class="flex items-center justify-between">
-            <h3 class="text-base font-bold text-gray-900">Share Plan</h3>
-            <button type="button" (click)="closeSharePanel()" class="text-gray-400">
-              <mat-icon>close</mat-icon>
-            </button>
-          </div>
-          <div class="grid grid-cols-1 gap-3">
-            <select [(ngModel)]="sharePlanId" class="bg-gray-50 border-none rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500">
-              <option [ngValue]="''">Select your plan</option>
-              @for (plan of myOwnedPlans(); track plan.id) {
-                <option [ngValue]="plan.id">{{ plan.name }}</option>
-              }
-            </select>
-            <div class="flex items-center bg-gray-50 rounded-xl px-3 focus-within:ring-2 focus-within:ring-blue-500">
-              <span class="text-gray-400 font-semibold select-none">&#64;</span>
-              <input
-                type="text"
-                [(ngModel)]="shareUsername"
-                autocapitalize="none"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="username"
-                class="flex-1 bg-transparent border-none py-2 pl-1 focus:ring-0 focus:outline-none"
-              >
-            </div>
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                (click)="sharePlan()"
-                [disabled]="sharingPlan || unsharingPlan"
-                class="flex-1 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-              >
-                {{ sharingPlan ? 'Sharing\u2026' : 'Share' }}
-              </button>
-              <button
-                type="button"
-                (click)="unsharePlan()"
-                [disabled]="sharingPlan || unsharingPlan"
-                class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
-              >
-                {{ unsharingPlan ? 'Revoking\u2026' : 'Unshare' }}
-              </button>
-            </div>
-          </div>
-          @if (shareMessage) {
-            <span class="text-xs text-gray-500">{{ shareMessage }}</span>
-          }
-        </div>
-      </div>
-      }
 
       @if (pendingInvites().length) {
         <section class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
@@ -294,22 +234,27 @@ import { normalizeUsername } from '../../core/domain/username-utils';
 export class PlansComponent {
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
-  profileService = inject(ProfileService);
   notifications = inject(NotificationService);
   router = inject(Router);
   
   plans = this.workoutService.plans;
   planInvites = this.workoutService.planInvites;
-  sharePlanId = '';
-  shareUsername = '';
-  showSharePanel = signal(false);
   planSearchQuery = signal('');
-  sharingPlan = false;
-  unsharingPlan = false;
-  shareMessage = '';
   inviteMessage = '';
   activatingPlanId = signal('');
   respondingInviteId = '';
+
+  user = this.authService.currentUser;
+  generateInitialsAvatar = generateInitialsAvatar;
+
+  onAvatarError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.src = generateInitialsAvatar(this.user()?.name || 'User');
+  }
+
+  logout() {
+    this.authService.logout();
+  }
 
   // ── Schedule state ──
   showScheduleDialog = signal(false);
@@ -488,94 +433,6 @@ export class PlansComponent {
     const ok = await this.workoutService.clearActivePlan();
     if (!ok) {
       this.notifications.error('Failed to deactivate plan.');
-    }
-  }
-
-  closeSharePanel() {
-    this.showSharePanel.set(false);
-    this.shareMessage = '';
-  }
-
-  /**
-   * Resolve the entered @username to a user id.
-   * Returns null and sets a user-facing message when the input is invalid,
-   * the user does not exist, or the user targets themselves.
-   */
-  private async resolveShareTargetUserId(): Promise<string | null> {
-    const username = normalizeUsername(this.shareUsername.replace(/^@/, ''));
-    if (!username) {
-      this.shareMessage = 'Please enter a username.';
-      return null;
-    }
-
-    const target = await this.profileService.getProfileByUsername(username);
-    if (!target) {
-      this.shareMessage = `User @${username} not found.`;
-      return null;
-    }
-
-    const currentUserId = this.authService.currentUser()?.id;
-    if (currentUserId && target.id === currentUserId) {
-      this.shareMessage = 'You cannot share a plan with yourself.';
-      return null;
-    }
-
-    return target.id;
-  }
-
-  async sharePlan() {
-    const planId = this.sharePlanId;
-
-    if (!planId) {
-      this.shareMessage = 'Please select a plan to share.';
-      return;
-    }
-
-    this.sharingPlan = true;
-    this.shareMessage = '';
-
-    const targetUserId = await this.resolveShareTargetUserId();
-    if (!targetUserId) {
-      this.sharingPlan = false;
-      return;
-    }
-
-    const ok = await this.workoutService.sharePlan(planId, targetUserId);
-    this.sharingPlan = false;
-    if (ok) {
-      this.shareUsername = '';
-      this.closeSharePanel();
-      this.notifications.success('Plan shared.');
-    } else {
-      this.shareMessage = 'Failed to share plan.';
-    }
-  }
-
-  async unsharePlan() {
-    const planId = this.sharePlanId;
-
-    if (!planId) {
-      this.shareMessage = 'Please select a plan to unshare.';
-      return;
-    }
-
-    this.unsharingPlan = true;
-    this.shareMessage = '';
-
-    const targetUserId = await this.resolveShareTargetUserId();
-    if (!targetUserId) {
-      this.unsharingPlan = false;
-      return;
-    }
-
-    const ok = await this.workoutService.unsharePlan(planId, targetUserId);
-    this.unsharingPlan = false;
-    if (ok) {
-      this.shareUsername = '';
-      this.closeSharePanel();
-      this.notifications.success('Plan unshared.');
-    } else {
-      this.shareMessage = 'Failed to unshare plan.';
     }
   }
 

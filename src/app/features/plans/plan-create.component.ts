@@ -9,8 +9,11 @@ import { WorkoutService } from '../../core/services/workout.service';
 import { Exercise, TimeSlot, WorkoutPlan } from '../../core/models/models';
 import { TimeSlotPickerComponent, TimeSlotItem } from '../../shared/components/time-slot-picker.component';
 import { AuthService } from '../../core/services/auth.service';
+import { ProfileService } from '../../core/services/profile.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { SearchBarComponent } from '../../shared/components/search-bar.component';
 import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWorkoutPlanTypeWithFallback } from '../../core/domain/workout-types';
+import { normalizeUsername } from '../../core/domain/username-utils';
 
 @Component({
   selector: 'app-plan-create',
@@ -19,11 +22,23 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
   template: `
     <div class="min-h-screen flex flex-col bg-white">
       <div class="flex-1 p-6 space-y-6 plan-form-content">
-        <header class="flex items-center gap-3">
-          <button routerLink="/plans" class="text-gray-600">
-            <mat-icon>arrow_back</mat-icon>
-          </button>
-          <h1 class="text-2xl font-bold text-gray-900">{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h1>
+        <header class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button routerLink="/plans" class="text-gray-600">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+            <h1 class="text-2xl font-bold text-gray-900">{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h1>
+          </div>
+          @if (isEditMode) {
+            <button
+              type="button"
+              (click)="shareUsername = ''; showSharePanel.set(true); shareMessage.set('')"
+              class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
+              aria-label="Share plan"
+            >
+              <mat-icon>share</mat-icon>
+            </button>
+          }
         </header>
         <section class="cloud-outline p-4 flex items-center justify-between">
           <div>
@@ -209,6 +224,54 @@ import { getWorkoutTypeEmoji, getWorkoutTypeVisual, workoutTypeBadgeStyle, getWo
       </div>
     </div>
 
+    @if (showSharePanel()) {
+    <div class="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" (click)="closeSharePanel()">
+      <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-xl border border-gray-100 space-y-4" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-gray-900">Share Plan</h3>
+          <button type="button" (click)="closeSharePanel()" class="text-gray-400">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="grid grid-cols-1 gap-3">
+          <div class="flex items-center bg-gray-50 rounded-xl px-3 focus-within:ring-2 focus-within:ring-blue-500">
+            <span class="text-gray-400 font-semibold select-none">&#64;</span>
+            <input
+              type="text"
+              [(ngModel)]="shareUsername"
+              autocapitalize="none"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="username"
+              class="flex-1 bg-transparent border-none py-2 pl-1 focus:ring-0 focus:outline-none"
+            >
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              (click)="sharePlan()"
+              [disabled]="sharingPlan() || unsharingPlan()"
+              class="flex-1 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+            >
+              {{ sharingPlan() ? 'Sharing\u2026' : 'Share' }}
+            </button>
+            <button
+              type="button"
+              (click)="unsharePlan()"
+              [disabled]="sharingPlan() || unsharingPlan()"
+              class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-xl disabled:opacity-50"
+            >
+              {{ unsharingPlan() ? 'Revoking\u2026' : 'Unshare' }}
+            </button>
+          </div>
+        </div>
+        @if (shareMessage()) {
+          <span class="text-xs text-gray-500">{{ shareMessage() }}</span>
+        }
+      </div>
+    </div>
+    }
+
     @if (showTimeSlotPicker()) {
       <app-time-slot-picker
         [workouts]="timeSlotItems()"
@@ -262,6 +325,8 @@ export class PlanCreateComponent {
   snackBar = inject(MatSnackBar);
   workoutService = inject(WorkoutService);
   authService = inject(AuthService);
+  profileService = inject(ProfileService);
+  notifications = inject(NotificationService);
 
   name = '';
   category: WorkoutPlan['category'] | '' = '';
@@ -269,6 +334,11 @@ export class PlanCreateComponent {
   isEditMode = false;
   editingPlanId: string | null = null;
   planSaveMessage = '';
+  shareUsername = '';
+  showSharePanel = signal(false);
+  sharingPlan = signal(false);
+  unsharingPlan = signal(false);
+  shareMessage = signal('');
   exerciseSearchQuery = '';
   @ViewChild('exerciseList') exerciseListEl?: ElementRef<HTMLElement>;
   exerciseListVisible = signal(false);
@@ -553,6 +623,104 @@ export class PlanCreateComponent {
     this.scheduleEnabled = false;
     this.scheduleDate = '';
     this.router.navigate(['/plans']);
+  }
+
+  closeSharePanel() {
+    this.showSharePanel.set(false);
+    this.shareMessage.set('');
+  }
+
+  private async resolveShareTargetUserId(): Promise<string | null> {
+    try {
+      const username = normalizeUsername(this.shareUsername.replace(/^@/, ''));
+      if (!username) {
+        this.shareMessage.set('Please enter a username.');
+        return null;
+      }
+
+      const target = await this.profileService.getProfileByUsername(username);
+      if (!target) {
+        this.shareMessage.set(`User @${username} not found.`);
+        return null;
+      }
+
+      const currentUserId = this.authService.currentUser()?.id;
+      if (currentUserId && target.id === currentUserId) {
+        this.shareMessage.set('You cannot share a plan with yourself.');
+        return null;
+      }
+
+      return target.id;
+    } catch {
+      this.shareMessage.set('An error occurred. Please try again.');
+      return null;
+    }
+  }
+
+  async sharePlan() {
+    try {
+      const planId = this.editingPlanId;
+
+      if (!planId) {
+        this.shareMessage.set('No plan to share.');
+        return;
+      }
+
+      this.sharingPlan.set(true);
+      this.shareMessage.set('');
+
+      const targetUserId = await this.resolveShareTargetUserId();
+      if (!targetUserId) {
+        this.sharingPlan.set(false);
+        return;
+      }
+
+      const ok = await this.workoutService.sharePlan(planId, targetUserId);
+      this.sharingPlan.set(false);
+      if (ok) {
+        this.shareUsername = '';
+        this.closeSharePanel();
+        this.notifications.success('Plan shared.');
+      } else {
+        this.shareMessage.set('Failed to share plan.');
+      }
+    } catch {
+      this.sharingPlan.set(false);
+      this.shareMessage.set('An error occurred. Please try again.');
+    }
+  }
+
+  async unsharePlan() {
+    try {
+      const planId = this.editingPlanId;
+
+      if (!planId) {
+        this.shareMessage.set('No plan to unshare.');
+        return;
+      }
+
+      this.unsharingPlan.set(true);
+      this.shareMessage.set('');
+
+      const targetUserId = await this.resolveShareTargetUserId();
+      if (!targetUserId) {
+        this.unsharingPlan.set(false);
+        return;
+      }
+
+      const ok = await this.workoutService.unsharePlan(planId, targetUserId);
+      this.unsharingPlan.set(false);
+      if (ok) {
+        this.shareUsername = '';
+        this.closeSharePanel();
+        this.notifications.success('Plan unshared.');
+      } else {
+        this.shareMessage.set('Failed to unshare plan.');
+      }
+    } catch {
+      this.unsharingPlan.set(false);
+      this.shareMessage.set('An error occurred. Please try again.');
+    }
   }
 
   async onTimeSlotsSaved(items: TimeSlotItem[]) {

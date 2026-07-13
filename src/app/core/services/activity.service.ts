@@ -7,6 +7,7 @@ import {
   computePlanStreak,
   countUniqueDays,
   buildContributionGrid,
+  buildMonthContributionGrid,
   buildWeekData,
   getWeekStart,
 } from '../domain/activity-utils';
@@ -104,6 +105,18 @@ export class ActivityService {
           totalActiveDays: countUniqueDays(sessions, plan.id),
         };
       });
+  }
+
+  buildMonthlyData(monthStart: Date): PlanYearData[] {
+    const sessions = this.sessions();
+    return this.plans()
+      .filter(p => sessions.some(s => s.planId === p.id))
+      .map(plan => ({
+        planId: plan.id,
+        contributions: buildMonthContributionGrid(sessions, monthStart, plan.id),
+        streak: computePlanStreak(sessions, plan.id),
+        totalActiveDays: countUniqueDays(sessions, plan.id),
+      }));
   }
 
   getPlanById(id: string): WorkoutPlan | undefined {
