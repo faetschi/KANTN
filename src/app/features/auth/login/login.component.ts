@@ -8,22 +8,7 @@ import { AuthService } from '../../../core/services/auth.service';
   template: `
     <div class="flex flex-col items-center justify-center h-screen bg-white p-6">
       <div class="w-full max-w-sm text-center">
-        <svg viewBox="0 0 100 100" class="w-20 h-20 mx-auto mb-6 drop-shadow-lg">
-          <defs>
-            <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#6366f1"/>
-              <stop offset="100%" stop-color="#8b5cf6"/>
-            </linearGradient>
-          </defs>
-          <rect width="100" height="100" rx="20" fill="url(#logoGrad)"/>
-          <g fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round">
-            <rect x="6" y="28" width="12" height="44" rx="3" fill="#fff" stroke="none"/>
-            <rect x="14" y="22" width="8" height="56" rx="3" fill="#fff" stroke="none"/>
-            <rect x="82" y="28" width="12" height="44" rx="3" fill="#fff" stroke="none"/>
-            <rect x="78" y="22" width="8" height="56" rx="3" fill="#fff" stroke="none"/>
-            <line x1="20" y1="50" x2="80" y2="50"/>
-          </g>
-        </svg>
+        <img src="/favicon.svg" class="w-20 h-20 mx-auto mb-6 drop-shadow-lg" alt="KANTN">
         <h1 class="text-3xl font-bold text-gray-900 mb-2 tracking-tight">KANTN</h1>
         <p class="text-gray-500 mb-10">Your personal fitness companion</p>
 

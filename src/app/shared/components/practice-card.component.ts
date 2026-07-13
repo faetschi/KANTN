@@ -36,10 +36,12 @@ import { ContributionGridComponent } from './contribution-grid.component';
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-1 text-orange-500">
-          <mat-icon class="text-sm">local_fire_department</mat-icon>
-          <span class="font-bold text-sm">{{ streak }}</span>
-        </div>
+        @if (streak > 0) {
+          <div class="flex items-center gap-1 text-orange-500">
+            <mat-icon class="text-sm">local_fire_department</mat-icon>
+            <span class="font-bold text-sm">{{ streak }}</span>
+          </div>
+        }
       </div>
 
       @if (viewMode === 'weekly') {
@@ -67,6 +69,36 @@ import { ContributionGridComponent } from './contribution-grid.component';
         </div>
       }
 
+      @if (viewMode === 'monthly') {
+        <div class="mt-2">
+          <div class="grid grid-cols-7 gap-1">
+            @for (label of weekdayLabels; track $index) {
+              <span class="text-[10px] font-bold text-gray-400 uppercase text-center">{{ label }}</span>
+            }
+            @for (pad of monthlyLeadingPad; track $index) {
+              <div class="aspect-square rounded-sm"></div>
+            }
+            @for (day of monthlyData; track $index) {
+              <div
+                class="aspect-square rounded-sm flex items-center justify-center text-[10px] font-bold transition-opacity"
+                [class.active-cell]="day.count > 0"
+                [class.text-white]="day.count > 0"
+                [class.text-gray-300]="day.count === 0"
+                [style.backgroundColor]="day.count > 0 ? intensityColor(day.intensity, 'green') : 'transparent'"
+                [title]="day.count > 0 ? (day.date.toLocaleDateString() + ': ' + day.count + ' sessions') : ''"
+                (click)="day.count > 0 && onContributionClick(plan.id, day)"
+              >{{ day.date.getDate() }}</div>
+            }
+          </div>
+          <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
+            @if (streak > 0) {
+              <span>{{ streak }} day streak</span>
+            }
+            <span>{{ totalActiveDays }} active days</span>
+          </div>
+        </div>
+      }
+
       @if (viewMode === 'yearly') {
         <div class="mt-2">
           <app-contribution-grid
@@ -75,7 +107,9 @@ import { ContributionGridComponent } from './contribution-grid.component';
             
           />
           <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
-            <span>{{ streak }} day streak</span>
+            @if (streak > 0) {
+              <span>{{ streak }} day streak</span>
+            }
             <span>{{ totalActiveDays }} active days</span>
           </div>
         </div>
@@ -86,8 +120,9 @@ import { ContributionGridComponent } from './contribution-grid.component';
 })
 export class PracticeCardComponent {
   @Input() plan!: WorkoutPlan;
-  @Input() viewMode: 'weekly' | 'yearly' = 'weekly';
+  @Input() viewMode: 'weekly' | 'monthly' | 'yearly' = 'weekly';
   @Input() weeklyData: WeekDayEntry[] = [];
+  @Input() monthlyData: ContributionDay[] = [];
   @Input() yearlyData: ContributionDay[] = [];
   @Input() streak: number = 0;
   @Input() totalActiveDays: number = 0;
@@ -95,6 +130,18 @@ export class PracticeCardComponent {
   @Output() cellLongPress = new EventEmitter<{ planId: string; date: Date }>();
 
   intensityColor = intensityColor;
+  weekdayLabels = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+
+  get monthlyLeadingPad(): number[] {
+    if (this.monthlyData.length === 0) return [];
+    const first = this.monthlyData[0].date.getDay();
+    const pad = first === 0 ? 6 : first - 1;
+    return new Array(pad).fill(0);
+  }
+
+  onContributionClick(planId: string, day: ContributionDay) {
+    this.cellClick.emit({ planId, date: day.date });
+  }
 
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
   private pressedPlanId: string | null = null;

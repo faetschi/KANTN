@@ -129,6 +129,38 @@ export function buildContributionGrid(sessions: WorkoutSession[], days = 365, pl
   return contributions;
 }
 
+export function buildMonthContributionGrid(sessions: WorkoutSession[], monthStart: Date, planId?: string): ContributionDay[] {
+  const year = monthStart.getFullYear();
+  const month = monthStart.getMonth();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+  const lastDay = isCurrentMonth ? now.getDate() : new Date(year, month + 1, 0).getDate();
+
+  const sessionCountByDay = new Map<string, number>();
+  for (const s of sessions) {
+    if (planId && s.planId !== planId) continue;
+    const d = new Date(s.date);
+    d.setHours(0, 0, 0, 0);
+    if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+    const key = localDateKey(d);
+    sessionCountByDay.set(key, (sessionCountByDay.get(key) || 0) + 1);
+  }
+
+  const contributions: ContributionDay[] = [];
+  for (let day = 1; day <= lastDay; day++) {
+    const date = new Date(year, month, day);
+    const key = localDateKey(date);
+    const count = sessionCountByDay.get(key) || 0;
+    contributions.push({
+      date: new Date(date),
+      count,
+      intensity: countToIntensity(count),
+    });
+  }
+  return contributions;
+}
+
 export function mapCountToIntensity(count: number): 0 | 1 | 2 | 3 | 4 {
   return countToIntensity(count);
 }
@@ -194,9 +226,12 @@ export function getWeekStart(date: Date = new Date()): Date {
   return d;
 }
 
-export function formatPeriodLabel(start: Date, viewMode: 'weekly' | 'yearly'): string {
+export function formatPeriodLabel(start: Date, viewMode: 'weekly' | 'monthly' | 'yearly'): string {
   if (viewMode === 'yearly') {
     return `${start.getFullYear()}`;
+  }
+  if (viewMode === 'monthly') {
+    return `${MONTH_LABELS[start.getMonth()]} ${start.getFullYear()}`;
   }
   const end = new Date(start);
   end.setDate(end.getDate() + 6);

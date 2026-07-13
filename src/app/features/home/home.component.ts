@@ -2,7 +2,6 @@ import { Component, inject, computed, signal, afterNextRender, viewChild, Elemen
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
-import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
 import { AuthService } from '../../core/services/auth.service';
 import { WorkoutService } from '../../core/services/workout.service';
 import { StatsService } from '../../core/services/stats.service';
@@ -20,7 +19,7 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, PeriodToggleComponent],
+  imports: [CommonModule, RouterLink, MatIconModule],
   template: `
     <!-- Missed Workouts - Top Notification Overlay -->
     @if (missedWorkouts().length > 0 && !missedBannerDismissed() && missedVisitCount >= 5) {
@@ -47,22 +46,7 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
       <!-- Header -->
       <header class="flex justify-between items-center">
         <div class="flex items-center gap-3">
-          <svg viewBox="0 0 100 100" class="w-11 h-11 shrink-0 drop-shadow-sm">
-            <defs>
-              <linearGradient id="homeLogoGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#6366f1"/>
-                <stop offset="100%" stop-color="#8b5cf6"/>
-              </linearGradient>
-            </defs>
-            <rect width="100" height="100" rx="20" fill="url(#homeLogoGrad)"/>
-            <g fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round">
-              <rect x="6" y="28" width="12" height="44" rx="3" fill="#fff" stroke="none"/>
-              <rect x="14" y="22" width="8" height="56" rx="3" fill="#fff" stroke="none"/>
-              <rect x="82" y="28" width="12" height="44" rx="3" fill="#fff" stroke="none"/>
-              <rect x="78" y="22" width="8" height="56" rx="3" fill="#fff" stroke="none"/>
-              <line x1="20" y1="50" x2="80" y2="50"/>
-            </g>
-          </svg>
+          <img src="/favicon.svg" class="w-11 h-11 shrink-0 drop-shadow-sm" alt="KANTN">
           <div>
             <h1 class="text-2xl font-bold text-gray-900">KANTN</h1>
             <p class="text-gray-500 text-sm">{{ today | date:'EEEE, d MMMM' }}</p>
@@ -77,17 +61,13 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
       </header>
 
       <section class="grid grid-cols-2 gap-4">
-        <div class="flex items-center justify-between col-span-2">
-          <app-period-toggle [value]="showPeriod" (valueChange)="onPeriodChange($event)" />
-        </div>
-
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex items-center space-x-2 mb-2 text-orange-500">
             <mat-icon class="text-sm">local_fire_department</mat-icon>
             <span class="text-xs font-semibold uppercase tracking-wider">Calories</span>
           </div>
           <p class="text-2xl font-bold text-gray-900">{{ currentStats().calories }}</p>
-          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
+          <p class="text-xs text-gray-400">This week</p>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex items-center space-x-2 mb-2 text-blue-500">
@@ -95,25 +75,9 @@ const BUTTON_SPARKS: ButtonSpark[] = [];
             <span class="text-xs font-semibold uppercase tracking-wider">Minutes</span>
           </div>
           <p class="text-2xl font-bold text-gray-900">{{ (currentStats().duration / 60) | number:'1.0-0' }}</p>
-          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
+          <p class="text-xs text-gray-400">This week</p>
         </div>
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <div class="flex items-center space-x-2 mb-2 text-red-500">
-            <mat-icon class="text-sm">fitness_center</mat-icon>
-            <span class="text-xs font-semibold uppercase tracking-wider">Volume</span>
-          </div>
-          <p class="text-2xl font-bold text-gray-900">{{ currentStats().volumeKg | number:'1.0-0' }}<span class="text-sm font-medium text-gray-400"> kg</span></p>
-          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
-        </div>
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <div class="flex items-center space-x-2 mb-2 text-green-500">
-            <mat-icon class="text-sm">route</mat-icon>
-            <span class="text-xs font-semibold uppercase tracking-wider">Distance</span>
-          </div>
-          <p class="text-2xl font-bold text-gray-900">{{ (currentStats().distanceMeters / 1000) | number:'1.0-2' }}<span class="text-sm font-medium text-gray-400"> km</span></p>
-          <p class="text-xs text-gray-400">This {{ showPeriod === 'week' ? 'week' : 'month' }}</p>
-        </div>
-      </section>
+        </section>
 
       <!-- Missed Workouts Popup -->
       @if (showMissedPopup()) {
@@ -291,8 +255,6 @@ export class HomeComponent {
   router = inject(Router);
   generateInitialsAvatar = generateInitialsAvatar;
 
-  showPeriod: 'week' | 'month' = 'week';
-
   buttonSparks = BUTTON_SPARKS;
 
   showMissedPopup = signal(false);
@@ -326,14 +288,8 @@ export class HomeComponent {
     });
   }
 
-  onPeriodChange(value: string) {
-    if (value === 'week' || value === 'month') {
-      this.showPeriod = value;
-    }
-  }
-
   currentStats() {
-    return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
+    return this.statsService.weeklyStats();
   }
 
   user = this.authService.currentUser;

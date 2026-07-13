@@ -4,16 +4,19 @@ import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ActivityService } from '../../core/services/activity.service';
+import { StatsService } from '../../core/services/stats.service';
 import { getWeekStart, formatPeriodLabel, buildContributionGrid, computePlanStreak, countUniqueDays } from '../../core/domain/activity-utils';
 import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 import { WeeklyViewComponent } from './weekly-view.component';
 import { YearlyViewComponent } from './yearly-view.component';
+import { MonthlyViewComponent } from './monthly-view.component';
 import { FabButtonComponent } from '../../shared/components/fab-button.component';
+import { PeriodToggleComponent } from '../../shared/components/period-toggle.component';
 
 @Component({
   selector: 'app-activity',
   standalone: true,
-  imports: [CommonModule, MatIconModule, RouterLink, WeeklyViewComponent, YearlyViewComponent, FabButtonComponent],
+  imports: [CommonModule, MatIconModule, RouterLink, WeeklyViewComponent, YearlyViewComponent, MonthlyViewComponent, FabButtonComponent, PeriodToggleComponent],
   styles: `
     @keyframes fadeSlideIn {
       from { opacity: 0; transform: translateY(8px); }
@@ -21,6 +24,10 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
     }
     .view-container.fade-in {
       animation: fadeSlideIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   `,
   template: `
@@ -38,55 +45,26 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
         </div>
       </header>
 
-      <!-- Stats Summary -->
-      <div class="grid grid-cols-3 gap-3 stagger">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
-          <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <mat-icon class="text-lg">done_all</mat-icon>
-          </div>
-          <div>
-            <p class="text-xl font-bold text-gray-900 leading-none">{{ activityService.totalContributions() }}</p>
-            <p class="text-[11px] text-gray-400 mt-1">Total Workouts</p>
-          </div>
+      <!-- Period Metrics (synced with /home) -->
+      <section class="grid grid-cols-2 gap-3">
+        <div class="flex items-center justify-between col-span-2">
+          <app-period-toggle
+            [options]="periodOptions"
+            [value]="viewMode()"
+            (valueChange)="onViewModeChange($event)"
+          />
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
-          <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <mat-icon class="text-lg">fitness_center</mat-icon>
-          </div>
-          <div>
-            <p class="text-xl font-bold text-blue-600 leading-none">{{ activityService.strengthSessionCount() }}</p>
-            <p class="text-[11px] text-gray-400 mt-1">Strength</p>
-          </div>
-        </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2">
-          <div class="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-            <mat-icon class="text-lg">directions_run</mat-icon>
-          </div>
-          <div>
-            <p class="text-xl font-bold text-orange-600 leading-none">{{ activityService.cardioSessionCount() }}</p>
-            <p class="text-[11px] text-gray-400 mt-1">Cardio</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2 bg-gray-100 rounded-xl p-1 w-fit">
-        <button
-          (click)="onViewModeChange('weekly')"
-          class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
-          [class.bg-white]="viewMode() === 'weekly'"
-          [class.text-gray-900]="viewMode() === 'weekly'"
-          [class.shadow-sm]="viewMode() === 'weekly'"
-          [class.text-gray-500]="viewMode() !== 'weekly'"
-        >Week</button>
-        <button
-          (click)="onViewModeChange('yearly')"
-          class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
-          [class.bg-white]="viewMode() === 'yearly'"
-          [class.text-gray-900]="viewMode() === 'yearly'"
-          [class.shadow-sm]="viewMode() === 'yearly'"
-          [class.text-gray-500]="viewMode() !== 'yearly'"
-        >Year</button>
-      </div>
+          @for (card of visibleStatsCards(); track statsVersion()) {
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100" style="animation: fadeIn 0.1s ease-in forwards">
+              <div class="flex items-center space-x-2 mb-2" [style.color]="card.color">
+                <mat-icon class="text-sm">{{ card.icon }}</mat-icon>
+                <span class="text-xs font-semibold uppercase tracking-wider">{{ card.label }}</span>
+              </div>
+              <p class="text-2xl font-bold text-gray-900">{{ card.value }}</p>
+              <p class="text-xs text-gray-400">This {{ periodWord() }}</p>
+            </div>
+          }
+      </section>
 
       <div class="flex items-center justify-center gap-3">
         <button (click)="previousPeriod()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
@@ -106,6 +84,13 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
               [weekData]="weeklyViewData()"
               (cellClick)="onCellClick($event)"
               (cellLongPress)="onCellLongPress($event)"
+            />
+          }
+          @case ('monthly') {
+            <app-monthly-view
+              [plans]="activityService.plans()"
+              [monthData]="monthlyViewData()"
+              (cellClick)="onCellClick($event)"
             />
           }
           @case ('yearly') {
@@ -164,13 +149,31 @@ import { FabButtonComponent } from '../../shared/components/fab-button.component
 export class ActivityComponent {
   authService = inject(AuthService);
   activityService = inject(ActivityService);
+  statsService = inject(StatsService);
   router = inject(Router);
   user = this.authService.currentUser;
   generateInitialsAvatar = generateInitialsAvatar;
 
-  viewMode = signal<'weekly' | 'yearly'>('weekly');
+  viewMode = signal<'weekly' | 'monthly' | 'yearly'>('weekly');
   periodAnchor = signal(new Date());
   animateView = false;
+  statsVersion = signal(0);
+
+  visibleStatsCards = computed(() => {
+    const s = this.currentStats();
+    return [
+      { color: '#3b82f6', icon: 'timer', label: 'Minutes', value: Math.round(s.duration / 60) },
+      { color: '#f97316', icon: 'local_fire_department', label: 'Calories', value: s.calories },
+      { color: '#ef4444', icon: 'fitness_center', label: 'Volume', value: `${Math.round(s.volumeKg)} kg` },
+      { color: '#22c55e', icon: 'route', label: 'Distance', value: `${(s.distanceMeters / 1000).toFixed(2)} km` },
+      { color: '#10b981', icon: 'done_all', label: 'Workouts', value: s.count },
+    ];
+  });
+  periodOptions = [
+    { label: 'Week', value: 'weekly' },
+    { label: 'Month', value: 'monthly' },
+    { label: 'Year', value: 'yearly' },
+  ];
   modalData = signal<{
     date: string;
     planId: string;
@@ -179,17 +182,32 @@ export class ActivityComponent {
   } | null>(null);
 
   periodStart = computed(() => {
+    const anchor = this.periodAnchor();
     if (this.viewMode() === 'yearly') {
-      return new Date(this.periodAnchor().getFullYear(), 0, 1);
+      return new Date(anchor.getFullYear(), 0, 1);
     }
-    return getWeekStart(this.periodAnchor());
+    if (this.viewMode() === 'monthly') {
+      return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    }
+    return getWeekStart(anchor);
   });
 
   periodLabel = computed(() => formatPeriodLabel(this.periodStart(), this.viewMode()));
 
+  periodWord = computed(() => {
+    if (this.viewMode() === 'weekly') return 'week';
+    if (this.viewMode() === 'monthly') return 'month';
+    return 'year';
+  });
+
   weeklyViewData = computed(() => {
     const weekStart = this.periodStart();
     return this.activityService.buildWeeklyData(weekStart);
+  });
+
+  monthlyViewData = computed(() => {
+    const monthStart = this.periodStart();
+    return this.activityService.buildMonthlyData(monthStart);
   });
 
   yearlyViewData = computed(() => {
@@ -211,6 +229,8 @@ export class ActivityComponent {
     const d = this.periodAnchor();
     if (this.viewMode() === 'yearly') {
       this.periodAnchor.set(new Date(d.getFullYear() - 1, 0, 1));
+    } else if (this.viewMode() === 'monthly') {
+      this.periodAnchor.set(new Date(d.getFullYear(), d.getMonth() - 1, 1));
     } else {
       const newDate = new Date(d);
       newDate.setDate(newDate.getDate() - 7);
@@ -222,6 +242,8 @@ export class ActivityComponent {
     const d = this.periodAnchor();
     if (this.viewMode() === 'yearly') {
       this.periodAnchor.set(new Date(d.getFullYear() + 1, 0, 1));
+    } else if (this.viewMode() === 'monthly') {
+      this.periodAnchor.set(new Date(d.getFullYear(), d.getMonth() + 1, 1));
     } else {
       const newDate = new Date(d);
       newDate.setDate(newDate.getDate() + 7);
@@ -229,13 +251,19 @@ export class ActivityComponent {
     }
   }
 
-  onViewModeChange(mode: 'weekly' | 'yearly') {
+  onViewModeChange(mode: string) {
+    if (mode !== 'weekly' && mode !== 'monthly' && mode !== 'yearly') return;
     this.viewMode.set(mode);
-    if (mode === 'weekly') {
-      this.periodAnchor.set(new Date());
-    }
+    this.periodAnchor.set(new Date());
     this.animateView = true;
+    this.statsVersion.update(v => v + 1);
     setTimeout(() => this.animateView = false, 300);
+  }
+
+  currentStats() {
+    if (this.viewMode() === 'weekly') return this.statsService.weeklyStats();
+    if (this.viewMode() === 'monthly') return this.statsService.monthlyStats();
+    return this.statsService.yearlyStats();
   }
 
   private formatLocalDate(d: Date): string {
