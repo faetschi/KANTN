@@ -4,7 +4,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { StatsService } from '../../core/services/stats.service';
 import { SupabaseService } from '../../core/services/supabase.service';
 import { PresenceService } from '../../core/services/presence.service';
 import { optimizeImageForUpload } from '../../core/domain/image-upload-domain';
@@ -216,36 +215,6 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
         </div>
       }
 
-      <!-- Period Toggle + Stats -->
-      <section>
-        <div class="bg-gray-900 text-white p-6 rounded-3xl shadow-xl relative">
-          <div class="grid grid-cols-2 gap-6">
-            <div>
-              <p class="text-3xl font-bold text-blue-400">{{ currentStats().count }}</p>
-              <p class="text-sm text-gray-400 mt-1">Workouts</p>
-            </div>
-            <div>
-              <p class="text-3xl font-bold text-green-400">{{ (currentStats().calories / 1000).toFixed(1) }}k</p>
-              <p class="text-sm text-gray-400 mt-1">Calories</p>
-            </div>
-            <div class="pt-4 border-t border-gray-800">
-              <p class="text-3xl font-bold text-white">{{ (currentStats().duration / 3600).toFixed(1) }} <span class="text-lg font-normal text-gray-500">hrs</span></p>
-              <p class="text-sm text-gray-400 mt-1">Total Active Time</p>
-            </div>
-            <div class="pt-4 border-t border-gray-800">
-              <p class="text-3xl font-bold text-orange-400">{{ activityService.overallStreak() }} 🔥</p>
-              <p class="text-sm text-gray-400 mt-1">Day Streak</p>
-            </div>
-          </div>
-          <div class="absolute -bottom-3 right-3">
-            <div class="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
-              <button (click)="setPeriod('week')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all" [class.bg-white]="showPeriod === 'week'" [class.text-gray-900]="showPeriod === 'week'" [class.shadow-sm]="showPeriod === 'week'" [class.text-gray-400]="showPeriod !== 'week'">Week</button>
-              <button (click)="setPeriod('month')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all" [class.bg-white]="showPeriod === 'month'" [class.text-gray-900]="showPeriod === 'month'" [class.shadow-sm]="showPeriod === 'month'" [class.text-gray-400]="showPeriod !== 'month'">Month</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- Activity Heatmap with Month/Year toggle -->
       <section>
         <div class="flex items-center justify-between mb-3">
@@ -394,7 +363,6 @@ import { intensityColor, buildContributionGrid } from '../../core/domain/activit
 })
 export class ProfileComponent {
   authService = inject(AuthService);
-  statsService = inject(StatsService);
   supabase = inject(SupabaseService);
   presenceService = inject(PresenceService);
   notifications = inject(NotificationService);
@@ -434,21 +402,6 @@ export class ProfileComponent {
       };
       this.leaderboardVisible.set(u.leaderboardVisible ?? true);
     });
-
-    try {
-      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('profile_stats_period') : null;
-      if (stored === 'week' || stored === 'month') {
-        this.showPeriod = stored;
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }
-
-  showPeriod: 'week' | 'month' = 'month';
-
-  currentStats() {
-    return this.showPeriod === 'week' ? this.statsService.weeklyStats() : this.statsService.monthlyStats();
   }
 
   get monthName() {
@@ -457,19 +410,6 @@ export class ProfileComponent {
 
   get currentYear() {
     return new Date().getFullYear();
-  }
-
-  setPeriod(period: string) {
-    if (period === 'week' || period === 'month') {
-      this.showPeriod = period;
-    }
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('profile_stats_period', period);
-      }
-    } catch {
-      // ignore storage errors
-    }
   }
 
   goToActivity() {

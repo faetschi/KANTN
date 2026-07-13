@@ -7,6 +7,7 @@ import { SocialService, UserSession } from '../../core/services/social.service';
 import { UserAvatarBadgeComponent } from '../../shared/components/user-avatar-badge.component';
 import { AuthService } from '../../core/services/auth.service';
 import { timeAgo } from '../../core/domain/time-ago';
+import { generateInitialsAvatar } from '../../core/domain/avatar-utils';
 
 @Component({
   selector: 'app-public-profile',
@@ -14,10 +15,17 @@ import { timeAgo } from '../../core/domain/time-ago';
   imports: [CommonModule, RouterLink, MatIconModule, UserAvatarBadgeComponent],
   template: `
     <div class="p-4 sm:p-6 space-y-6 max-w-2xl mx-auto pb-24">
-      <header class="flex items-center justify-between">
-        <button type="button" (click)="goBack()" class="text-sm text-gray-500">Back</button>
-        <h1 class="text-2xl font-bold text-gray-900">Profile</h1>
-        <a [routerLink]="['/profile']" class="text-sm text-blue-600">My Profile</a>
+      <header class="grid grid-cols-3 items-center">
+        <button type="button" (click)="goBack()" class="text-gray-500 hover:text-gray-700 p-1 -ml-1 justify-self-start">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <h1 class="text-2xl font-bold text-gray-900 text-center">Profile</h1>
+        <div class="flex items-center gap-3 justify-self-end">
+          <button (click)="logout()" class="text-xs font-semibold text-red-500">Log Out</button>
+          <a [routerLink]="['/profile']" class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm cursor-pointer block">
+            <img [src]="user()?.avatarUrl || generateInitialsAvatar(user()?.name || 'User')" alt="Profile" class="w-full h-full object-cover">
+          </a>
+        </div>
       </header>
 
       @if (loading()) {
@@ -139,7 +147,9 @@ export class PublicProfileComponent {
   private location = inject(Location);
   private profiles = inject(ProfileService);
   private social = inject(SocialService);
-  private auth = inject(AuthService);
+  authService = inject(AuthService);
+  generateInitialsAvatar = generateInitialsAvatar;
+  user = this.authService.currentUser;
 
   private readonly pageSize = 20;
 
@@ -158,7 +168,7 @@ export class PublicProfileComponent {
   }
 
   isSelf(): boolean {
-    const current = this.auth.currentUser();
+    const current = this.authService.currentUser();
     const p = this.profile();
     if (!current || !p) return false;
     return current.id === p.id;
@@ -231,5 +241,10 @@ export class PublicProfileComponent {
     } else {
       this.router.navigate(['/social']);
     }
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 }
